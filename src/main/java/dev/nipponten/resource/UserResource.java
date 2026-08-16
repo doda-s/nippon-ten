@@ -22,12 +22,13 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class UserResource {
 
-    @Inject
-    UserService service;
+    @Inject UserService service;
 
     @POST
     public Response create(UserRequest request) {
-        User saved = service.create(new User(null, request.email(), request.password(), request.createdAt()));
+        User saved =
+                service.create(
+                        new User(null, request.email(), request.password(), request.createdAt()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +46,9 @@ public class UserResource {
     @PUT
     @Path("/{id}")
     public UserResponse update(@PathParam("id") Long id, UserRequest request) {
-        User updated = service.update(id, new User(id, request.email(), request.password(), request.createdAt()));
+        User updated =
+                service.update(
+                        id, new User(id, request.email(), request.password(), request.createdAt()));
         return toResponse(updated);
     }
 
@@ -57,10 +60,6 @@ public class UserResource {
     }
 
     private UserResponse toResponse(User user) {
-        return new UserResponse(
-                user.id(),
-                user.email(),
-                user.password(),
-                user.createdAt());
+        return new UserResponse(user.id(), user.email(), user.password(), user.createdAt());
     }
 }

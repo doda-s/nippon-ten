@@ -10,10 +10,10 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class PanachePromotionTypeRepository implements PromotionTypeRepository, PanacheRepository<PromotionTypeEntity> {
+public class PanachePromotionTypeRepository
+        implements PromotionTypeRepository, PanacheRepository<PromotionTypeEntity> {
 
-    @Inject
-    PromotionTypeMapper mapper;
+    @Inject PromotionTypeMapper mapper;
 
     @Override
     @Transactional

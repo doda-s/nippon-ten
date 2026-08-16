@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class ComboService {
 
-    @Inject
-    ComboRepository repository;
+    @Inject ComboRepository repository;
 
     public Combo create(Combo model) {
         return repository.save(model);

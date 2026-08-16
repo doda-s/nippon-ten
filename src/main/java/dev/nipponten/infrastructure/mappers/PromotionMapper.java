@@ -11,8 +11,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class PromotionMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public PromotionEntity toEntity(Promotion model) {
         PromotionEntity entity = new PromotionEntity();
@@ -30,7 +29,8 @@ public class PromotionMapper {
         entity.setImageUrl(model.imageUrl());
         entity.setDescription(model.description());
         entity.setStatus(PromotionEntity.Status.valueOf(model.status().name()));
-        entity.setPromotionType(entityManager.getReference(PromotionTypeEntity.class, model.promotionTypeId()));
+        entity.setPromotionType(
+                entityManager.getReference(PromotionTypeEntity.class, model.promotionTypeId()));
         entity.setProduct(entityManager.getReference(ProductEntity.class, model.productId()));
         entity.setStartDate(model.startDate());
         entity.setEndDate(model.endDate());

@@ -11,11 +11,12 @@ import jakarta.persistence.Table;
 @Table(name = "product")
 public class ProductEntity {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String name;
 

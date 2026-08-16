@@ -10,10 +10,10 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class PanacheUserAddressRepository implements UserAddressRepository, PanacheRepository<UserAddressEntity> {
+public class PanacheUserAddressRepository
+        implements UserAddressRepository, PanacheRepository<UserAddressEntity> {
 
-    @Inject
-    UserAddressMapper mapper;
+    @Inject UserAddressMapper mapper;
 
     @Override
     @Transactional

@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class UserService {
 
-    @Inject
-    UserRepository repository;
+    @Inject UserRepository repository;
 
     public User create(User model) {
         return repository.save(model);

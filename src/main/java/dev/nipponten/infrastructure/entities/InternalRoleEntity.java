@@ -9,9 +9,7 @@ import jakarta.persistence.Table;
 @Table(name = "internal_role")
 public class InternalRoleEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String name;
 

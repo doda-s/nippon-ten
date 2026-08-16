@@ -22,12 +22,13 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class ProductIngredientResource {
 
-    @Inject
-    ProductIngredientService service;
+    @Inject ProductIngredientService service;
 
     @POST
     public Response create(ProductIngredientRequest request) {
-        ProductIngredient saved = service.create(new ProductIngredient(null, request.productId(), request.ingredientId()));
+        ProductIngredient saved =
+                service.create(
+                        new ProductIngredient(null, request.productId(), request.ingredientId()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -44,8 +45,11 @@ public class ProductIngredientResource {
 
     @PUT
     @Path("/{id}")
-    public ProductIngredientResponse update(@PathParam("id") Long id, ProductIngredientRequest request) {
-        ProductIngredient updated = service.update(id, new ProductIngredient(id, request.productId(), request.ingredientId()));
+    public ProductIngredientResponse update(
+            @PathParam("id") Long id, ProductIngredientRequest request) {
+        ProductIngredient updated =
+                service.update(
+                        id, new ProductIngredient(id, request.productId(), request.ingredientId()));
         return toResponse(updated);
     }
 

@@ -5,7 +5,10 @@ import java.util.List;
 
 public interface ProductRepository {
     Product save(Product model);
+
     void remove(Product model);
+
     Product getById(Long id);
+
     List<Product> getAll();
 }

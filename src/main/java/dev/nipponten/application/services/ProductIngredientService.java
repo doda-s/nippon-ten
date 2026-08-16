@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class ProductIngredientService {
 
-    @Inject
-    ProductIngredientRepository repository;
+    @Inject ProductIngredientRepository repository;
 
     public ProductIngredient create(ProductIngredient model) {
         return repository.save(model);

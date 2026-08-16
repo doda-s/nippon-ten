@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class UserAddressService {
 
-    @Inject
-    UserAddressRepository repository;
+    @Inject UserAddressRepository repository;
 
     public UserAddress create(UserAddress model) {
         return repository.save(model);

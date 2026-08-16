@@ -15,11 +15,12 @@ import java.time.LocalDateTime;
 @Table(name = "promotion")
 public class PromotionEntity {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String title;
 

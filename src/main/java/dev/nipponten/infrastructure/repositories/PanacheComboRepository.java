@@ -12,8 +12,7 @@ import java.util.List;
 @ApplicationScoped
 public class PanacheComboRepository implements ComboRepository, PanacheRepository<ComboEntity> {
 
-    @Inject
-    ComboMapper mapper;
+    @Inject ComboMapper mapper;
 
     @Override
     @Transactional

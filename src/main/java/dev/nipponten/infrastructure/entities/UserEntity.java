@@ -10,9 +10,7 @@ import java.time.LocalDateTime;
 @Table(name = "\"user\"")
 public class UserEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String email;
 

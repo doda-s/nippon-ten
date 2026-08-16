@@ -10,10 +10,10 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class PanacheComboProductRepository implements ComboProductRepository, PanacheRepository<ComboProductEntity> {
+public class PanacheComboProductRepository
+        implements ComboProductRepository, PanacheRepository<ComboProductEntity> {
 
-    @Inject
-    ComboProductMapper mapper;
+    @Inject ComboProductMapper mapper;
 
     @Override
     @Transactional

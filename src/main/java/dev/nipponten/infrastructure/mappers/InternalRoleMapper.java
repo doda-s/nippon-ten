@@ -22,8 +22,6 @@ public class InternalRoleMapper {
     }
 
     public InternalRole toModel(InternalRoleEntity entity) {
-        return new InternalRole(
-                entity.getId(),
-                entity.getName());
+        return new InternalRole(entity.getId(), entity.getName());
     }
 }

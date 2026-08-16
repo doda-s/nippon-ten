@@ -22,12 +22,19 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class UserAddressResource {
 
-    @Inject
-    UserAddressService service;
+    @Inject UserAddressService service;
 
     @POST
     public Response create(UserAddressRequest request) {
-        UserAddress saved = service.create(new UserAddress(null, request.clientId(), request.streetAddress(), request.number(), request.cep(), request.complement()));
+        UserAddress saved =
+                service.create(
+                        new UserAddress(
+                                null,
+                                request.clientId(),
+                                request.streetAddress(),
+                                request.number(),
+                                request.cep(),
+                                request.complement()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +52,16 @@ public class UserAddressResource {
     @PUT
     @Path("/{id}")
     public UserAddressResponse update(@PathParam("id") Long id, UserAddressRequest request) {
-        UserAddress updated = service.update(id, new UserAddress(id, request.clientId(), request.streetAddress(), request.number(), request.cep(), request.complement()));
+        UserAddress updated =
+                service.update(
+                        id,
+                        new UserAddress(
+                                id,
+                                request.clientId(),
+                                request.streetAddress(),
+                                request.number(),
+                                request.cep(),
+                                request.complement()));
         return toResponse(updated);
     }
 

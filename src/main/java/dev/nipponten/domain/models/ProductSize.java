@@ -4,5 +4,8 @@ import java.math.BigDecimal;
 
 public record ProductSize(Long id, Long productId, BigDecimal price, Status status) {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 }

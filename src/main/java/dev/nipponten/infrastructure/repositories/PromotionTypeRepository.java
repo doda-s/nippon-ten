@@ -5,7 +5,10 @@ import java.util.List;
 
 public interface PromotionTypeRepository {
     PromotionType save(PromotionType model);
+
     void remove(PromotionType model);
+
     PromotionType getById(Long id);
+
     List<PromotionType> getAll();
 }

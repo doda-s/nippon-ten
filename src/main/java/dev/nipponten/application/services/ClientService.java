@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class ClientService {
 
-    @Inject
-    ClientRepository repository;
+    @Inject ClientRepository repository;
 
     public Client create(Client model) {
         return repository.save(model);

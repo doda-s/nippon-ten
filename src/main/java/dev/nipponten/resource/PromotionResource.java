@@ -22,12 +22,24 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class PromotionResource {
 
-    @Inject
-    PromotionService service;
+    @Inject PromotionService service;
 
     @POST
     public Response create(PromotionRequest request) {
-        Promotion saved = service.create(new Promotion(null, request.title(), request.price(), request.imageUrl(), request.description(), request.status(), request.promotionTypeId(), request.productId(), request.startDate(), request.endDate(), request.enablePromotionPoints()));
+        Promotion saved =
+                service.create(
+                        new Promotion(
+                                null,
+                                request.title(),
+                                request.price(),
+                                request.imageUrl(),
+                                request.description(),
+                                request.status(),
+                                request.promotionTypeId(),
+                                request.productId(),
+                                request.startDate(),
+                                request.endDate(),
+                                request.enablePromotionPoints()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +57,21 @@ public class PromotionResource {
     @PUT
     @Path("/{id}")
     public PromotionResponse update(@PathParam("id") Long id, PromotionRequest request) {
-        Promotion updated = service.update(id, new Promotion(id, request.title(), request.price(), request.imageUrl(), request.description(), request.status(), request.promotionTypeId(), request.productId(), request.startDate(), request.endDate(), request.enablePromotionPoints()));
+        Promotion updated =
+                service.update(
+                        id,
+                        new Promotion(
+                                id,
+                                request.title(),
+                                request.price(),
+                                request.imageUrl(),
+                                request.description(),
+                                request.status(),
+                                request.promotionTypeId(),
+                                request.productId(),
+                                request.startDate(),
+                                request.endDate(),
+                                request.enablePromotionPoints()));
         return toResponse(updated);
     }
 

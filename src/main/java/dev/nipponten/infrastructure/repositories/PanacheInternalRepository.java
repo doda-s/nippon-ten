@@ -10,10 +10,10 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class PanacheInternalRepository implements InternalRepository, PanacheRepository<InternalEntity> {
+public class PanacheInternalRepository
+        implements InternalRepository, PanacheRepository<InternalEntity> {
 
-    @Inject
-    InternalMapper mapper;
+    @Inject InternalMapper mapper;
 
     @Override
     @Transactional

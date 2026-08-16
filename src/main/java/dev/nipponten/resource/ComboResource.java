@@ -22,12 +22,19 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class ComboResource {
 
-    @Inject
-    ComboService service;
+    @Inject ComboService service;
 
     @POST
     public Response create(ComboRequest request) {
-        Combo saved = service.create(new Combo(null, request.name(), request.price(), request.imageUrl(), request.description(), request.status()));
+        Combo saved =
+                service.create(
+                        new Combo(
+                                null,
+                                request.name(),
+                                request.price(),
+                                request.imageUrl(),
+                                request.description(),
+                                request.status()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +52,16 @@ public class ComboResource {
     @PUT
     @Path("/{id}")
     public ComboResponse update(@PathParam("id") Long id, ComboRequest request) {
-        Combo updated = service.update(id, new Combo(id, request.name(), request.price(), request.imageUrl(), request.description(), request.status()));
+        Combo updated =
+                service.update(
+                        id,
+                        new Combo(
+                                id,
+                                request.name(),
+                                request.price(),
+                                request.imageUrl(),
+                                request.description(),
+                                request.status()));
         return toResponse(updated);
     }
 

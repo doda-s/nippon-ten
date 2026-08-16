@@ -12,8 +12,7 @@ import java.util.List;
 @ApplicationScoped
 public class PanacheUserRepository implements UserRepository, PanacheRepository<UserEntity> {
 
-    @Inject
-    UserMapper mapper;
+    @Inject UserMapper mapper;
 
     @Override
     @Transactional

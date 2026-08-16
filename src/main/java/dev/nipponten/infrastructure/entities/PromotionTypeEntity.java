@@ -10,9 +10,7 @@ import java.math.BigDecimal;
 @Table(name = "promotion_type")
 public class PromotionTypeEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String name;
 

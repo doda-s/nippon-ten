@@ -10,8 +10,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class ClientMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public ClientEntity toEntity(Client model) {
         ClientEntity entity = new ClientEntity();

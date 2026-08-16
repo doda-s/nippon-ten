@@ -22,12 +22,18 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class PromotionTypeResource {
 
-    @Inject
-    PromotionTypeService service;
+    @Inject PromotionTypeService service;
 
     @POST
     public Response create(PromotionTypeRequest request) {
-        PromotionType saved = service.create(new PromotionType(null, request.name(), request.description(), request.type(), request.value()));
+        PromotionType saved =
+                service.create(
+                        new PromotionType(
+                                null,
+                                request.name(),
+                                request.description(),
+                                request.type(),
+                                request.value()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +51,15 @@ public class PromotionTypeResource {
     @PUT
     @Path("/{id}")
     public PromotionTypeResponse update(@PathParam("id") Long id, PromotionTypeRequest request) {
-        PromotionType updated = service.update(id, new PromotionType(id, request.name(), request.description(), request.type(), request.value()));
+        PromotionType updated =
+                service.update(
+                        id,
+                        new PromotionType(
+                                id,
+                                request.name(),
+                                request.description(),
+                                request.type(),
+                                request.value()));
         return toResponse(updated);
     }
 

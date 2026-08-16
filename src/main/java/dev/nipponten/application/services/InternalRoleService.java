@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class InternalRoleService {
 
-    @Inject
-    InternalRoleRepository repository;
+    @Inject InternalRoleRepository repository;
 
     public InternalRole create(InternalRole model) {
         return repository.save(model);

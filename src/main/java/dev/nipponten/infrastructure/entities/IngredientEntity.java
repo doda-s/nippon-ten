@@ -12,11 +12,12 @@ import java.math.BigDecimal;
 @Table(name = "ingredient")
 public class IngredientEntity {
 
-    public enum Status { ACTIVE, OUT_OF_STOCK }
+    public enum Status {
+        ACTIVE,
+        OUT_OF_STOCK
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String name;
 

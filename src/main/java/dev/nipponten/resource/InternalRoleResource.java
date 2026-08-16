@@ -22,8 +22,7 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class InternalRoleResource {
 
-    @Inject
-    InternalRoleService service;
+    @Inject InternalRoleService service;
 
     @POST
     public Response create(InternalRoleRequest request) {
@@ -57,8 +56,6 @@ public class InternalRoleResource {
     }
 
     private InternalRoleResponse toResponse(InternalRole internalRole) {
-        return new InternalRoleResponse(
-                internalRole.id(),
-                internalRole.name());
+        return new InternalRoleResponse(internalRole.id(), internalRole.name());
     }
 }

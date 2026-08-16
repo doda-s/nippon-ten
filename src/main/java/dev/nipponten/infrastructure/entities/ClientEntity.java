@@ -11,9 +11,7 @@ import jakarta.persistence.Table;
 @Table(name = "client")
 public class ClientEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "user_id")

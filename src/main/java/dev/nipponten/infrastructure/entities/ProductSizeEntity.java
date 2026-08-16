@@ -14,11 +14,12 @@ import java.math.BigDecimal;
 @Table(name = "product_size")
 public class ProductSizeEntity {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "product_id")

@@ -10,8 +10,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class ProductSizeMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public ProductSizeEntity toEntity(ProductSize model) {
         ProductSizeEntity entity = new ProductSizeEntity();

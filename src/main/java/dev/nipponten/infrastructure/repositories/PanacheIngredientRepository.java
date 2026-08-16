@@ -10,10 +10,10 @@ import jakarta.transaction.Transactional;
 import java.util.List;
 
 @ApplicationScoped
-public class PanacheIngredientRepository implements IngredientRepository, PanacheRepository<IngredientEntity> {
+public class PanacheIngredientRepository
+        implements IngredientRepository, PanacheRepository<IngredientEntity> {
 
-    @Inject
-    IngredientMapper mapper;
+    @Inject IngredientMapper mapper;
 
     @Override
     @Transactional

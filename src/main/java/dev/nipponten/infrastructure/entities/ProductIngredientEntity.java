@@ -11,9 +11,7 @@ import jakarta.persistence.Table;
 @Table(name = "product_ingredient")
 public class ProductIngredientEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "product_id")

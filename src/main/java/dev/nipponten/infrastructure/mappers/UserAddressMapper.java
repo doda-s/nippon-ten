@@ -10,8 +10,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class UserAddressMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public UserAddressEntity toEntity(UserAddress model) {
         UserAddressEntity entity = new UserAddressEntity();

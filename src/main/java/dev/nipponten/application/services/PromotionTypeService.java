@@ -10,8 +10,7 @@ import java.util.List;
 @ApplicationScoped
 public class PromotionTypeService {
 
-    @Inject
-    PromotionTypeRepository repository;
+    @Inject PromotionTypeRepository repository;
 
     public PromotionType create(PromotionType model) {
         return repository.save(model);

@@ -11,8 +11,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class InternalMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public InternalEntity toEntity(Internal model) {
         InternalEntity entity = new InternalEntity();
@@ -26,7 +25,8 @@ public class InternalMapper {
 
     private void applyToEntity(InternalEntity entity, Internal model) {
         entity.setUser(entityManager.getReference(UserEntity.class, model.userId()));
-        entity.setInternalRole(entityManager.getReference(InternalRoleEntity.class, model.internalRoleId()));
+        entity.setInternalRole(
+                entityManager.getReference(InternalRoleEntity.class, model.internalRoleId()));
         entity.setName(model.name());
         entity.setLastName(model.lastName());
         entity.setCpf(model.cpf());

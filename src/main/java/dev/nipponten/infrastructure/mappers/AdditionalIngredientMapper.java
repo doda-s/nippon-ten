@@ -11,8 +11,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class AdditionalIngredientMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public AdditionalIngredientEntity toEntity(AdditionalIngredient model) {
         AdditionalIngredientEntity entity = new AdditionalIngredientEntity();
@@ -26,7 +25,8 @@ public class AdditionalIngredientMapper {
 
     private void applyToEntity(AdditionalIngredientEntity entity, AdditionalIngredient model) {
         entity.setProduct(entityManager.getReference(ProductEntity.class, model.productId()));
-        entity.setIngredient(entityManager.getReference(IngredientEntity.class, model.ingredientId()));
+        entity.setIngredient(
+                entityManager.getReference(IngredientEntity.class, model.ingredientId()));
         entity.setMaximumQuantity(model.maximumQuantity());
         entity.setStatus(AdditionalIngredientEntity.Status.valueOf(model.status().name()));
     }

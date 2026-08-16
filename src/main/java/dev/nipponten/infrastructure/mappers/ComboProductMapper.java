@@ -11,8 +11,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class ComboProductMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public ComboProductEntity toEntity(ComboProduct model) {
         ComboProductEntity entity = new ComboProductEntity();
@@ -31,8 +30,6 @@ public class ComboProductMapper {
 
     public ComboProduct toModel(ComboProductEntity entity) {
         return new ComboProduct(
-                entity.getId(),
-                entity.getCombo().getId(),
-                entity.getProduct().getId());
+                entity.getId(), entity.getCombo().getId(), entity.getProduct().getId());
     }
 }

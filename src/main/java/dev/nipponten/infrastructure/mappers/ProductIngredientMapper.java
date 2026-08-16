@@ -11,8 +11,7 @@ import jakarta.persistence.EntityManager;
 @ApplicationScoped
 public class ProductIngredientMapper {
 
-    @Inject
-    EntityManager entityManager;
+    @Inject EntityManager entityManager;
 
     public ProductIngredientEntity toEntity(ProductIngredient model) {
         ProductIngredientEntity entity = new ProductIngredientEntity();
@@ -26,13 +25,12 @@ public class ProductIngredientMapper {
 
     private void applyToEntity(ProductIngredientEntity entity, ProductIngredient model) {
         entity.setProduct(entityManager.getReference(ProductEntity.class, model.productId()));
-        entity.setIngredient(entityManager.getReference(IngredientEntity.class, model.ingredientId()));
+        entity.setIngredient(
+                entityManager.getReference(IngredientEntity.class, model.ingredientId()));
     }
 
     public ProductIngredient toModel(ProductIngredientEntity entity) {
         return new ProductIngredient(
-                entity.getId(),
-                entity.getProduct().getId(),
-                entity.getIngredient().getId());
+                entity.getId(), entity.getProduct().getId(), entity.getIngredient().getId());
     }
 }

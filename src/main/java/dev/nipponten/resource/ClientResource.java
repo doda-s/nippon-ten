@@ -22,12 +22,19 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class ClientResource {
 
-    @Inject
-    ClientService service;
+    @Inject ClientService service;
 
     @POST
     public Response create(ClientRequest request) {
-        Client saved = service.create(new Client(null, request.userId(), request.name(), request.lastName(), request.cpf(), request.promotionPoints()));
+        Client saved =
+                service.create(
+                        new Client(
+                                null,
+                                request.userId(),
+                                request.name(),
+                                request.lastName(),
+                                request.cpf(),
+                                request.promotionPoints()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +52,16 @@ public class ClientResource {
     @PUT
     @Path("/{id}")
     public ClientResponse update(@PathParam("id") Long id, ClientRequest request) {
-        Client updated = service.update(id, new Client(id, request.userId(), request.name(), request.lastName(), request.cpf(), request.promotionPoints()));
+        Client updated =
+                service.update(
+                        id,
+                        new Client(
+                                id,
+                                request.userId(),
+                                request.name(),
+                                request.lastName(),
+                                request.cpf(),
+                                request.promotionPoints()));
         return toResponse(updated);
     }
 

@@ -22,12 +22,12 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class ComboProductResource {
 
-    @Inject
-    ComboProductService service;
+    @Inject ComboProductService service;
 
     @POST
     public Response create(ComboProductRequest request) {
-        ComboProduct saved = service.create(new ComboProduct(null, request.comboId(), request.productId()));
+        ComboProduct saved =
+                service.create(new ComboProduct(null, request.comboId(), request.productId()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +45,8 @@ public class ComboProductResource {
     @PUT
     @Path("/{id}")
     public ComboProductResponse update(@PathParam("id") Long id, ComboProductRequest request) {
-        ComboProduct updated = service.update(id, new ComboProduct(id, request.comboId(), request.productId()));
+        ComboProduct updated =
+                service.update(id, new ComboProduct(id, request.comboId(), request.productId()));
         return toResponse(updated);
     }
 
@@ -58,8 +59,6 @@ public class ComboProductResource {
 
     private ComboProductResponse toResponse(ComboProduct comboProduct) {
         return new ComboProductResponse(
-                comboProduct.id(),
-                comboProduct.comboId(),
-                comboProduct.productId());
+                comboProduct.id(), comboProduct.comboId(), comboProduct.productId());
     }
 }

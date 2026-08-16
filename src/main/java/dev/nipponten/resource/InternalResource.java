@@ -22,12 +22,19 @@ import java.util.List;
 @Produces(MediaType.APPLICATION_JSON)
 public class InternalResource {
 
-    @Inject
-    InternalService service;
+    @Inject InternalService service;
 
     @POST
     public Response create(InternalRequest request) {
-        Internal saved = service.create(new Internal(null, request.userId(), request.internalRoleId(), request.name(), request.lastName(), request.cpf()));
+        Internal saved =
+                service.create(
+                        new Internal(
+                                null,
+                                request.userId(),
+                                request.internalRoleId(),
+                                request.name(),
+                                request.lastName(),
+                                request.cpf()));
         return Response.status(Response.Status.CREATED).entity(toResponse(saved)).build();
     }
 
@@ -45,7 +52,16 @@ public class InternalResource {
     @PUT
     @Path("/{id}")
     public InternalResponse update(@PathParam("id") Long id, InternalRequest request) {
-        Internal updated = service.update(id, new Internal(id, request.userId(), request.internalRoleId(), request.name(), request.lastName(), request.cpf()));
+        Internal updated =
+                service.update(
+                        id,
+                        new Internal(
+                                id,
+                                request.userId(),
+                                request.internalRoleId(),
+                                request.name(),
+                                request.lastName(),
+                                request.cpf()));
         return toResponse(updated);
     }
 
