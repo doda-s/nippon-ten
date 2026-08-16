@@ -11,9 +11,7 @@ import jakarta.persistence.Table;
 @Table(name = "combo_product")
 public class ComboProductEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "combo_id")
@@ -23,12 +21,7 @@ public class ComboProductEntity {
     @JoinColumn(name = "product_id")
     private ProductEntity product;
 
-    protected ComboProductEntity() {}
-
-    protected ComboProductEntity(ComboEntity combo, ProductEntity product) {
-        this.combo = combo;
-        this.product = product;
-    }
+    public ComboProductEntity() {}
 
     public Long getId() {
         return id;

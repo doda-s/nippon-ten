@@ -13,11 +13,12 @@ import jakarta.persistence.Table;
 @Table(name = "additional_ingredients")
 public class AdditionalIngredientEntity {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "product_id")
@@ -32,15 +33,7 @@ public class AdditionalIngredientEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected AdditionalIngredientEntity() {}
-
-    protected AdditionalIngredientEntity(
-            ProductEntity product, IngredientEntity ingredient, Integer maximumQuantity, Status status) {
-        this.product = product;
-        this.ingredient = ingredient;
-        this.maximumQuantity = maximumQuantity;
-        this.status = status;
-    }
+    public AdditionalIngredientEntity() {}
 
     public Long getId() {
         return id;

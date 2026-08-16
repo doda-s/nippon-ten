@@ -11,9 +11,7 @@ import jakarta.persistence.Table;
 @Table(name = "client")
 public class ClientEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
@@ -27,15 +25,7 @@ public class ClientEntity {
 
     private Integer promotionPoints;
 
-    protected ClientEntity() {}
-
-    protected ClientEntity(UserEntity user, String name, String lastName, String cpf, Integer promotionPoints) {
-        this.user = user;
-        this.name = name;
-        this.lastName = lastName;
-        this.cpf = cpf;
-        this.promotionPoints = promotionPoints;
-    }
+    public ClientEntity() {}
 
     public Long getId() {
         return id;

@@ -11,9 +11,7 @@ import jakarta.persistence.Table;
 @Table(name = "internal")
 public class InternalEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
@@ -29,16 +27,7 @@ public class InternalEntity {
 
     private String cpf;
 
-    protected InternalEntity() {}
-
-    protected InternalEntity(
-            UserEntity user, InternalRoleEntity internalRole, String name, String lastName, String cpf) {
-        this.user = user;
-        this.internalRole = internalRole;
-        this.name = name;
-        this.lastName = lastName;
-        this.cpf = cpf;
-    }
+    public InternalEntity() {}
 
     public Long getId() {
         return id;

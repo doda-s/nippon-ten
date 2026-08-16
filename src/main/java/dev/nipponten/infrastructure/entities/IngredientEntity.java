@@ -12,11 +12,12 @@ import java.math.BigDecimal;
 @Table(name = "ingredient")
 public class IngredientEntity {
 
-    public enum Status { ACTIVE, OUT_OF_STOCK }
+    public enum Status {
+        ACTIVE,
+        OUT_OF_STOCK
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String name;
 
@@ -29,15 +30,7 @@ public class IngredientEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected IngredientEntity() {}
-
-    protected IngredientEntity(String name, String description, String imageUrl, BigDecimal price, Status status) {
-        this.name = name;
-        this.description = description;
-        this.imageUrl = imageUrl;
-        this.price = price;
-        this.status = status;
-    }
+    public IngredientEntity() {}
 
     public Long getId() {
         return id;

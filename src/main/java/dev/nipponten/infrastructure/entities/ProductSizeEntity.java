@@ -14,11 +14,12 @@ import java.math.BigDecimal;
 @Table(name = "product_size")
 public class ProductSizeEntity {
 
-    public enum Status { ACTIVE, INACTIVE }
+    public enum Status {
+        ACTIVE,
+        INACTIVE
+    }
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     @ManyToOne
     @JoinColumn(name = "product_id")
@@ -29,13 +30,7 @@ public class ProductSizeEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected ProductSizeEntity() {}
-
-    protected ProductSizeEntity(ProductEntity product, BigDecimal price, Status status) {
-        this.product = product;
-        this.price = price;
-        this.status = status;
-    }
+    public ProductSizeEntity() {}
 
     public Long getId() {
         return id;

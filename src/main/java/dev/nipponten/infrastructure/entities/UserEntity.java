@@ -10,9 +10,7 @@ import java.time.LocalDateTime;
 @Table(name = "\"user\"")
 public class UserEntity {
 
-    @Id
-    @GeneratedValue
-    private Long id;
+    @Id @GeneratedValue private Long id;
 
     private String email;
 
@@ -20,13 +18,7 @@ public class UserEntity {
 
     private LocalDateTime createdAt;
 
-    protected UserEntity() {}
-
-    protected UserEntity(String email, String password, LocalDateTime createdAt) {
-        this.email = email;
-        this.password = password;
-        this.createdAt = createdAt;
-    }
+    public UserEntity() {}
 
     public Long getId() {
         return id;
