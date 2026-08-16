@@ -23,12 +23,7 @@ public class ProductIngredientEntity {
     @JoinColumn(name = "ingredient_id")
     private IngredientEntity ingredient;
 
-    protected ProductIngredientEntity() {}
-
-    protected ProductIngredientEntity(ProductEntity product, IngredientEntity ingredient) {
-        this.product = product;
-        this.ingredient = ingredient;
-    }
+    public ProductIngredientEntity() {}
 
     public Long getId() {
         return id;

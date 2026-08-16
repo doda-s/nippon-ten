@@ -29,15 +29,7 @@ public class ComboEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected ComboEntity() {}
-
-    protected ComboEntity(String name, BigDecimal price, String imageUrl, String description, Status status) {
-        this.name = name;
-        this.price = price;
-        this.imageUrl = imageUrl;
-        this.description = description;
-        this.status = status;
-    }
+    public ComboEntity() {}
 
     public Long getId() {
         return id;

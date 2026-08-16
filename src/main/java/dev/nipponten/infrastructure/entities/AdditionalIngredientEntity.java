@@ -32,15 +32,7 @@ public class AdditionalIngredientEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected AdditionalIngredientEntity() {}
-
-    protected AdditionalIngredientEntity(
-            ProductEntity product, IngredientEntity ingredient, Integer maximumQuantity, Status status) {
-        this.product = product;
-        this.ingredient = ingredient;
-        this.maximumQuantity = maximumQuantity;
-        this.status = status;
-    }
+    public AdditionalIngredientEntity() {}
 
     public Long getId() {
         return id;

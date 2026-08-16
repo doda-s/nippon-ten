@@ -23,12 +23,7 @@ public class ComboProductEntity {
     @JoinColumn(name = "product_id")
     private ProductEntity product;
 
-    protected ComboProductEntity() {}
-
-    protected ComboProductEntity(ComboEntity combo, ProductEntity product) {
-        this.combo = combo;
-        this.product = product;
-    }
+    public ComboProductEntity() {}
 
     public Long getId() {
         return id;

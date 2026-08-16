@@ -46,30 +46,7 @@ public class PromotionEntity {
 
     private boolean enablePromotionPoints;
 
-    protected PromotionEntity() {}
-
-    protected PromotionEntity(
-            String title,
-            BigDecimal price,
-            String imageUrl,
-            String description,
-            Status status,
-            PromotionTypeEntity promotionType,
-            ProductEntity product,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            boolean enablePromotionPoints) {
-        this.title = title;
-        this.price = price;
-        this.imageUrl = imageUrl;
-        this.description = description;
-        this.status = status;
-        this.promotionType = promotionType;
-        this.product = product;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.enablePromotionPoints = enablePromotionPoints;
-    }
+    public PromotionEntity() {}
 
     public Long getId() {
         return id;

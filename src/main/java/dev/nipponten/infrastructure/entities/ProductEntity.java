@@ -26,14 +26,7 @@ public class ProductEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected ProductEntity() {}
-
-    protected ProductEntity(String name, String imageUrl, String description, Status status) {
-        this.name = name;
-        this.imageUrl = imageUrl;
-        this.description = description;
-        this.status = status;
-    }
+    public ProductEntity() {}
 
     public Long getId() {
         return id;

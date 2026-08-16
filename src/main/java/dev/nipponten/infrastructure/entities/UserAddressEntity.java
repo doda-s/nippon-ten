@@ -27,16 +27,7 @@ public class UserAddressEntity {
 
     private String complement;
 
-    protected UserAddressEntity() {}
-
-    protected UserAddressEntity(
-            ClientEntity client, String streetAddress, String number, String cep, String complement) {
-        this.client = client;
-        this.streetAddress = streetAddress;
-        this.number = number;
-        this.cep = cep;
-        this.complement = complement;
-    }
+    public UserAddressEntity() {}
 
     public Long getId() {
         return id;

@@ -29,15 +29,7 @@ public class IngredientEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected IngredientEntity() {}
-
-    protected IngredientEntity(String name, String description, String imageUrl, BigDecimal price, Status status) {
-        this.name = name;
-        this.description = description;
-        this.imageUrl = imageUrl;
-        this.price = price;
-        this.status = status;
-    }
+    public IngredientEntity() {}
 
     public Long getId() {
         return id;

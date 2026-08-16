@@ -22,14 +22,7 @@ public class PromotionTypeEntity {
 
     private BigDecimal value;
 
-    protected PromotionTypeEntity() {}
-
-    protected PromotionTypeEntity(String name, String description, String type, BigDecimal value) {
-        this.name = name;
-        this.description = description;
-        this.type = type;
-        this.value = value;
-    }
+    public PromotionTypeEntity() {}
 
     public Long getId() {
         return id;

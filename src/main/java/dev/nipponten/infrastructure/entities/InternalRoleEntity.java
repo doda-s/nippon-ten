@@ -15,11 +15,7 @@ public class InternalRoleEntity {
 
     private String name;
 
-    protected InternalRoleEntity() {}
-
-    protected InternalRoleEntity(String name) {
-        this.name = name;
-    }
+    public InternalRoleEntity() {}
 
     public Long getId() {
         return id;

@@ -29,13 +29,7 @@ public class ProductSizeEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
-    protected ProductSizeEntity() {}
-
-    protected ProductSizeEntity(ProductEntity product, BigDecimal price, Status status) {
-        this.product = product;
-        this.price = price;
-        this.status = status;
-    }
+    public ProductSizeEntity() {}
 
     public Long getId() {
         return id;

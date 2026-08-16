@@ -27,15 +27,7 @@ public class ClientEntity {
 
     private Integer promotionPoints;
 
-    protected ClientEntity() {}
-
-    protected ClientEntity(UserEntity user, String name, String lastName, String cpf, Integer promotionPoints) {
-        this.user = user;
-        this.name = name;
-        this.lastName = lastName;
-        this.cpf = cpf;
-        this.promotionPoints = promotionPoints;
-    }
+    public ClientEntity() {}
 
     public Long getId() {
         return id;
