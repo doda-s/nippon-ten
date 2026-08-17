@@ -1,2 +1,8 @@
 # Drawio files
 *.drawio.*
+
+# java files
+/target
+*.properties
+
+.claude
