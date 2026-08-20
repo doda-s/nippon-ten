@@ -1,2 +1,5 @@
 # Drawio files
 *.drawio.*
+
+# Obsidian files
+.obsidian/
