@@ -8,17 +8,23 @@ Um *Product* representa um item/serviço oferecido pelo cliente do sistema. O *P
 - Description: Descrição com os detalhes do produto.
 - Status: Status representa a disponibilidade do produto (disponível ou esgotado). O status pode ser alterado manualmente por um usuário interno.
 
-O produto pode ter seu status alterado caso um ingrediente se esgote. Ao alterar o status de um produto para esgotado, opcionalmente o usuário interno pode alterar os staus dos combos e promoções que dependem do produto em específico.
+O produto pode ter seu status alterado caso um ingrediente se esgote. Essa propagação **não é automática**: ao marcar um ingrediente (ou produto) como esgotado, o usuário interno recebe a lista de produtos/combos/promoções que dependem dele e escolhe, manualmente, quais também devem ser marcados como esgotados naquele momento. O sistema nunca decide isso sozinho.
 
-Para a criação de um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `product_management` para poder criar, editar, deletar e definir o status um produto.
+Para a criação de um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products` para poder criar, editar, deletar e definir o status um produto.
 
 ### Product Ingredients
 
 *Product Ingredients* representa a relação entre os ingredientes cadastrados, e os ingredientes necessários para o produto. Essa relação é feita durante a criação de um produto. Nesse fluxo o usuário interno define quais são os ingredientes que o produto depende.
 
+### Additional Ingredients
+
+*Additional Ingredients* representa um ingrediente **opcional** que o cliente pode adicionar ao pedido daquele produto (diferente de *Product Ingredient*, que é a composição obrigatória do produto). Cada *Additional Ingredient* define, para um produto e um ingrediente específicos, a quantidade máxima (`maximum_quantity`) que o cliente pode adicionar naquele item do pedido, e um status de disponibilidade. É essa configuração que permite ao sistema limitar a quantidade de adicionais no pedido (ver `requirements.md`).
+
 ### Product Size
 
-O *Product Size* representa o tamanho do produto. Um usuário interno pode criar e definir os tamanhos existentes para os produtos. Essa configuração é global, ou seja, durante a criação de um produto, a definição dos tamanhos é compartilhada. Para cada produto podem ser selecionados tamanhos específicos, mas esses tamanhos são cadastrados globalmente. Para poder configurar um *Product Size* o usuário interno precisa conter a [[user-management#Permissions|permissão]] `product_management`.
+O *Product Size* representa os tamanhos disponíveis para um produto. Os tamanhos (ex.: Pequeno, Médio, Grande) formam um catálogo **global**, reaproveitável entre produtos — um usuário interno cadastra o tamanho uma vez e ele fica disponível para ser associado a qualquer produto. A relação entre um produto e um tamanho é feita por uma tabela auxiliar própria, que também guarda o **preço daquela combinação específica de produto+tamanho** (o mesmo tamanho pode ter preços diferentes em produtos diferentes) e o status de disponibilidade daquela combinação. Para poder configurar tamanhos (o catálogo global) ou associá-los a um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products`.
+
+> Modelo de dados: `size(id, name)` como catálogo global; `product_size(id, product_id, size_id, price, status)` como tabela auxiliar de associação. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda mostra `product_size` sem a tabela `size` e sem o campo `name` — precisa ser atualizado manualmente para refletir esse desenho.
 
 ---
 ## Ingredient
@@ -31,7 +37,7 @@ O *Product Size* representa o tamanho do produto. Um usuário interno pode criar
 - Price: É o preço usado para calcular o acréscimo ao adicionar um ingrediente como adicional em um pedido
 - Status: Status representa a disponibilidade do produto (disponível ou esgotado). O status pode ser alterado manualmente por um usuário interno.
 
-Quando um ingrediente é marcado como esgotado, opcionalmente o usuário interno pode marcar todos os produtos que dependem desse ingrediente como esgotado. Essa funcionalidade ajuda no gerenciamento de disponibilidade dos produtos.
+Quando um ingrediente é marcado como esgotado, o sistema lista os produtos que dependem dele e o usuário interno escolhe manualmente quais também devem ser marcados como esgotados — não há propagação automática (mesma regra descrita na seção [[#Product|Product]]).
 
 Para um ingrediente ser cadastrado, editado, deletado ou marcado como esgotado, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_ingredients`.
 
@@ -50,9 +56,13 @@ Os combos são promoções que contém múltiplos produtos, que são vendidos po
 
 Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário interno precisa conter a permissão `manage_promotions`.
 
+> Modelo de dados: `combo` ainda não tem `start_date`/`end_date` no diagrama (`docs/data-modeling/data_modeling.drawio`) nem no código — precisa ser adicionado para bater com o texto acima.
+
 ### Combo Product
 
-É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser.  Os produtos relacionados com o combo podem alterar o status de disponibilidade do combo. A relação entre combo e produtos é feita durante o fluxo de criação de um combo.
+É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser. A relação entre combo e produtos é feita durante o fluxo de criação de um combo.
+
+Assim como em Product/Ingredient, quando um produto que compõe o combo fica esgotado, a propagação para o status do combo **não é automática** — o usuário interno decide manualmente se o combo também deve ser marcado como esgotado.
 
 ---
 ## Promotions
@@ -70,7 +80,9 @@ As *Promotions* sobrescrevem o custo de um produto, por um tempo limitado. Os da
 - End Date: Define o momento em que a promoção encerra;
 - Enable Promotion Points: Define se o consumidor pode utilizar dos pontos para consumir a promoção.
 
-Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário interno precisa conter a permissão `manage_promotions`.
+Cada promoção se aplica a um único produto — para promover vários produtos ao mesmo tempo, o usuário interno cria uma promoção por produto (diferente de Combo, que é uma relação N:N com produtos).
+
+Para uma promoção ser criada, editada, deletada ou ter o status alterado, o usuário interno precisa conter a permissão `manage_promotions`.
 
 ### Promotion Type
 

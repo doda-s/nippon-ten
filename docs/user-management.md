@@ -45,7 +45,7 @@ Um usuário opcionalmente pode adicionar um endereço ao criar uma conta. Mas el
 ---
 ## Internal User
 
-O *Internal User* representa um usuário com permissões especiais para gerenciamento do sistema e procedimentos. Apenas usuários internos com permissão de `manage_users` podem criar, editar e desativar usuários. Deletar um *Internal User* só pode ser feito pelo super usuário, após o *Internal User* ser desativado.
+O *Internal User* representa um usuário com permissões especiais para gerenciamento do sistema e procedimentos. Apenas usuários internos com permissão de `manage_users` podem criar, editar e desativar usuários. Deletar um *Internal User* só pode ser feito por um usuário com a role reservada `super_admin` (ver [[#Bootstrap|Bootstrap]]), após o *Internal User* ser desativado.
 
 Para criar um *Internal User* é necessário os seguintes dados:
 
@@ -72,12 +72,14 @@ D --> E[Client and user relationship]
 
 ### Roles
 
-As *roles* se tratam de um conjunto de permissões que um usuário pode ter. Uma role pode ser criado por um usuário que tenha a permissão `manage_roles`. Para criar uma role é necessário as seguintes informações:
+As *roles* se tratam de um conjunto de permissões que um usuário interno pode ter. Uma role pode ser criada por um usuário que tenha a permissão `manage_roles`. Para criar uma role é necessário as seguintes informações:
 
 - Name
 - Permissions
 
-As *permissions* são pré-definidas no sistema. Uma role só aceita *permissions* válidas.
+As *permissions* são pré-definidas no sistema (catálogo fixo, ver [[#Permissions|Permissions]]) e associadas a uma role por uma relação N:N — uma role pode ter várias permissões, e uma permissão pode estar em várias roles. Uma role só aceita *permissions* válidas (existentes no catálogo).
+
+> Modelo de dados: `permission(id, name)` como catálogo fixo (seed com as 5 linhas da tabela abaixo) e `role_permission(role_id, permission_id)` como tabela de associação N:N. Nenhuma das duas existe ainda no diagrama (`docs/data-modeling/data_modeling.drawio`) — `internal_role` lá é só `(id, name)` — precisa ser atualizado manualmente.
 
 ## Permissions
 
@@ -88,6 +90,15 @@ As *permissions* são pré-definidas no sistema. Uma role só aceita *permission
 | manage_products    | Permissão para gerenciar produtos. Possibilita criar, editar, deletar e alterar o status de produtos. Também permite modificar os ingredientes ao qual um produto depende. |
 | manage_ingredients | Permissão para gerenciar os ingredientes cadastrados no sistema. Possibilita cadastrar, editar, deletar e alterar o status de um ingrediente.                              |
 | manage_promotions  | Permissão para gerenciar os combos e promotions existentes. Possibilita criar, editar, deletar e alterar o status de um combo/promotion.                                   |
+
+## Bootstrap
+
+O primeiro *Internal User* do sistema não pode ser criado pelo fluxo normal, já que esse fluxo exige a permissão `manage_users` — que ninguém ainda possui. Por isso, na primeira subida do sistema, um seed/migration cria:
+
+1. Uma role reservada `super_admin`, com todas as permissões do catálogo;
+2. Um *Internal User* inicial associado a essa role.
+
+A role `super_admin` é a única com poder de deletar um *Internal User* (ver [[#Internal User|Internal User]]). Ela não pode ser deletada nem ter suas permissões removidas por outra role.
 
 ---
 ## Guest User
