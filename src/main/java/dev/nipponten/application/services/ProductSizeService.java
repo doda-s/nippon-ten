@@ -44,6 +44,11 @@ public class ProductSizeService {
 
     public void delete(Long productId, Long id) {
         ProductSize model = requireByProduct(productId, id);
+        // O preço vive no tamanho: remover o último deixaria o produto sem preço.
+        if (repository.getByProduct(productId).size() <= 1) {
+            throw new InvalidRequestException(
+                    "Product " + productId + " must keep at least one size");
+        }
         repository.remove(model);
     }
 

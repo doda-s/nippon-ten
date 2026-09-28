@@ -4,6 +4,7 @@ import dev.nipponten.application.requests.AdditionalIngredientRequest;
 import dev.nipponten.application.requests.AdditionalIngredientRequestMapper;
 import dev.nipponten.application.requests.ProductIngredientRequest;
 import dev.nipponten.application.requests.ProductIngredientRequestMapper;
+import dev.nipponten.application.requests.ProductRegistrationRequest;
 import dev.nipponten.application.requests.ProductRequest;
 import dev.nipponten.application.requests.ProductRequestMapper;
 import dev.nipponten.application.requests.ProductSizeRequest;
@@ -79,10 +80,25 @@ public class ProductResource {
     @Inject PromotionResponseMapper promotionMapper;
 
     @POST
-    public Response create(@Valid ProductRequest request) {
-        Product saved = service.create(productRequestMapper.toModel(null, request));
+    public Response create(@Valid ProductRegistrationRequest request) {
+        List<ProductIngredientRequest> ingredients =
+                request.ingredients() == null ? List.of() : request.ingredients();
+        Product saved =
+                service.register(
+                        productRequestMapper.toModel(null, request.product()),
+                        ingredients.stream()
+                                .map(i -> productIngredientRequestMapper.toModel(null, null, i))
+                                .toList(),
+                        request.sizes().stream()
+                                .map(s -> productSizeRequestMapper.toModel(null, null, s))
+                                .toList());
         return Response.status(Response.Status.CREATED)
-                .entity(productMapper.toResponse(saved))
+                .entity(
+                        productMapper.toDetailResponse(
+                                saved,
+                                productIngredientService.getByProduct(saved.id()),
+                                productSizeService.getByProduct(saved.id()),
+                                List.of()))
                 .build();
     }
 

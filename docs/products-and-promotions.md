@@ -10,6 +10,8 @@ Um *Product* representa um item/serviço oferecido pelo cliente do sistema. O *P
 
 O produto pode ter seu status alterado caso um ingrediente se esgote. Essa propagação **não é automática**: ao marcar um ingrediente (ou produto) como esgotado, o usuário interno recebe a lista de produtos/combos/promoções que dependem dele e escolhe, manualmente, quais também devem ser marcados como esgotados naquele momento. O sistema nunca decide isso sozinho.
 
+A criação é feita em uma única chamada atômica: `POST /products` recebe o produto (`product`), a lista de ingredientes (`ingredients`, opcional) e a lista de tamanhos com preço (`sizes`, no mínimo um). Se algum ingrediente ou tamanho não existir, ou se houver repetidos na lista, nada é criado. Como o preço vive no tamanho, todo produto nasce com pelo menos um, e remover o último tamanho de um produto é recusado. Os endpoints aninhados (`/products/{id}/ingredients`, `/products/{id}/sizes`) continuam valendo para edições posteriores.
+
 Para a criação de um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products` para poder criar, editar, deletar e definir o status um produto.
 
 ### Product Ingredients

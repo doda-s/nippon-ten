@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.not;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -81,15 +82,21 @@ class PromotionBusinessRulesTest {
 
     @Test
     void computesPromotionalPricePerProductSize() {
-        long product = TestFixtures.createProduct("Pastel com preco");
         long size = TestFixtures.createSize("Grande-" + System.nanoTime());
         long type = TestFixtures.createPromotionType("desconto 10");
-
-        given().contentType(ContentType.JSON)
-                .body(Map.of("sizeId", size, "price", 20.00, "status", "ACTIVE"))
-                .post("/products/{id}/sizes", product)
-                .then()
-                .statusCode(201);
+        long product =
+                given().contentType(ContentType.JSON)
+                        .body(
+                                TestFixtures.productRegistration(
+                                        "Pastel com preco",
+                                        List.of(),
+                                        List.of(TestFixtures.sizeWithPrice(size, 20.00))))
+                        .post("/products")
+                        .then()
+                        .statusCode(201)
+                        .extract()
+                        .jsonPath()
+                        .getLong("id");
 
         given().contentType(ContentType.JSON)
                 .body(promotion(product, type, "2026-10-01T00:00:00", "2026-10-31T00:00:00"))

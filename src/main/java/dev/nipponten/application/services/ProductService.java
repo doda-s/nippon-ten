@@ -5,6 +5,8 @@ import dev.nipponten.application.exceptions.ProductNotFoundException;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
 import dev.nipponten.domain.models.Product;
+import dev.nipponten.domain.models.ProductIngredient;
+import dev.nipponten.domain.models.ProductSize;
 import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.domain.repositories.AdditionalIngredientRepository;
 import dev.nipponten.domain.repositories.ComboProductRepository;
@@ -16,8 +18,10 @@ import dev.nipponten.domain.repositories.PromotionRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 @ApplicationScoped
 public class ProductService {
@@ -37,8 +41,39 @@ public class ProductService {
 
     @Inject PromotionRepository promotionRepository;
 
-    public Product create(Product model) {
-        return repository.save(model);
+    @Inject IngredientService ingredientService;
+
+    @Inject SizeService sizeService;
+
+    // Produto, ingredientes e tamanhos (com preço) são criados juntos: a composição é definida no
+    // fluxo de criação e o produto não pode existir sem preço, então a operação inteira é atômica.
+    @Transactional
+    public Product register(
+            Product model, List<ProductIngredient> ingredients, List<ProductSize> sizes) {
+        if (sizes.isEmpty()) {
+            throw new InvalidRequestException("Product must have at least one size");
+        }
+        requireNoDuplicates(ingredients, ProductIngredient::ingredientId, "ingredient");
+        requireNoDuplicates(sizes, ProductSize::sizeId, "size");
+        ingredients.forEach(ingredient -> ingredientService.getById(ingredient.ingredientId()));
+        sizes.forEach(size -> sizeService.getById(size.sizeId()));
+
+        Product saved = repository.save(model);
+        ingredients.forEach(
+                ingredient ->
+                        productIngredientRepository.save(
+                                new ProductIngredient(
+                                        null, saved.id(), ingredient.ingredientId())));
+        sizes.forEach(
+                size ->
+                        productSizeRepository.save(
+                                new ProductSize(
+                                        null,
+                                        saved.id(),
+                                        size.sizeId(),
+                                        size.price(),
+                                        size.status())));
+        return saved;
     }
 
     public Product getById(Long id) {
@@ -95,5 +130,18 @@ public class ProductService {
     public List<Promotion> getDependentPromotions(Long id) {
         getById(id);
         return promotionRepository.getByProduct(id);
+    }
+
+    private static <T> void requireNoDuplicates(List<T> items, Function<T, Long> id, String label) {
+        var seen = new HashSet<Long>();
+        items.stream()
+                .map(id)
+                .filter(value -> !seen.add(value))
+                .findFirst()
+                .ifPresent(
+                        value -> {
+                            throw new InvalidRequestException(
+                                    "Duplicated " + label + " in product: " + value);
+                        });
     }
 }
