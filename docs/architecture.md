@@ -90,7 +90,7 @@ Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dep
 
 Toda escrita de um único agregado é transacional no nível do repositório Panache (`PanacheXRepository.save`/`remove`). Isso é suficiente para a maioria dos casos.
 
-Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `User`), `ProductService.delete` (remove os filhos do produto + `Product`) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
+Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `User`), `ProductService.delete` (remove os filhos do produto + `Product`), `ComboService.register` (cria `Combo` + os `ComboProduct`(s) do fluxo de criação) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
 
 ---
 
@@ -106,4 +106,8 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 ## O que ainda não existe (fora do escopo desta documentação)
 
-Os documentos [`requirements.md`](requirements.md), [`products-and-promotions.md`](products-and-promotions.md) e [`user-management.md`](user-management.md) descrevem regras de negócio e um sistema de permissões por cargo que ainda não têm código correspondente: cascata de status esgotado entre produto → combo/promoção, mínimo de dois produtos por combo, permissões (`product_management`, `manage_users` etc.) e autenticação/autorização de fato. Os domain models hoje são apenas dados (records sem invariantes); essas regras, quando implementadas, devem viver no `Service` do agregado responsável, seguindo os mesmos padrões descritos acima.
+Os documentos [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) descrevem um sistema de permissões por cargo que ainda não tem código correspondente: o catálogo fixo de `permission`, a relação N:N `role_permission`, a role reservada `super_admin` (e o seed de bootstrap que a cria junto do primeiro usuário interno) e autenticação/autorização de fato. Hoje `InternalRole` é só `(id, name)` e todos os endpoints são abertos.
+
+Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
+
+A propagação de status "esgotado" entre ingrediente → produto → combo/promoção continua sendo **manual por decisão de produto**, não uma lacuna: `GET /ingredients/{id}/dependents` e `GET /products/{id}/dependents` devolvem quem depende do item para o usuário interno decidir, e o sistema nunca altera esses status sozinho.

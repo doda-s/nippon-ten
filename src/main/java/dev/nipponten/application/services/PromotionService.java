@@ -1,5 +1,6 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.PromotionNotFoundException;
 import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.domain.models.PromotionPrice;
@@ -9,7 +10,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @ApplicationScoped
 public class PromotionService {
@@ -26,6 +29,8 @@ public class PromotionService {
 
     public Promotion create(Promotion model) {
         requireReferences(model);
+        requireValidWindow(model);
+        requireSinglePromotionPerProduct(model.productId(), null);
         return repository.save(model);
     }
 
@@ -42,12 +47,19 @@ public class PromotionService {
     public Promotion update(Long id, Promotion model) {
         getById(id);
         requireReferences(model);
+        requireValidWindow(model);
+        requireSinglePromotionPerProduct(model.productId(), id);
         return repository.save(model);
     }
 
     public void delete(Long id) {
         Promotion model = getById(id);
         repository.remove(model);
+    }
+
+    // Disponível no catálogo: ativa e dentro da janela.
+    public List<Promotion> getAvailable(LocalDateTime now) {
+        return repository.getAvailable(now);
     }
 
     public List<Promotion> getByProduct(Long productId) {
@@ -84,5 +96,30 @@ public class PromotionService {
     private void requireReferences(Promotion model) {
         productService.getById(model.productId());
         promotionTypeService.getById(model.promotionTypeId());
+    }
+
+    // Cada promoção se aplica a um único produto, e um produto tem no máximo uma promoção.
+    private void requireSinglePromotionPerProduct(Long productId, Long promotionId) {
+        repository.getByProduct(productId).stream()
+                .filter(existing -> !Objects.equals(existing.id(), promotionId))
+                .findFirst()
+                .ifPresent(
+                        existing -> {
+                            throw new InvalidRequestException(
+                                    "Product "
+                                            + productId
+                                            + " already has promotion "
+                                            + existing.id());
+                        });
+    }
+
+    private void requireValidWindow(Promotion model) {
+        if (!model.endDate().isAfter(model.startDate())) {
+            throw new InvalidRequestException(
+                    "Promotion endDate must be after startDate: "
+                            + model.startDate()
+                            + " -> "
+                            + model.endDate());
+        }
     }
 }

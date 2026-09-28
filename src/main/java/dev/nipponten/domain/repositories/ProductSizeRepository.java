@@ -13,4 +13,6 @@ public interface ProductSizeRepository {
     List<ProductSize> getAll();
 
     java.util.List<ProductSize> getByProduct(Long productId);
+
+    java.util.List<ProductSize> getBySize(Long sizeId);
 }

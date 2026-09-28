@@ -4,4 +4,4 @@ import dev.nipponten.domain.models.ProductSize;
 import java.math.BigDecimal;
 
 public record ProductSizeResponse(
-        Long id, Long productId, BigDecimal price, ProductSize.Status status) {}
+        Long id, Long productId, Long sizeId, BigDecimal price, ProductSize.Status status) {}

@@ -16,8 +16,10 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Path("/promotions")
@@ -47,8 +49,10 @@ public class PromotionResource {
     }
 
     @GET
-    public List<PromotionResponse> getAll() {
-        return service.getAll().stream()
+    public List<PromotionResponse> getAll(@QueryParam("available") boolean available) {
+        List<Promotion> promotions =
+                available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
+        return promotions.stream()
                 .map(promotion -> mapper.toResponse(promotion, service.getPrices(promotion)))
                 .toList();
     }

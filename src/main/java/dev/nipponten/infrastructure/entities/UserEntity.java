@@ -14,6 +14,7 @@ public class UserEntity {
 
     @Id @GeneratedValue private Long id;
 
+    @Column(nullable = false, unique = true)
     private String email;
 
     private String password;

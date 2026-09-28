@@ -1,6 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.Combo;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ComboRepository {
@@ -11,4 +12,6 @@ public interface ComboRepository {
     Combo getById(Long id);
 
     List<Combo> getAll();
+
+    List<Combo> getAvailable(LocalDateTime now);
 }

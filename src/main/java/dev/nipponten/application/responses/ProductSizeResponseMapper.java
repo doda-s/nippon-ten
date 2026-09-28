@@ -10,6 +10,7 @@ public class ProductSizeResponseMapper {
         return new ProductSizeResponse(
                 productSize.id(),
                 productSize.productId(),
+                productSize.sizeId(),
                 productSize.price(),
                 productSize.status());
     }

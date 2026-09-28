@@ -2,6 +2,7 @@ package dev.nipponten.application.responses;
 
 import dev.nipponten.domain.models.Combo;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public record ComboResponse(
         Long id,
@@ -9,4 +10,6 @@ public record ComboResponse(
         BigDecimal price,
         String imageUrl,
         String description,
-        Combo.Status status) {}
+        Combo.Status status,
+        LocalDateTime startDate,
+        LocalDateTime endDate) {}

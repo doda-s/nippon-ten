@@ -6,4 +6,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 public record ProductSizeRequest(
-        @NotNull @PositiveOrZero BigDecimal price, @NotNull ProductSize.Status status) {}
+        @NotNull Long sizeId,
+        @NotNull @PositiveOrZero BigDecimal price,
+        @NotNull ProductSize.Status status) {}

@@ -2,9 +2,13 @@ package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.ProductNotFoundException;
+import dev.nipponten.domain.models.Combo;
+import dev.nipponten.domain.models.ComboProduct;
 import dev.nipponten.domain.models.Product;
+import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.domain.repositories.AdditionalIngredientRepository;
 import dev.nipponten.domain.repositories.ComboProductRepository;
+import dev.nipponten.domain.repositories.ComboRepository;
 import dev.nipponten.domain.repositories.ProductIngredientRepository;
 import dev.nipponten.domain.repositories.ProductRepository;
 import dev.nipponten.domain.repositories.ProductSizeRepository;
@@ -13,6 +17,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.Objects;
 
 @ApplicationScoped
 public class ProductService {
@@ -26,6 +31,9 @@ public class ProductService {
     @Inject AdditionalIngredientRepository additionalIngredientRepository;
 
     @Inject ComboProductRepository comboProductRepository;
+
+    // Repositório, e não o service, para não criar ciclo ProductService <-> ComboService.
+    @Inject ComboRepository comboRepository;
 
     @Inject PromotionRepository promotionRepository;
 
@@ -69,5 +77,23 @@ public class ProductService {
                 .getByProduct(id)
                 .forEach(additionalIngredientRepository::remove);
         repository.remove(model);
+    }
+
+    // Ao marcar um produto como esgotado, o usuário interno precisa da lista de combos e promoções
+    // que dependem dele para decidir, manualmente, quais também ficam indisponíveis. A propagação
+    // de status nunca é automática.
+    public List<Combo> getDependentCombos(Long id) {
+        getById(id);
+        return comboProductRepository.getByProduct(id).stream()
+                .map(ComboProduct::comboId)
+                .distinct()
+                .map(comboRepository::getById)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    public List<Promotion> getDependentPromotions(Long id) {
+        getById(id);
+        return promotionRepository.getByProduct(id);
     }
 }

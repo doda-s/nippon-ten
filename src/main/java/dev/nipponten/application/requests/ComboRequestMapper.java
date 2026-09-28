@@ -13,6 +13,8 @@ public class ComboRequestMapper {
                 request.price(),
                 request.imageUrl(),
                 request.description(),
-                request.status());
+                request.status(),
+                request.startDate(),
+                request.endDate());
     }
 }

@@ -5,10 +5,13 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 public record ComboRequest(
         @NotBlank String name,
         @NotNull @Positive BigDecimal price,
         String imageUrl,
         String description,
-        @NotNull Combo.Status status) {}
+        @NotNull Combo.Status status,
+        LocalDateTime startDate,
+        LocalDateTime endDate) {}

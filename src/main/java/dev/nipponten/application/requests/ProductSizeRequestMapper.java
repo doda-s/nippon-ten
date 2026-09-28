@@ -7,6 +7,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class ProductSizeRequestMapper {
 
     public ProductSize toModel(Long id, Long productId, ProductSizeRequest request) {
-        return new ProductSize(id, productId, request.price(), request.status());
+        return new ProductSize(id, productId, request.sizeId(), request.price(), request.status());
     }
 }

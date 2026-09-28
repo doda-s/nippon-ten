@@ -23,6 +23,8 @@ public class ComboMapper {
         entity.setImageUrl(model.imageUrl());
         entity.setDescription(model.description());
         entity.setStatus(ComboEntity.Status.valueOf(model.status().name()));
+        entity.setStartDate(model.startDate());
+        entity.setEndDate(model.endDate());
     }
 
     public Combo toModel(ComboEntity entity) {
@@ -32,6 +34,8 @@ public class ComboMapper {
                 entity.getPrice(),
                 entity.getImageUrl(),
                 entity.getDescription(),
-                Combo.Status.valueOf(entity.getStatus().name()));
+                Combo.Status.valueOf(entity.getStatus().name()),
+                entity.getStartDate(),
+                entity.getEndDate());
     }
 }

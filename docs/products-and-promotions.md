@@ -24,7 +24,7 @@ Para a criação de um produto, o usuário interno precisa conter a [[user-manag
 
 O *Product Size* representa os tamanhos disponíveis para um produto. Os tamanhos (ex.: Pequeno, Médio, Grande) formam um catálogo **global**, reaproveitável entre produtos — um usuário interno cadastra o tamanho uma vez e ele fica disponível para ser associado a qualquer produto. A relação entre um produto e um tamanho é feita por uma tabela auxiliar própria, que também guarda o **preço daquela combinação específica de produto+tamanho** (o mesmo tamanho pode ter preços diferentes em produtos diferentes) e o status de disponibilidade daquela combinação (`ACTIVE`/`INACTIVE`). Para poder configurar tamanhos (o catálogo global) ou associá-los a um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products`.
 
-> Modelo de dados: `size(id, name)` como catálogo global; `product_size(id, product_id, size_id, price, status)` como tabela auxiliar de associação. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda mostra `product_size` sem a tabela `size` e sem o campo `name` — precisa ser atualizado manualmente para refletir esse desenho.
+> Modelo de dados: `size(id, name)` como catálogo global; `product_size(id, product_id, size_id, price, status)` como tabela auxiliar de associação. Implementado: o catálogo é exposto em `/sizes` e a associação em `/products/{id}/sizes`. O mesmo tamanho só pode ser associado uma vez a cada produto, e um tamanho em uso não pode ser deletado. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda mostra `product_size` sem a tabela `size` — precisa ser atualizado manualmente.
 
 ---
 ## Ingredient
@@ -56,11 +56,11 @@ Os combos são promoções que contém múltiplos produtos, que são vendidos po
 
 Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário interno precisa conter a permissão `manage_promotions`.
 
-> Modelo de dados: `combo` ainda não tem `start_date`/`end_date` no diagrama (`docs/data-modeling/data_modeling.drawio`) nem no código — precisa ser adicionado para bater com o texto acima.
+> Modelo de dados: `start_date`/`end_date` já existem no código (opcionais: um combo pode não ter período de duração). O diagrama (`docs/data-modeling/data_modeling.drawio`) ainda não os mostra — precisa ser atualizado manualmente.
 
 ### Combo Product
 
-É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser. A relação entre combo e produtos é feita durante o fluxo de criação de um combo.
+É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser, com o mínimo de dois. A relação entre combo e produtos é feita durante o fluxo de criação de um combo: `POST /combos` recebe o combo e a lista de produtos de uma vez, e recusa a criação com menos de dois. Remover um produto que deixaria o combo abaixo desse mínimo também é recusado.
 
 Assim como em Product/Ingredient, quando um produto que compõe o combo fica esgotado, a propagação para o status do combo **não é automática** — o usuário interno decide manualmente se o combo também deve ser marcado como esgotado.
 

@@ -8,6 +8,7 @@ import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @ApplicationScoped
@@ -44,5 +45,17 @@ public class PanacheComboRepository implements ComboRepository, PanacheRepositor
     @Override
     public List<Combo> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public List<Combo> getAvailable(LocalDateTime now) {
+        return list(
+                        "status = ?1 and (startDate is null or startDate <= ?2)"
+                                + " and (endDate is null or endDate > ?2)",
+                        ComboEntity.Status.ACTIVE,
+                        now)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 }

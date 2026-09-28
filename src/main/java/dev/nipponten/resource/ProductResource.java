@@ -10,6 +10,8 @@ import dev.nipponten.application.requests.ProductSizeRequest;
 import dev.nipponten.application.requests.ProductSizeRequestMapper;
 import dev.nipponten.application.responses.AdditionalIngredientResponse;
 import dev.nipponten.application.responses.AdditionalIngredientResponseMapper;
+import dev.nipponten.application.responses.ComboResponseMapper;
+import dev.nipponten.application.responses.ProductDependentsResponse;
 import dev.nipponten.application.responses.ProductDetailResponse;
 import dev.nipponten.application.responses.ProductIngredientResponse;
 import dev.nipponten.application.responses.ProductIngredientResponseMapper;
@@ -17,10 +19,12 @@ import dev.nipponten.application.responses.ProductResponse;
 import dev.nipponten.application.responses.ProductResponseMapper;
 import dev.nipponten.application.responses.ProductSizeResponse;
 import dev.nipponten.application.responses.ProductSizeResponseMapper;
+import dev.nipponten.application.responses.PromotionResponseMapper;
 import dev.nipponten.application.services.AdditionalIngredientService;
 import dev.nipponten.application.services.ProductIngredientService;
 import dev.nipponten.application.services.ProductService;
 import dev.nipponten.application.services.ProductSizeService;
+import dev.nipponten.application.services.PromotionService;
 import dev.nipponten.domain.models.AdditionalIngredient;
 import dev.nipponten.domain.models.Product;
 import dev.nipponten.domain.models.ProductIngredient;
@@ -68,6 +72,12 @@ public class ProductResource {
 
     @Inject AdditionalIngredientRequestMapper additionalIngredientRequestMapper;
 
+    @Inject PromotionService promotionService;
+
+    @Inject ComboResponseMapper comboMapper;
+
+    @Inject PromotionResponseMapper promotionMapper;
+
     @POST
     public Response create(@Valid ProductRequest request) {
         Product saved = service.create(productRequestMapper.toModel(null, request));
@@ -96,6 +106,21 @@ public class ProductResource {
     public ProductResponse update(@PathParam("id") Long id, @Valid ProductRequest request) {
         Product updated = service.update(id, productRequestMapper.toModel(id, request));
         return productMapper.toResponse(updated);
+    }
+
+    // Lista quem depende do produto, para o usuário interno decidir manualmente o que também
+    // deve ser marcado como esgotado.
+    @GET
+    @Path("/{id}/dependents")
+    public ProductDependentsResponse getDependents(@PathParam("id") Long id) {
+        return new ProductDependentsResponse(
+                service.getDependentCombos(id).stream().map(comboMapper::toResponse).toList(),
+                service.getDependentPromotions(id).stream()
+                        .map(
+                                promotion ->
+                                        promotionMapper.toResponse(
+                                                promotion, promotionService.getPrices(promotion)))
+                        .toList());
     }
 
     @DELETE
