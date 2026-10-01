@@ -6,10 +6,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class InternalRequestMapper {
 
-    public Internal toModel(Long id, InternalRequest request) {
+    public Internal toModel(Long id, Long userId, InternalRequest request) {
         return new Internal(
                 id,
-                request.userId(),
+                userId,
                 request.internalRoleId(),
                 request.name(),
                 request.lastName(),

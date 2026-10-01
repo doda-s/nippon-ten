@@ -14,8 +14,11 @@ public class AdditionalIngredientService {
 
     @Inject ProductService productService;
 
+    @Inject IngredientService ingredientService;
+
     public AdditionalIngredient create(AdditionalIngredient model) {
         productService.getById(model.productId());
+        ingredientService.getById(model.ingredientId());
         return repository.save(model);
     }
 
@@ -31,6 +34,7 @@ public class AdditionalIngredientService {
 
     public AdditionalIngredient update(Long productId, Long id, AdditionalIngredient model) {
         requireByProduct(productId, id);
+        ingredientService.getById(model.ingredientId());
         return repository.save(model);
     }
 

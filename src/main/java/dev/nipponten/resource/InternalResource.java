@@ -1,10 +1,12 @@
 package dev.nipponten.resource;
 
+import dev.nipponten.application.requests.InternalRegistrationRequest;
 import dev.nipponten.application.requests.InternalRequest;
 import dev.nipponten.application.requests.InternalRequestMapper;
 import dev.nipponten.application.responses.InternalResponse;
 import dev.nipponten.application.responses.InternalResponseMapper;
 import dev.nipponten.application.services.InternalService;
+import dev.nipponten.application.services.UserService;
 import dev.nipponten.domain.models.Internal;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -27,14 +29,17 @@ public class InternalResource {
 
     @Inject InternalService service;
 
+    @Inject UserService userService;
+
     @Inject InternalResponseMapper mapper;
 
     @Inject InternalRequestMapper requestMapper;
 
     @POST
-    public Response create(@Valid InternalRequest request) {
-        Internal saved = service.create(requestMapper.toModel(null, request));
-        return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
+    public Response create(@Valid InternalRegistrationRequest request) {
+        return Response.status(Response.Status.CREATED)
+                .entity(userService.registerInternal(request))
+                .build();
     }
 
     @GET
@@ -51,14 +56,14 @@ public class InternalResource {
     @PUT
     @Path("/{id}")
     public InternalResponse update(@PathParam("id") Long id, @Valid InternalRequest request) {
-        Internal updated = service.update(id, requestMapper.toModel(id, request));
+        Internal updated = service.update(id, requestMapper.toModel(id, null, request));
         return mapper.toResponse(updated);
     }
 
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
-        service.delete(id);
+        userService.deleteInternal(id);
         return Response.noContent().build();
     }
 }

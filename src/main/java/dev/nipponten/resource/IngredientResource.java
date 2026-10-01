@@ -2,8 +2,10 @@ package dev.nipponten.resource;
 
 import dev.nipponten.application.requests.IngredientRequest;
 import dev.nipponten.application.requests.IngredientRequestMapper;
+import dev.nipponten.application.responses.IngredientDependentsResponse;
 import dev.nipponten.application.responses.IngredientResponse;
 import dev.nipponten.application.responses.IngredientResponseMapper;
+import dev.nipponten.application.responses.ProductResponseMapper;
 import dev.nipponten.application.services.IngredientService;
 import dev.nipponten.domain.models.Ingredient;
 import jakarta.inject.Inject;
@@ -31,6 +33,8 @@ public class IngredientResource {
 
     @Inject IngredientRequestMapper requestMapper;
 
+    @Inject ProductResponseMapper productMapper;
+
     @POST
     public Response create(@Valid IngredientRequest request) {
         Ingredient saved = service.create(requestMapper.toModel(null, request));
@@ -53,6 +57,20 @@ public class IngredientResource {
     public IngredientResponse update(@PathParam("id") Long id, @Valid IngredientRequest request) {
         Ingredient updated = service.update(id, requestMapper.toModel(id, request));
         return mapper.toResponse(updated);
+    }
+
+    // Lista quem depende do ingrediente, para o usuário interno decidir manualmente o que
+    // também deve ser marcado como esgotado.
+    @GET
+    @Path("/{id}/dependents")
+    public IngredientDependentsResponse getDependents(@PathParam("id") Long id) {
+        return new IngredientDependentsResponse(
+                service.getProductsUsingAsIngredient(id).stream()
+                        .map(productMapper::toResponse)
+                        .toList(),
+                service.getProductsOfferingAsAdditional(id).stream()
+                        .map(productMapper::toResponse)
+                        .toList());
     }
 
     @DELETE

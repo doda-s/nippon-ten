@@ -25,7 +25,6 @@ public class PromotionMapper {
 
     private void applyToEntity(PromotionEntity entity, Promotion model) {
         entity.setTitle(model.title());
-        entity.setPrice(model.price());
         entity.setImageUrl(model.imageUrl());
         entity.setDescription(model.description());
         entity.setStatus(PromotionEntity.Status.valueOf(model.status().name()));
@@ -41,7 +40,6 @@ public class PromotionMapper {
         return new Promotion(
                 entity.getId(),
                 entity.getTitle(),
-                entity.getPrice(),
                 entity.getImageUrl(),
                 entity.getDescription(),
                 Promotion.Status.valueOf(entity.getStatus().name()),

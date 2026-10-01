@@ -8,7 +8,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,8 +22,6 @@ public class PromotionEntity {
     @Id @GeneratedValue private Long id;
 
     private String title;
-
-    private BigDecimal price;
 
     private String imageUrl;
 
@@ -59,14 +56,6 @@ public class PromotionEntity {
 
     public void setTitle(String title) {
         this.title = title;
-    }
-
-    public BigDecimal getPrice() {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price) {
-        this.price = price;
     }
 
     public String getImageUrl() {

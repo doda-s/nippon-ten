@@ -20,7 +20,7 @@ public class PromotionTypeMapper {
     private void applyToEntity(PromotionTypeEntity entity, PromotionType model) {
         entity.setName(model.name());
         entity.setDescription(model.description());
-        entity.setType(model.type());
+        entity.setType(PromotionTypeEntity.Type.valueOf(model.type().name()));
         entity.setValue(model.value());
     }
 
@@ -29,7 +29,7 @@ public class PromotionTypeMapper {
                 entity.getId(),
                 entity.getName(),
                 entity.getDescription(),
-                entity.getType(),
+                PromotionType.Type.valueOf(entity.getType().name()),
                 entity.getValue());
     }
 }

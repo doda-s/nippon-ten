@@ -1,5 +1,6 @@
 package dev.nipponten.infrastructure.entities;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -25,6 +26,11 @@ public class ProductSizeEntity {
     @JoinColumn(name = "product_id")
     private ProductEntity product;
 
+    @ManyToOne
+    @JoinColumn(name = "size_id", nullable = false)
+    private SizeEntity size;
+
+    @Column(nullable = false)
     private BigDecimal price;
 
     @Enumerated(EnumType.STRING)
@@ -42,6 +48,14 @@ public class ProductSizeEntity {
 
     public void setProduct(ProductEntity product) {
         this.product = product;
+    }
+
+    public SizeEntity getSize() {
+        return size;
+    }
+
+    public void setSize(SizeEntity size) {
+        this.size = size;
     }
 
     public BigDecimal getPrice() {

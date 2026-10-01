@@ -13,6 +13,8 @@ public class ComboResponseMapper {
                 combo.price(),
                 combo.imageUrl(),
                 combo.description(),
-                combo.status());
+                combo.status(),
+                combo.startDate(),
+                combo.endDate());
     }
 }

@@ -1,6 +1,7 @@
 package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.ComboProductNotFoundException;
+import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.ComboProduct;
 import dev.nipponten.domain.repositories.ComboProductRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -10,12 +11,17 @@ import java.util.List;
 @ApplicationScoped
 public class ComboProductService {
 
+    private static final int MINIMUM_PRODUCTS = 2;
+
     @Inject ComboProductRepository repository;
 
     @Inject ComboService comboService;
 
+    @Inject ProductService productService;
+
     public ComboProduct create(ComboProduct model) {
         comboService.getById(model.comboId());
+        productService.getById(model.productId());
         return repository.save(model);
     }
 
@@ -31,11 +37,17 @@ public class ComboProductService {
 
     public ComboProduct update(Long comboId, Long id, ComboProduct model) {
         requireByCombo(comboId, id);
+        productService.getById(model.productId());
         return repository.save(model);
     }
 
     public void delete(Long comboId, Long id) {
         ComboProduct model = requireByCombo(comboId, id);
+        int remaining = repository.getByCombo(comboId).size() - 1;
+        if (remaining < MINIMUM_PRODUCTS) {
+            throw new InvalidRequestException(
+                    "Combo " + comboId + " must keep at least " + MINIMUM_PRODUCTS + " products");
+        }
         repository.remove(model);
     }
 

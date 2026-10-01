@@ -1,6 +1,8 @@
 package dev.nipponten.infrastructure.entities;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -10,13 +12,19 @@ import java.math.BigDecimal;
 @Table(name = "promotion_type")
 public class PromotionTypeEntity {
 
+    public enum Type {
+        PERCENTAGE_DISCOUNT,
+        FIXED_DISCOUNT
+    }
+
     @Id @GeneratedValue private Long id;
 
     private String name;
 
     private String description;
 
-    private String type;
+    @Enumerated(EnumType.STRING)
+    private Type type;
 
     private BigDecimal value;
 
@@ -42,11 +50,11 @@ public class PromotionTypeEntity {
         this.description = description;
     }
 
-    public String getType() {
+    public Type getType() {
         return type;
     }
 
-    public void setType(String type) {
+    public void setType(Type type) {
         this.type = type;
     }
 

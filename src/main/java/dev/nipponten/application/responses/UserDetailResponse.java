@@ -7,5 +7,6 @@ public record UserDetailResponse(
         Long id,
         String email,
         LocalDateTime createdAt,
+        boolean active,
         ClientResponse client,
         List<UserAddressResponse> addresses) {}

@@ -10,7 +10,6 @@ public class PromotionRequestMapper {
         return new Promotion(
                 id,
                 request.title(),
-                request.price(),
                 request.imageUrl(),
                 request.description(),
                 request.status(),

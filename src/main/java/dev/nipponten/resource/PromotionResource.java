@@ -16,8 +16,10 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Path("/promotions")
@@ -34,25 +36,32 @@ public class PromotionResource {
     @POST
     public Response create(@Valid PromotionRequest request) {
         Promotion saved = service.create(requestMapper.toModel(null, request));
-        return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
+        return Response.status(Response.Status.CREATED)
+                .entity(mapper.toResponse(saved, service.getPrices(saved)))
+                .build();
     }
 
     @GET
     @Path("/{id}")
     public PromotionResponse getById(@PathParam("id") Long id) {
-        return mapper.toResponse(service.getById(id));
+        Promotion promotion = service.getById(id);
+        return mapper.toResponse(promotion, service.getPrices(promotion));
     }
 
     @GET
-    public List<PromotionResponse> getAll() {
-        return service.getAll().stream().map(mapper::toResponse).toList();
+    public List<PromotionResponse> getAll(@QueryParam("available") boolean available) {
+        List<Promotion> promotions =
+                available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
+        return promotions.stream()
+                .map(promotion -> mapper.toResponse(promotion, service.getPrices(promotion)))
+                .toList();
     }
 
     @PUT
     @Path("/{id}")
     public PromotionResponse update(@PathParam("id") Long id, @Valid PromotionRequest request) {
         Promotion updated = service.update(id, requestMapper.toModel(id, request));
-        return mapper.toResponse(updated);
+        return mapper.toResponse(updated, service.getPrices(updated));
     }
 
     @DELETE

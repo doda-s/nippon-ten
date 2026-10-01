@@ -59,6 +59,18 @@ public class UserResource {
         return Response.noContent().build();
     }
 
+    @POST
+    @Path("/{id}/deactivate")
+    public UserResponse deactivate(@PathParam("id") Long id) {
+        return service.setActive(id, false);
+    }
+
+    @POST
+    @Path("/{id}/activate")
+    public UserResponse activate(@PathParam("id") Long id) {
+        return service.setActive(id, true);
+    }
+
     @GET
     @Path("/{userId}/client")
     public ClientResponse getClient(@PathParam("userId") Long userId) {

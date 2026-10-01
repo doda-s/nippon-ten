@@ -13,6 +13,8 @@ Ao criar uma conta o usuário precisa fornecer os seguintes dados:
 - CPF (opcional)
 - Endereço (opcional)
 
+O email é único no sistema (sem diferenciar maiúsculas de minúsculas), tanto para *Client User* quanto para *Internal User*. Um *User* é sempre **ou** cliente **ou** interno, nunca os dois.
+
 Fluxo para criar um *Client User*:
 
 ```mermaid
@@ -46,6 +48,8 @@ Um usuário opcionalmente pode adicionar um endereço ao criar uma conta. Mas el
 ## Internal User
 
 O *Internal User* representa um usuário com permissões especiais para gerenciamento do sistema e procedimentos. Apenas usuários internos com permissão de `manage_users` podem criar, editar e desativar usuários. Deletar um *Internal User* só pode ser feito por um usuário com a role reservada `super_admin` (ver [[#Bootstrap|Bootstrap]]), após o *Internal User* ser desativado.
+
+Desativar é uma flag `active` no *User* (vale para cliente e interno; todo usuário nasce ativo e pode ser reativado). Deletar um *Internal User* ainda ativo é recusado. Deletar um *Internal User* remove também o *User* associado.
 
 Para criar um *Internal User* é necessário os seguintes dados:
 

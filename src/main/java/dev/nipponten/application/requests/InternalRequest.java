@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record InternalRequest(
-        @NotNull Long userId,
         @NotNull Long internalRoleId,
         @NotBlank String name,
         @NotBlank String lastName,

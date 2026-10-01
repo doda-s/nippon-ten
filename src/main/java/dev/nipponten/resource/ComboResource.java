@@ -2,6 +2,7 @@ package dev.nipponten.resource;
 
 import dev.nipponten.application.requests.ComboProductRequest;
 import dev.nipponten.application.requests.ComboProductRequestMapper;
+import dev.nipponten.application.requests.ComboRegistrationRequest;
 import dev.nipponten.application.requests.ComboRequest;
 import dev.nipponten.application.requests.ComboRequestMapper;
 import dev.nipponten.application.responses.ComboProductResponse;
@@ -22,8 +23,10 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Path("/combos")
@@ -44,8 +47,11 @@ public class ComboResource {
     @Inject ComboProductRequestMapper comboProductRequestMapper;
 
     @POST
-    public Response create(@Valid ComboRequest request) {
-        Combo saved = service.create(requestMapper.toModel(null, request));
+    public Response create(@Valid ComboRegistrationRequest request) {
+        Combo saved =
+                service.register(
+                        requestMapper.toModel(null, request.combo()),
+                        request.products().stream().map(ComboProductRequest::productId).toList());
         return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
     }
 
@@ -56,8 +62,10 @@ public class ComboResource {
     }
 
     @GET
-    public List<ComboResponse> getAll() {
-        return service.getAll().stream().map(mapper::toResponse).toList();
+    public List<ComboResponse> getAll(@QueryParam("available") boolean available) {
+        List<Combo> combos =
+                available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
+        return combos.stream().map(mapper::toResponse).toList();
     }
 
     @PUT

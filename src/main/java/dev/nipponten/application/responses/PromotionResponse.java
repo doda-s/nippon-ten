@@ -1,13 +1,13 @@
 package dev.nipponten.application.responses;
 
 import dev.nipponten.domain.models.Promotion;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record PromotionResponse(
         Long id,
         String title,
-        BigDecimal price,
+        List<PromotionPriceResponse> prices,
         String imageUrl,
         String description,
         Promotion.Status status,

@@ -8,6 +8,7 @@ import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @ApplicationScoped
@@ -45,6 +46,17 @@ public class PanachePromotionRepository
     @Override
     public List<Promotion> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public List<Promotion> getAvailable(LocalDateTime now) {
+        return list(
+                        "status = ?1 and startDate <= ?2 and endDate > ?2",
+                        PromotionEntity.Status.ACTIVE,
+                        now)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 
     @Override

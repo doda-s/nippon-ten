@@ -42,6 +42,14 @@ public class PanacheUserRepository implements UserRepository, PanacheRepository<
     }
 
     @Override
+    public User getByEmail(String email) {
+        return find("lower(email) = ?1", email.toLowerCase())
+                .firstResultOptional()
+                .map(mapper::toModel)
+                .orElse(null);
+    }
+
+    @Override
     public List<User> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
     }

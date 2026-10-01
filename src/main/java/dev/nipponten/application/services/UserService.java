@@ -1,8 +1,11 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.UserNotFoundException;
 import dev.nipponten.application.requests.ClientRequest;
 import dev.nipponten.application.requests.ClientRequestMapper;
+import dev.nipponten.application.requests.InternalRegistrationRequest;
+import dev.nipponten.application.requests.InternalRequestMapper;
 import dev.nipponten.application.requests.UserAddressRequest;
 import dev.nipponten.application.requests.UserAddressRequestMapper;
 import dev.nipponten.application.requests.UserRegistrationRequest;
@@ -10,12 +13,15 @@ import dev.nipponten.application.requests.UserRequest;
 import dev.nipponten.application.requests.UserRequestMapper;
 import dev.nipponten.application.responses.ClientResponse;
 import dev.nipponten.application.responses.ClientResponseMapper;
+import dev.nipponten.application.responses.InternalResponse;
+import dev.nipponten.application.responses.InternalResponseMapper;
 import dev.nipponten.application.responses.UserAddressResponse;
 import dev.nipponten.application.responses.UserAddressResponseMapper;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.responses.UserResponseMapper;
 import dev.nipponten.domain.models.Client;
+import dev.nipponten.domain.models.Internal;
 import dev.nipponten.domain.models.User;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserProfile;
@@ -34,11 +40,15 @@ public class UserService {
 
     @Inject UserAddressService userAddressService;
 
+    @Inject InternalService internalService;
+
     @Inject UserResponseMapper userMapper;
 
     @Inject ClientResponseMapper clientMapper;
 
     @Inject UserAddressResponseMapper userAddressMapper;
+
+    @Inject InternalResponseMapper internalMapper;
 
     @Inject UserRequestMapper userRequestMapper;
 
@@ -46,13 +56,33 @@ public class UserService {
 
     @Inject UserAddressRequestMapper userAddressRequestMapper;
 
+    @Inject InternalRequestMapper internalRequestMapper;
+
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
+        requireUniqueEmail(request.user().email(), null);
         User savedUser = repository.save(userRequestMapper.toModel(null, request.user()));
         Client savedClient =
                 clientService.create(
                         clientRequestMapper.toModel(null, savedUser.id(), request.client()));
-        return userMapper.toDetailResponse(new UserProfile(savedUser, savedClient, List.of()));
+        List<UserAddress> addresses =
+                request.address() == null
+                        ? List.of()
+                        : List.of(
+                                userAddressService.create(
+                                        userAddressRequestMapper.toModel(
+                                                null, savedClient.id(), request.address())));
+        return userMapper.toDetailResponse(new UserProfile(savedUser, savedClient, addresses));
+    }
+
+    @Transactional
+    public InternalResponse registerInternal(InternalRegistrationRequest request) {
+        requireUniqueEmail(request.user().email(), null);
+        User savedUser = repository.save(userRequestMapper.toModel(null, request.user()));
+        Internal savedInternal =
+                internalService.create(
+                        internalRequestMapper.toModel(null, savedUser.id(), request.internal()));
+        return internalMapper.toResponse(savedInternal);
     }
 
     public UserDetailResponse getProfile(Long id) {
@@ -68,8 +98,29 @@ public class UserService {
     }
 
     public UserResponse update(Long id, UserRequest request) {
-        getById(id);
-        return userMapper.toResponse(repository.save(userRequestMapper.toModel(id, request)));
+        User current = getById(id);
+        requireUniqueEmail(request.email(), id);
+        User model = userRequestMapper.toModel(id, request);
+        return userMapper.toResponse(
+                repository.save(
+                        new User(
+                                id,
+                                model.email(),
+                                model.password(),
+                                current.createdAt(),
+                                current.active())));
+    }
+
+    public UserResponse setActive(Long id, boolean active) {
+        User current = getById(id);
+        return userMapper.toResponse(
+                repository.save(
+                        new User(
+                                id,
+                                current.email(),
+                                current.password(),
+                                current.createdAt(),
+                                active)));
     }
 
     @Transactional
@@ -87,7 +138,22 @@ public class UserService {
                                                             client.id(), addressId));
                             clientService.delete(client.id());
                         });
+        internalService.getByUser(id).stream().map(Internal::id).forEach(internalService::delete);
         repository.remove(model);
+    }
+
+    @Transactional
+    public void deleteInternal(Long internalId) {
+        User user = getById(internalService.getById(internalId).userId());
+        if (user.active()) {
+            throw new InvalidRequestException(
+                    "Internal user "
+                            + internalId
+                            + " must be deactivated before deletion (user "
+                            + user.id()
+                            + ")");
+        }
+        delete(user.id());
     }
 
     public ClientResponse getClient(Long userId) {
@@ -133,6 +199,13 @@ public class UserService {
         User model = repository.getById(id);
         if (model == null) throw new UserNotFoundException(id);
         return model;
+    }
+
+    private void requireUniqueEmail(String email, Long userId) {
+        User existing = repository.getByEmail(email);
+        if (existing != null && !existing.id().equals(userId)) {
+            throw new InvalidRequestException("Email already registered: " + email);
+        }
     }
 
     private Client requireClientOf(Long userId) {

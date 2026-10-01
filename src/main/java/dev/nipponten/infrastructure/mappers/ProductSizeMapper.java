@@ -3,6 +3,7 @@ package dev.nipponten.infrastructure.mappers;
 import dev.nipponten.domain.models.ProductSize;
 import dev.nipponten.infrastructure.entities.ProductEntity;
 import dev.nipponten.infrastructure.entities.ProductSizeEntity;
+import dev.nipponten.infrastructure.entities.SizeEntity;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -24,6 +25,7 @@ public class ProductSizeMapper {
 
     private void applyToEntity(ProductSizeEntity entity, ProductSize model) {
         entity.setProduct(entityManager.getReference(ProductEntity.class, model.productId()));
+        entity.setSize(entityManager.getReference(SizeEntity.class, model.sizeId()));
         entity.setPrice(model.price());
         entity.setStatus(ProductSizeEntity.Status.valueOf(model.status().name()));
     }
@@ -32,6 +34,7 @@ public class ProductSizeMapper {
         return new ProductSize(
                 entity.getId(),
                 entity.getProduct().getId(),
+                entity.getSize().getId(),
                 entity.getPrice(),
                 ProductSize.Status.valueOf(entity.getStatus().name()));
     }
