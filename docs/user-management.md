@@ -58,7 +58,8 @@ Para criar um *Internal User* é necessário os seguintes dados:
 - Name
 - Last name
 - CPF
-- Role
+- Role (opcional — se não for informada, o *Internal* recebe a role padrão; ver [[#Roles|Roles]])
+- User permissions (opcional — permissões individuais, somadas às da role; mesmo catálogo de [[#Permissions|Permissions]])
 
 Fluxo para criar um *Internal User*:
 
@@ -71,26 +72,38 @@ B --> C[Create User]
 
 C --> D[Create Internal]
 
-D --> E[Client and user relationship]
+D --> E[Internal and user relationship]
 ```
 
 ### Roles
 
 As *roles* se tratam de um conjunto de permissões que um usuário interno pode ter. Uma role pode ser criada por um usuário que tenha a permissão `manage_roles`. Para criar uma role é necessário as seguintes informações:
 
-- Name
-- Permissions
+- Name (único entre as roles)
+- Permissions (lista obrigatória, mas pode ser vazia)
+- Default role (opcional, `false` por padrão)
 
-As *permissions* são pré-definidas no sistema (catálogo fixo, ver [[#Permissions|Permissions]]) e associadas a uma role por uma relação N:N — uma role pode ter várias permissões, e uma permissão pode estar em várias roles. Uma role só aceita *permissions* válidas (existentes no catálogo).
+As *permissions* são pré-definidas no sistema (catálogo fixo, ver [[#Permissions|Permissions]]) e cada role guarda a sua lista de permissões — uma role pode ter várias permissões, e uma permissão pode estar em várias roles. Uma role só aceita *permissions* válidas (existentes no catálogo); um valor fora do catálogo é recusado com `400`.
 
-> Modelo de dados: `permission(id, name)` como catálogo fixo (seed com as 5 linhas da tabela abaixo) e `role_permission(role_id, permission_id)` como tabela de associação N:N. Nenhuma das duas existe ainda no diagrama (`docs/data-modeling/data_modeling.drawio`) — `internal_role` lá é só `(id, name)` — precisa ser atualizado manualmente.
+Assim como o *User*, a role tem uma flag `active`: toda role nasce ativa, a edição não altera o valor e ela pode ser desativada/reativada por `POST /internal-roles/{id}/deactivate` e `POST /internal-roles/{id}/activate`.
+
+Existe no máximo uma **role padrão**. Ao criar ou editar uma role com `defaultRole = true`, a role padrão anterior deixa de ser padrão. A role padrão é atribuída ao *Internal* criado sem role; se nenhuma role padrão estiver configurada, essa criação é recusada (`400`).
+
+Uma role atribuída a pelo menos um *Internal User* não pode ser deletada (`400`).
+
+> Modelo de dados: o catálogo de *permissions* é o enum `InternalPermission` (valores em maiúsculas na API, ex.: `MANAGE_USERS`), sem tabela própria. As permissões de uma role ficam numa coluna array na própria tabela:
+>
+> - `internal_role(id, name UNIQUE, permissions[], default_role, active)`
+> - `internal(id, user_id, internal_role_id, user_permissions[], name, last_name, cpf)` — `user_permissions` são permissões individuais do usuário interno, além das da role.
+>
+> O diagrama (`docs/data-modeling/data_modeling.drawio`) ainda mostra `internal_role` como `(id, name)` e `internal` sem `user_permissions` — precisa ser atualizado manualmente.
 
 ## Permissions
 
 | Permission         | Description                                                                                                                                                                |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | manage_users       | Permissão para gerenciar usuários. Possibilita criar, editar e desativar um usuário                                                                                        |
-| manage_roles       | Permissão para gerenciar usuários. Possibilita criar, editar e deletar roles                                                                                               |
+| manage_roles       | Permissão para gerenciar roles. Possibilita criar, editar e deletar roles                                                                                                  |
 | manage_products    | Permissão para gerenciar produtos. Possibilita criar, editar, deletar e alterar o status de produtos. Também permite modificar os ingredientes ao qual um produto depende. |
 | manage_ingredients | Permissão para gerenciar os ingredientes cadastrados no sistema. Possibilita cadastrar, editar, deletar e alterar o status de um ingrediente.                              |
 | manage_promotions  | Permissão para gerenciar os combos e promotions existentes. Possibilita criar, editar, deletar e alterar o status de um combo/promotion.                                   |
