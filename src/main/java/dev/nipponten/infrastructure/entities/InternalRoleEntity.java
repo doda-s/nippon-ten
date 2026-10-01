@@ -32,6 +32,10 @@ public class InternalRoleEntity {
     @Column(nullable = false)
     private boolean defaultRole = false;
 
+    @ColumnDefault("true")
+    @Column(nullable = false)
+    private boolean active = true;
+
     public InternalRoleEntity() {}
 
     public Long getId() {
@@ -60,5 +64,13 @@ public class InternalRoleEntity {
 
     public void setDefaultRole(boolean defaultRole) {
         this.defaultRole = defaultRole;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

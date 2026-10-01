@@ -67,6 +67,8 @@ class UserRulesTest {
                                         Map.of(
                                                 "internalRoleId",
                                                 roleId,
+                                                "userPermissions",
+                                                List.of("MANAGE_PRODUCTS"),
                                                 "name",
                                                 "Interno",
                                                 "lastName",
@@ -80,6 +82,49 @@ class UserRulesTest {
                         .jsonPath()
                         .getLong("id");
 
+        given().get("/internal/{id}", internalId)
+                .then()
+                .statusCode(200)
+                .body("userPermissions", is(List.of("MANAGE_PRODUCTS")));
+
         given().delete("/internal/{id}", internalId).then().statusCode(400);
+    }
+
+    @Test
+    void internalRoleIsCreatedActiveAndCanBeToggled() {
+        long roleId =
+                given().contentType(ContentType.JSON)
+                        .body(
+                                Map.of(
+                                        "name",
+                                        "caixa-" + System.nanoTime(),
+                                        "permissions",
+                                        List.of("MANAGE_USERS")))
+                        .post("/internal-roles")
+                        .then()
+                        .statusCode(201)
+                        .body("active", is(true))
+                        .extract()
+                        .jsonPath()
+                        .getLong("id");
+
+        given().contentType(ContentType.JSON)
+                .post("/internal-roles/{id}/deactivate", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(false));
+
+        given().contentType(ContentType.JSON)
+                .body(Map.of("name", "caixa-" + System.nanoTime(), "permissions", List.of()))
+                .put("/internal-roles/{id}", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(false));
+
+        given().contentType(ContentType.JSON)
+                .post("/internal-roles/{id}/activate", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(true));
     }
 }

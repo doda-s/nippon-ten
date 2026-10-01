@@ -30,6 +30,7 @@ public class InternalMapper {
                         ? null
                         : entityManager.getReference(
                                 InternalRoleEntity.class, model.internalRoleId()));
+        entity.setUserPermissions(model.userPermissions());
         entity.setName(model.name());
         entity.setLastName(model.lastName());
         entity.setCpf(model.cpf());

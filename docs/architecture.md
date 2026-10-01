@@ -106,7 +106,7 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 ## O que ainda não existe (fora do escopo desta documentação)
 
-Os documentos [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) descrevem um sistema de permissões por cargo que ainda não tem código correspondente: o catálogo fixo de `permission`, a relação N:N `role_permission`, a role reservada `super_admin` (e o seed de bootstrap que a cria junto do primeiro usuário interno) e autenticação/autorização de fato. Hoje `InternalRole` é só `(id, name)` e todos os endpoints são abertos.
+Os documentos [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) descrevem um sistema de permissões por cargo que está só parcialmente implementado. Já existem o catálogo de permissões (enum `InternalPermission`), as permissões de cada `InternalRole` (coluna array em `internal_role`) e a role padrão. Ainda não existem a role reservada `super_admin` (nem o seed de bootstrap que a cria junto do primeiro usuário interno) e a autenticação/autorização de fato: as permissões são apenas gravadas e todos os endpoints são abertos.
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

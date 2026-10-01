@@ -21,10 +21,15 @@ public class InternalRoleMapper {
         entity.setName(model.name());
         entity.setPermissions(model.permissions());
         entity.setDefaultRole(model.defaultRole());
+        entity.setActive(model.active());
     }
 
     public InternalRole toModel(InternalRoleEntity entity) {
         return new InternalRole(
-                entity.getId(), entity.getName(), entity.getPermissions(), entity.isDefaultRole());
+                entity.getId(),
+                entity.getName(),
+                entity.getPermissions(),
+                entity.isDefaultRole(),
+                entity.isActive());
     }
 }

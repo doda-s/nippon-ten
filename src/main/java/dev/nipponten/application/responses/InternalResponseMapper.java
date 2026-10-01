@@ -11,6 +11,7 @@ public class InternalResponseMapper {
                 internal.id(),
                 internal.userId(),
                 internal.internalRoleId(),
+                internal.userPermissions(),
                 internal.name(),
                 internal.lastName(),
                 internal.cpf());
