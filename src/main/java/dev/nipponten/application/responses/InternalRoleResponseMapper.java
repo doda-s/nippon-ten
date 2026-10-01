@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class InternalRoleResponseMapper {
 
     public InternalRoleResponse toResponse(InternalRole internalRole) {
-        return new InternalRoleResponse(internalRole.id(), internalRole.name());
+        return new InternalRoleResponse(
+                internalRole.id(), internalRole.name(), internalRole.defaultRole());
     }
 }

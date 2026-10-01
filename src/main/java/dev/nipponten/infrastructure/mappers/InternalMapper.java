@@ -26,7 +26,10 @@ public class InternalMapper {
     private void applyToEntity(InternalEntity entity, Internal model) {
         entity.setUser(entityManager.getReference(UserEntity.class, model.userId()));
         entity.setInternalRole(
-                entityManager.getReference(InternalRoleEntity.class, model.internalRoleId()));
+                model.internalRoleId() == null
+                        ? null
+                        : entityManager.getReference(
+                                InternalRoleEntity.class, model.internalRoleId()));
         entity.setName(model.name());
         entity.setLastName(model.lastName());
         entity.setCpf(model.cpf());
@@ -36,7 +39,8 @@ public class InternalMapper {
         return new Internal(
                 entity.getId(),
                 entity.getUser().getId(),
-                entity.getInternalRole().getId(),
+                entity.getInternalRole() == null ? null : entity.getInternalRole().getId(),
+                entity.getUserPermissions(),
                 entity.getName(),
                 entity.getLastName(),
                 entity.getCpf());

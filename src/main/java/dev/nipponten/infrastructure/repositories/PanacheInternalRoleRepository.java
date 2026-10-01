@@ -46,4 +46,16 @@ public class PanacheInternalRoleRepository
     public List<InternalRole> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
     }
+
+    @Override
+    public InternalRole getByName(String name) {
+        InternalRoleEntity entity = find("name", name).firstResult();
+        return entity == null ? null : mapper.toModel(entity);
+    }
+
+    @Override
+    public InternalRole getDefault() {
+        InternalRoleEntity entity = find("defaultRole", true).firstResult();
+        return entity == null ? null : mapper.toModel(entity);
+    }
 }

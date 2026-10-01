@@ -17,6 +17,10 @@ public class InternalRoleService {
     @Inject InternalRepository internalRepository;
 
     public InternalRole create(InternalRole model) {
+        requireUniqueName(model.name(), null);
+        if (model.defaultRole()) {
+            clearCurrentDefault(null);
+        }
         return repository.save(model);
     }
 
@@ -30,8 +34,20 @@ public class InternalRoleService {
         return repository.getAll();
     }
 
+    public InternalRole getDefault() {
+        InternalRole model = repository.getDefault();
+        if (model == null) {
+            throw new InvalidRequestException("No default internal role configured");
+        }
+        return model;
+    }
+
     public InternalRole update(Long id, InternalRole model) {
         getById(id);
+        requireUniqueName(model.name(), id);
+        if (model.defaultRole()) {
+            clearCurrentDefault(id);
+        }
         return repository.save(model);
     }
 
@@ -47,5 +63,24 @@ public class InternalRoleService {
                             + " internal user(s)");
         }
         repository.remove(model);
+    }
+
+    private void requireUniqueName(String name, Long roleId) {
+        InternalRole existing = repository.getByName(name);
+        if (existing != null && !existing.id().equals(roleId)) {
+            throw new InvalidRequestException("Internal role name already in use: " + name);
+        }
+    }
+
+    private void clearCurrentDefault(Long roleId) {
+        InternalRole currentDefault = repository.getDefault();
+        if (currentDefault != null && !currentDefault.id().equals(roleId)) {
+            repository.save(
+                    new InternalRole(
+                            currentDefault.id(),
+                            currentDefault.name(),
+                            currentDefault.permissions(),
+                            false));
+        }
     }
 }

@@ -11,4 +11,8 @@ public interface InternalRoleRepository {
     InternalRole getById(Long id);
 
     List<InternalRole> getAll();
+
+    InternalRole getByName(String name);
+
+    InternalRole getDefault();
 }

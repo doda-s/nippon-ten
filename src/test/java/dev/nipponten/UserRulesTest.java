@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +40,12 @@ class UserRulesTest {
     void refusesToDeleteAnInternalUserThatIsStillActive() {
         long roleId =
                 given().contentType(ContentType.JSON)
-                        .body(Map.of("name", "gerente-" + System.nanoTime()))
+                        .body(
+                                Map.of(
+                                        "name",
+                                        "gerente-" + System.nanoTime(),
+                                        "permissions",
+                                        List.of("MANAGE_USERS")))
                         .post("/internal-roles")
                         .then()
                         .statusCode(201)

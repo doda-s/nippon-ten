@@ -1,5 +1,12 @@
 package dev.nipponten.application.requests;
 
-import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
-public record InternalRoleRequest(@NotBlank String name) {}
+import dev.nipponten.domain.models.InternalPermission;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record InternalRoleRequest(
+        @NotBlank String name,
+        @NotNull List<InternalPermission> permissions,
+        boolean defaultRole) {}
