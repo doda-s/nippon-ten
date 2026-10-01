@@ -56,6 +56,18 @@ public class InternalRoleResource {
         return mapper.toResponse(updated);
     }
 
+    @POST
+    @Path("/{id}/deactivate")
+    public InternalRoleResponse deactivate(@PathParam("id") Long id) {
+        return mapper.toResponse(service.setActive(id, false));
+    }
+
+    @POST
+    @Path("/{id}/activate")
+    public InternalRoleResponse activate(@PathParam("id") Long id) {
+        return mapper.toResponse(service.setActive(id, true));
+    }
+
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {

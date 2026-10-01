@@ -21,7 +21,9 @@ public class InternalRoleService {
         if (model.defaultRole()) {
             clearCurrentDefault(null);
         }
-        return repository.save(model);
+        return repository.save(
+                new InternalRole(
+                        null, model.name(), model.permissions(), model.defaultRole(), true));
     }
 
     public InternalRole getById(Long id) {
@@ -43,12 +45,25 @@ public class InternalRoleService {
     }
 
     public InternalRole update(Long id, InternalRole model) {
-        getById(id);
+        InternalRole current = getById(id);
         requireUniqueName(model.name(), id);
         if (model.defaultRole()) {
             clearCurrentDefault(id);
         }
-        return repository.save(model);
+        return repository.save(
+                new InternalRole(
+                        id,
+                        model.name(),
+                        model.permissions(),
+                        model.defaultRole(),
+                        current.active()));
+    }
+
+    public InternalRole setActive(Long id, boolean active) {
+        InternalRole current = getById(id);
+        return repository.save(
+                new InternalRole(
+                        id, current.name(), current.permissions(), current.defaultRole(), active));
     }
 
     public void delete(Long id) {
@@ -80,7 +95,8 @@ public class InternalRoleService {
                             currentDefault.id(),
                             currentDefault.name(),
                             currentDefault.permissions(),
-                            false));
+                            false,
+                            currentDefault.active()));
         }
     }
 }
