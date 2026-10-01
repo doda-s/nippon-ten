@@ -1,3 +1,9 @@
 package dev.nipponten.domain.models;
 
-public record InternalRole(Long id, String name) {}
+import java.util.List;
+
+public record InternalRole(
+        Long id,
+        String name,
+        List<InternalPermission> permissions,
+        boolean defaultRole) {}

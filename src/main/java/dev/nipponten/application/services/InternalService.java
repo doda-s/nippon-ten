@@ -20,9 +20,22 @@ public class InternalService {
     @Inject InternalRoleService internalRoleService;
 
     public Internal create(Internal model) {
-        internalRoleService.getById(model.internalRoleId());
+        Long roleId = model.internalRoleId();
+        if (roleId != null) {
+            internalRoleService.getById(roleId);
+        } else {
+            roleId = internalRoleService.getDefault().id();
+        }
         requireNotClient(model.userId());
-        return repository.save(model);
+        return repository.save(
+                new Internal(
+                        model.id(),
+                        model.userId(),
+                        roleId,
+                        model.userPermissions(),
+                        model.name(),
+                        model.lastName(),
+                        model.cpf()));
     }
 
     public Internal getById(Long id) {
@@ -43,6 +56,7 @@ public class InternalService {
                         id,
                         current.userId(),
                         model.internalRoleId(),
+                        model.userPermissions(),
                         model.name(),
                         model.lastName(),
                         model.cpf()));
@@ -53,7 +67,10 @@ public class InternalService {
         repository.remove(model);
     }
 
-    // Um User é sempre ou cliente ou interno, nunca os dois.
+    /**
+     * Verifica se um User é cliente ou interno, e nunca os dois.
+     * @param userId
+     */
     private void requireNotClient(Long userId) {
         if (!clientRepository.getByUser(userId).isEmpty()) {
             throw new InvalidRequestException(

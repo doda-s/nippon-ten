@@ -1,11 +1,19 @@
 package dev.nipponten.infrastructure.entities;
 
+import java.util.List;
+
+import dev.nipponten.domain.models.InternalPermission;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "internal")
@@ -21,14 +29,19 @@ public class InternalEntity {
     @JoinColumn(name = "internal_role_id")
     private InternalRoleEntity internalRole;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "user_permissions")
+    private List<InternalPermission> userPermissions;
+    
     private String name;
-
+    
     private String lastName;
-
+    
     private String cpf;
 
     public InternalEntity() {}
-
+    
     public Long getId() {
         return id;
     }
@@ -45,8 +58,16 @@ public class InternalEntity {
         return internalRole;
     }
 
-    public void setInternalRole(InternalRoleEntity internalRole) {
-        this.internalRole = internalRole;
+    public void setInternalRole(InternalRoleEntity internalPermission) {
+        this.internalRole = internalPermission;
+    }
+    
+    public List<InternalPermission> getUserPermissions() {
+        return userPermissions;
+    }
+
+    public void setUserPermissions(List<InternalPermission> userPermissions) {
+        this.userPermissions = userPermissions;
     }
 
     public String getName() {

@@ -11,6 +11,7 @@ public class InternalRequestMapper {
                 id,
                 userId,
                 request.internalRoleId(),
+                request.userPermissions(),
                 request.name(),
                 request.lastName(),
                 request.cpf());
