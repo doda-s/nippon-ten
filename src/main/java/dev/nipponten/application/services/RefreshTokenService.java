@@ -30,6 +30,8 @@ public class RefreshTokenService {
 
     @Inject RefreshTokenRepository repository;
 
+    @Inject AuthenticationCache authenticationCache;
+
     @ConfigProperty(name = "nippon.auth.refresh-token-ttl")
     Duration ttl;
 
@@ -40,18 +42,13 @@ public class RefreshTokenService {
         return issue(userId, UUID.randomUUID(), LocalDateTime.now()).issued();
     }
 
-    /** O access token só vale enquanto a sessão de onde ele saiu estiver ativa. */
-    public boolean isSessionActive(UUID sessionId) {
-        return repository.isSessionActive(sessionId, LocalDateTime.now());
-    }
-
     // dontRollbackOn: a revogação em massa por reuso precisa ficar gravada mesmo com o 401.
     @Transactional(dontRollbackOn = UnauthorizedException.class)
     public IssuedRefreshToken rotate(String value) {
         LocalDateTime now = LocalDateTime.now();
         RefreshToken current = requireKnown(value);
         if (current.isRevoked()) {
-            repository.revokeAllByUser(current.userId(), now);
+            revokeAllByUser(current.userId());
             throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
         }
         if (current.isExpiredAt(now)) {
@@ -88,15 +85,18 @@ public class RefreshTokenService {
                             current.createdAt(),
                             LocalDateTime.now(),
                             current.replacedById()));
+            authenticationCache.invalidateSession(current.sessionId());
         }
     }
 
     public void revokeAllByUser(Long userId) {
         repository.revokeAllByUser(userId, LocalDateTime.now());
+        authenticationCache.invalidateUser(userId);
     }
 
     public void removeAllByUser(Long userId) {
         repository.removeAllByUser(userId);
+        authenticationCache.invalidateUser(userId);
     }
 
     private record Issued(RefreshToken model, IssuedRefreshToken issued) {}

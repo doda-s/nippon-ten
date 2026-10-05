@@ -39,24 +39,30 @@ public class AuthService {
 
     @Inject RefreshTokenService refreshTokenService;
 
+    @Inject LoginAttemptLimiter loginAttemptLimiter;
+
     /** Access token para o corpo da resposta e refresh token para o cookie. */
     public record Session(
             TokenResponse accessToken, RefreshTokenService.IssuedRefreshToken refreshToken) {}
 
-    public Session login(LoginRequest request) {
+    /** {@code clientIp} pode ser nulo; aí só o limite por email vale. */
+    public Session login(LoginRequest request, String clientIp) {
+        loginAttemptLimiter.check(request.email(), clientIp);
         User user = userRepository.getByEmail(request.email().trim());
         boolean passwordMatches =
                 BcryptUtil.matches(request.password(), user == null ? DUMMY_HASH : user.password());
-        if (user == null || !passwordMatches) {
+        // Usuário desativado recebe a mesma resposta de credencial inválida.
+        Optional<AuthenticatedUser> authenticated =
+                user == null || !passwordMatches
+                        ? Optional.empty()
+                        : permissionResolver.resolve(user.id());
+        if (authenticated.isEmpty()) {
+            loginAttemptLimiter.recordFailure(request.email(), clientIp);
             throw new UnauthorizedException(INVALID_CREDENTIALS);
         }
-        // Usuário desativado recebe a mesma resposta de credencial inválida.
-        AuthenticatedUser authenticated =
-                permissionResolver
-                        .resolve(user.id())
-                        .orElseThrow(() -> new UnauthorizedException(INVALID_CREDENTIALS));
+        loginAttemptLimiter.recordSuccess(request.email());
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.id());
-        return new Session(accessToken(authenticated, refreshToken), refreshToken);
+        return new Session(accessToken(authenticated.get(), refreshToken), refreshToken);
     }
 
     public Session refresh(String refreshToken) {

@@ -1,7 +1,6 @@
 package dev.nipponten.infrastructure.security;
 
 import dev.nipponten.application.services.PermissionResolver;
-import dev.nipponten.application.services.RefreshTokenService;
 import dev.nipponten.domain.models.AuthenticatedUser;
 import io.quarkus.security.AuthenticationFailedException;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -19,8 +18,6 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
     static final String AUTHENTICATED_USER_ATTRIBUTE = "nippon.authenticated-user";
 
     @Inject PermissionResolver permissionResolver;
-
-    @Inject RefreshTokenService refreshTokenService;
 
     private SecurityIdentity identity;
 
@@ -40,13 +37,13 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
         Long userId = parseUserId(jwt.getSubject());
         // Logout, troca de senha, desativação e reuso de refresh token encerram a sessão; o access
         // token dela morre junto, sem esperar expirar.
-        if (!refreshTokenService.isSessionActive(parseSessionId(jwt))) {
-            throw new AuthenticationFailedException("Session is no longer active");
-        }
         AuthenticatedUser user =
                 permissionResolver
-                        .resolve(userId)
-                        .orElseThrow(() -> new AuthenticationFailedException("User is not active"));
+                        .resolveSession(userId, parseSessionId(jwt))
+                        .orElseThrow(
+                                () ->
+                                        new AuthenticationFailedException(
+                                                "Session ended or user is not active"));
         QuarkusSecurityIdentity.Builder builder =
                 QuarkusSecurityIdentity.builder(identity)
                         .addRole(user.type().name())

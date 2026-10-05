@@ -9,7 +9,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @ApplicationScoped
 public class PanacheRefreshTokenRepository
@@ -48,10 +47,5 @@ public class PanacheRefreshTokenRepository
         // A cadeia de substituição aponta para tokens do mesmo usuário; solta antes de apagar.
         update("replacedBy = null where user.id = ?1", userId);
         delete("user.id", userId);
-    }
-
-    @Override
-    public boolean isSessionActive(UUID sessionId, LocalDateTime now) {
-        return count("sessionId = ?1 and revokedAt is null and expiresAt > ?2", sessionId, now) > 0;
     }
 }

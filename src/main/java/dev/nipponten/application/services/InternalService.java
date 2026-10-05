@@ -19,6 +19,8 @@ public class InternalService {
 
     @Inject InternalRoleService internalRoleService;
 
+    @Inject AuthenticationCache authenticationCache;
+
     public Internal create(Internal model) {
         Long roleId = model.internalRoleId();
         if (roleId != null) {
@@ -51,6 +53,7 @@ public class InternalService {
     public Internal update(Long id, Internal model) {
         Internal current = getById(id);
         internalRoleService.getById(model.internalRoleId());
+        authenticationCache.invalidateUser(current.userId());
         return repository.save(
                 new Internal(
                         id,
@@ -64,11 +67,13 @@ public class InternalService {
 
     public void delete(Long id) {
         Internal model = getById(id);
+        authenticationCache.invalidateUser(model.userId());
         repository.remove(model);
     }
 
     /**
      * Verifica se um User é cliente ou interno, e nunca os dois.
+     *
      * @param userId
      */
     private void requireNotClient(Long userId) {

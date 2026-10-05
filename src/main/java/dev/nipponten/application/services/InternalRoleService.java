@@ -16,6 +16,8 @@ public class InternalRoleService {
 
     @Inject InternalRepository internalRepository;
 
+    @Inject AuthenticationCache authenticationCache;
+
     public InternalRole create(InternalRole model) {
         requireUniqueName(model.name(), null);
         if (model.defaultRole()) {
@@ -50,6 +52,7 @@ public class InternalRoleService {
         if (model.defaultRole()) {
             clearCurrentDefault(id);
         }
+        authenticationCache.invalidateAll();
         return repository.save(
                 new InternalRole(
                         id,
@@ -61,6 +64,7 @@ public class InternalRoleService {
 
     public InternalRole setActive(Long id, boolean active) {
         InternalRole current = getById(id);
+        authenticationCache.invalidateAll();
         return repository.save(
                 new InternalRole(
                         id, current.name(), current.permissions(), current.defaultRole(), active));

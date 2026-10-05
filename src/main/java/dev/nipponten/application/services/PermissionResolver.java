@@ -1,66 +1,55 @@
 package dev.nipponten.application.services;
 
 import dev.nipponten.domain.models.AuthenticatedUser;
-import dev.nipponten.domain.models.Internal;
 import dev.nipponten.domain.models.InternalPermission;
-import dev.nipponten.domain.models.InternalRole;
-import dev.nipponten.domain.models.User;
-import dev.nipponten.domain.models.UserType;
-import dev.nipponten.domain.repositories.InternalRepository;
-import dev.nipponten.domain.repositories.InternalRoleRepository;
-import dev.nipponten.domain.repositories.UserRepository;
+import dev.nipponten.domain.models.UserAccess;
+import dev.nipponten.domain.repositories.UserAccessRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.LocalDateTime;
 import java.util.EnumSet;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /**
- * Calcula as permissões efetivas de um usuário a partir do banco, a cada request: assim desativar
- * um usuário ou uma role vale na hora, sem esperar o token expirar.
+ * Calcula as permissões efetivas de um usuário a partir do banco: assim desativar um usuário ou uma
+ * role vale na hora, sem esperar o token expirar.
  */
 @ApplicationScoped
 public class PermissionResolver {
 
-    @Inject UserRepository userRepository;
+    @Inject UserAccessRepository repository;
 
-    @Inject InternalRepository internalRepository;
+    @Inject AuthenticationCache cache;
 
-    @Inject InternalRoleRepository internalRoleRepository;
-
-    /** Vazio quando o usuário não existe mais ou está desativado. */
+    /** Login e refresh. Vazio quando o usuário não existe mais ou está desativado. */
     public Optional<AuthenticatedUser> resolve(Long userId) {
-        User user = userRepository.getById(userId);
-        if (user == null || !user.active()) {
-            return Optional.empty();
-        }
-        List<Internal> internals = internalRepository.getByUser(userId);
-        if (internals.isEmpty()) {
-            return Optional.of(
-                    new AuthenticatedUser(userId, user.email(), UserType.CLIENT, Set.of()));
-        }
-        return Optional.of(
-                new AuthenticatedUser(
-                        userId,
-                        user.email(),
-                        UserType.INTERNAL,
-                        effectivePermissions(internals.getFirst())));
+        return repository.findActiveUser(userId).map(PermissionResolver::toAuthenticated);
+    }
+
+    /**
+     * Cada request autenticado. Vazio também quando a sessão do token foi encerrada. Sessão e
+     * permissões saem da mesma consulta, e o resultado fica no {@link AuthenticationCache}.
+     */
+    public Optional<AuthenticatedUser> resolveSession(Long userId, UUID sessionId) {
+        return cache.get(
+                userId,
+                sessionId,
+                () ->
+                        repository
+                                .findActiveSession(userId, sessionId, LocalDateTime.now())
+                                .map(PermissionResolver::toAuthenticated));
     }
 
     // Role desativada perde efeito, mas as permissões individuais do interno continuam valendo.
-    private Set<InternalPermission> effectivePermissions(Internal internal) {
+    private static AuthenticatedUser toAuthenticated(UserAccess access) {
         Set<InternalPermission> permissions = EnumSet.noneOf(InternalPermission.class);
-        if (internal.userPermissions() != null) {
-            permissions.addAll(internal.userPermissions());
+        permissions.addAll(access.userPermissions());
+        if (access.roleActive()) {
+            permissions.addAll(access.rolePermissions());
         }
-        InternalRole role =
-                internal.internalRoleId() == null
-                        ? null
-                        : internalRoleRepository.getById(internal.internalRoleId());
-        if (role != null && role.active() && role.permissions() != null) {
-            permissions.addAll(role.permissions());
-        }
-        return Set.copyOf(permissions);
+        return new AuthenticatedUser(
+                access.userId(), access.email(), access.type(), Set.copyOf(permissions));
     }
 }

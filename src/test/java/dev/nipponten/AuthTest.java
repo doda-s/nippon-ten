@@ -199,4 +199,43 @@ class AuthTest {
                 .statusCode(200)
                 .body("permissions", is(List.of("MANAGE_USERS")));
     }
+
+    @Test
+    void changingAnInternalsPermissionsAppliesToTheNextRequest() {
+        long roleId = createRole(List.of("MANAGE_PRODUCTS"));
+        String email = uniqueEmail("interno");
+        long userId = registerInternal(email, roleId, List.of());
+        long internalId =
+                given().get("/internal")
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .jsonPath()
+                        .getLong("find { it.userId == " + userId + " }.id");
+        String token = login(email);
+        given().auth()
+                .oauth2(token)
+                .get("/auth/me")
+                .then()
+                .body("permissions", is(List.of("MANAGE_PRODUCTS")));
+
+        given().contentType(ContentType.JSON)
+                .body(
+                        Map.of(
+                                "internalRoleId", roleId,
+                                "userPermissions", List.of("MANAGE_USERS"),
+                                "name", "Interno",
+                                "lastName", "Teste",
+                                "cpf", "12345678901"))
+                .put("/internal/{id}", internalId)
+                .then()
+                .statusCode(200);
+
+        given().auth()
+                .oauth2(token)
+                .get("/auth/me")
+                .then()
+                .statusCode(200)
+                .body("permissions", is(List.of("MANAGE_USERS", "MANAGE_PRODUCTS")));
+    }
 }

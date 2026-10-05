@@ -2,7 +2,6 @@ package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.RefreshToken;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 public interface RefreshTokenRepository {
     RefreshToken save(RefreshToken model);
@@ -13,7 +12,4 @@ public interface RefreshTokenRepository {
     void revokeAllByUser(Long userId, LocalDateTime revokedAt);
 
     void removeAllByUser(Long userId);
-
-    /** Uma sessão está ativa enquanto tiver um refresh token não revogado e não expirado. */
-    boolean isSessionActive(UUID sessionId, LocalDateTime now);
 }

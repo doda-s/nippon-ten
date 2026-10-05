@@ -6,6 +6,7 @@ import dev.nipponten.application.responses.MeResponse;
 import dev.nipponten.application.services.AuthService;
 import dev.nipponten.application.services.CurrentUser;
 import io.quarkus.security.Authenticated;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
@@ -40,8 +42,13 @@ public class AuthResource {
     @POST
     @Path("/login")
     @PermitAll
-    public Response login(@Valid LoginRequest request) {
-        return sessionResponse(service.login(request));
+    public Response login(@Valid LoginRequest request, @Context HttpServerRequest httpRequest) {
+        // Atrás de proxy, o IP real só aparece aqui com quarkus.http.proxy.* configurado.
+        String clientIp =
+                httpRequest.remoteAddress() == null
+                        ? null
+                        : httpRequest.remoteAddress().hostAddress();
+        return sessionResponse(service.login(request, clientIp));
     }
 
     @POST

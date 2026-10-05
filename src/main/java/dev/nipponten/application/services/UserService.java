@@ -61,6 +61,8 @@ public class UserService {
 
     @Inject RefreshTokenService refreshTokenService;
 
+    @Inject AuthenticationCache authenticationCache;
+
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
         requireUniqueEmail(request.user().email(), null);
@@ -108,6 +110,8 @@ public class UserService {
         if (!BcryptUtil.matches(request.password(), current.password())) {
             refreshTokenService.revokeAllByUser(id);
         }
+        // O email faz parte do usuário autenticado guardado no cache.
+        authenticationCache.invalidateUser(id);
         return userMapper.toResponse(
                 repository.save(
                         new User(
