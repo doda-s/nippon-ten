@@ -1,7 +1,5 @@
 package dev.nipponten.infrastructure.entities;
 
-import java.util.List;
-
 import dev.nipponten.domain.models.InternalPermission;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.util.List;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -35,6 +34,10 @@ public class InternalRoleEntity {
     @ColumnDefault("true")
     @Column(nullable = false)
     private boolean active = true;
+
+    @ColumnDefault("false")
+    @Column(nullable = false)
+    private boolean reserved = false;
 
     public InternalRoleEntity() {}
 
@@ -72,5 +75,13 @@ public class InternalRoleEntity {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isReserved() {
+        return reserved;
+    }
+
+    public void setReserved(boolean reserved) {
+        this.reserved = reserved;
     }
 }

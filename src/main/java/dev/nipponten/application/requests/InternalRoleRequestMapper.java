@@ -8,6 +8,6 @@ public class InternalRoleRequestMapper {
 
     public InternalRole toModel(Long id, InternalRoleRequest request) {
         return new InternalRole(
-                id, request.name(), request.permissions(), request.defaultRole(), true);
+                id, request.name(), request.permissions(), request.defaultRole(), true, false);
     }
 }

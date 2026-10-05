@@ -1,3 +1,4 @@
 package dev.nipponten.application.responses;
 
-public record InternalRoleResponse(Long id, String name, boolean defaultRole, boolean active) {}
+public record InternalRoleResponse(
+        Long id, String name, boolean defaultRole, boolean active, boolean reserved) {}

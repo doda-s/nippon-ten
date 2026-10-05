@@ -50,6 +50,10 @@ public class PermissionResolver {
             permissions.addAll(access.rolePermissions());
         }
         return new AuthenticatedUser(
-                access.userId(), access.email(), access.type(), Set.copyOf(permissions));
+                access.userId(),
+                access.email(),
+                access.type(),
+                Set.copyOf(permissions),
+                access.roleActive() && access.roleReserved());
     }
 }

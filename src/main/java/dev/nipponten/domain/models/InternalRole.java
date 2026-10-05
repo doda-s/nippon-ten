@@ -7,4 +7,5 @@ public record InternalRole(
         String name,
         List<InternalPermission> permissions,
         boolean defaultRole,
-        boolean active) {}
+        boolean active,
+        boolean reserved) {}

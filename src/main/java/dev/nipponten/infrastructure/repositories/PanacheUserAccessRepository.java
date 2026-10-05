@@ -21,7 +21,7 @@ public class PanacheUserAccessRepository implements UserAccessRepository {
 
     private static final String SELECT =
             """
-            select u.id, u.email, i.id, i.userPermissions, r.active, r.permissions
+            select u.id, u.email, i.id, i.userPermissions, r.active, r.reserved, r.permissions
             from UserEntity u
             left join InternalEntity i on i.user = u
             left join i.internalRole r
@@ -73,7 +73,8 @@ public class PanacheUserAccessRepository implements UserAccessRepository {
                 internal ? UserType.INTERNAL : UserType.CLIENT,
                 permissions(row[3]),
                 Boolean.TRUE.equals(row[4]),
-                permissions(row[5]));
+                Boolean.TRUE.equals(row[5]),
+                permissions(row[6]));
     }
 
     private static Set<InternalPermission> permissions(Object value) {

@@ -17,6 +17,8 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
 
     static final String AUTHENTICATED_USER_ATTRIBUTE = "nippon.authenticated-user";
 
+    static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
+
     @Inject PermissionResolver permissionResolver;
 
     private SecurityIdentity identity;
@@ -25,8 +27,8 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
         this.identity = identity;
     }
 
-    // As roles da identidade são o tipo do usuário (CLIENT/INTERNAL) mais cada permissão efetiva,
-    // e é contra elas que @RolesAllowed confere.
+    // As roles da identidade são o tipo do usuário (CLIENT/INTERNAL), SUPER_ADMIN quando for o caso
+    // e cada permissão efetiva; é contra elas que @RolesAllowed confere.
     @Override
     @ActivateRequestContext
     public SecurityIdentity get() {
@@ -48,6 +50,9 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
                 QuarkusSecurityIdentity.builder(identity)
                         .addRole(user.type().name())
                         .addAttribute(AUTHENTICATED_USER_ATTRIBUTE, user);
+        if (user.superAdmin()) {
+            builder.addRole(SUPER_ADMIN_ROLE);
+        }
         user.permissions().forEach(permission -> builder.addRole(permission.name()));
         return builder.build();
     }

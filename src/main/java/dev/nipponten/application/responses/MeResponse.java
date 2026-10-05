@@ -10,4 +10,5 @@ public record MeResponse(
         UserType type,
         String name,
         String lastName,
+        boolean superAdmin,
         List<InternalPermission> permissions) {}

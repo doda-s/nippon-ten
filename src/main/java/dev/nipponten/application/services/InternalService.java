@@ -1,8 +1,10 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.ForbiddenException;
 import dev.nipponten.application.exceptions.InternalNotFoundException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.InternalRole;
 import dev.nipponten.domain.repositories.ClientRepository;
 import dev.nipponten.domain.repositories.InternalRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,13 +23,15 @@ public class InternalService {
 
     @Inject AuthenticationCache authenticationCache;
 
+    @Inject CurrentUser currentUser;
+
     public Internal create(Internal model) {
-        Long roleId = model.internalRoleId();
-        if (roleId != null) {
-            internalRoleService.getById(roleId);
-        } else {
-            roleId = internalRoleService.getDefault().id();
-        }
+        InternalRole role =
+                model.internalRoleId() != null
+                        ? internalRoleService.getById(model.internalRoleId())
+                        : internalRoleService.getDefault();
+        Long roleId = role.id();
+        requireSuperAdminFor(role);
         requireNotClient(model.userId());
         return repository.save(
                 new Internal(
@@ -52,7 +56,10 @@ public class InternalService {
 
     public Internal update(Long id, Internal model) {
         Internal current = getById(id);
-        internalRoleService.getById(model.internalRoleId());
+        requireSuperAdminFor(internalRoleService.getById(model.internalRoleId()));
+        if (current.internalRoleId() != null) {
+            requireSuperAdminFor(internalRoleService.getById(current.internalRoleId()));
+        }
         authenticationCache.invalidateUser(current.userId());
         return repository.save(
                 new Internal(
@@ -69,6 +76,15 @@ public class InternalService {
         Internal model = getById(id);
         authenticationCache.invalidateUser(model.userId());
         repository.remove(model);
+    }
+
+    // Dar, tirar ou mexer num interno com a role reservada é só para super_admin. Sem token, o
+    // currentUser.get() já responde 401.
+    private void requireSuperAdminFor(InternalRole role) {
+        if (role.reserved() && !currentUser.get().superAdmin()) {
+            throw new ForbiddenException(
+                    "Only a super admin can manage internal users with role " + role.name());
+        }
     }
 
     /**

@@ -12,4 +12,5 @@ public record UserAccess(
         UserType type,
         Set<InternalPermission> userPermissions,
         boolean roleActive,
+        boolean roleReserved,
         Set<InternalPermission> rolePermissions) {}

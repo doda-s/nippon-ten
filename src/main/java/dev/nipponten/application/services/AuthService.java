@@ -108,6 +108,7 @@ public class AuthService {
                 user.type(),
                 name,
                 lastName,
+                user.superAdmin(),
                 user.permissions().stream().sorted(Comparator.naturalOrder()).toList());
     }
 }

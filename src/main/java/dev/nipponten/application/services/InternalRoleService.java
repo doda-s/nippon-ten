@@ -25,7 +25,7 @@ public class InternalRoleService {
         }
         return repository.save(
                 new InternalRole(
-                        null, model.name(), model.permissions(), model.defaultRole(), true));
+                        null, model.name(), model.permissions(), model.defaultRole(), true, false));
     }
 
     public InternalRole getById(Long id) {
@@ -48,6 +48,7 @@ public class InternalRoleService {
 
     public InternalRole update(Long id, InternalRole model) {
         InternalRole current = getById(id);
+        requireNotReserved(current);
         requireUniqueName(model.name(), id);
         if (model.defaultRole()) {
             clearCurrentDefault(id);
@@ -59,19 +60,27 @@ public class InternalRoleService {
                         model.name(),
                         model.permissions(),
                         model.defaultRole(),
-                        current.active()));
+                        current.active(),
+                        false));
     }
 
     public InternalRole setActive(Long id, boolean active) {
         InternalRole current = getById(id);
+        requireNotReserved(current);
         authenticationCache.invalidateAll();
         return repository.save(
                 new InternalRole(
-                        id, current.name(), current.permissions(), current.defaultRole(), active));
+                        id,
+                        current.name(),
+                        current.permissions(),
+                        current.defaultRole(),
+                        active,
+                        false));
     }
 
     public void delete(Long id) {
         InternalRole model = getById(id);
+        requireNotReserved(model);
         int internals = internalRepository.getByInternalRole(id).size();
         if (internals > 0) {
             throw new InvalidRequestException(
@@ -82,6 +91,15 @@ public class InternalRoleService {
                             + " internal user(s)");
         }
         repository.remove(model);
+    }
+
+    // A role do super_admin é mantida pelo SuperAdminBootstrap: as permissões dela acompanham o
+    // enum.
+    private static void requireNotReserved(InternalRole role) {
+        if (role.reserved()) {
+            throw new InvalidRequestException(
+                    "Internal role " + role.name() + " is reserved and cannot be changed");
+        }
     }
 
     private void requireUniqueName(String name, Long roleId) {
@@ -100,7 +118,8 @@ public class InternalRoleService {
                             currentDefault.name(),
                             currentDefault.permissions(),
                             false,
-                            currentDefault.active()));
+                            currentDefault.active(),
+                            currentDefault.reserved()));
         }
     }
 }
