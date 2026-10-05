@@ -26,6 +26,7 @@ import dev.nipponten.domain.models.User;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserProfile;
 import dev.nipponten.domain.repositories.UserRepository;
+import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -57,6 +58,8 @@ public class UserService {
     @Inject UserAddressRequestMapper userAddressRequestMapper;
 
     @Inject InternalRequestMapper internalRequestMapper;
+
+    @Inject RefreshTokenService refreshTokenService;
 
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
@@ -101,6 +104,10 @@ public class UserService {
         User current = getById(id);
         requireUniqueEmail(request.email(), id);
         User model = userRequestMapper.toModel(id, request);
+        // Trocar a senha encerra todas as sessões abertas com a senha antiga.
+        if (!BcryptUtil.matches(request.password(), current.password())) {
+            refreshTokenService.revokeAllByUser(id);
+        }
         return userMapper.toResponse(
                 repository.save(
                         new User(
@@ -113,6 +120,9 @@ public class UserService {
 
     public UserResponse setActive(Long id, boolean active) {
         User current = getById(id);
+        if (!active) {
+            refreshTokenService.revokeAllByUser(id);
+        }
         return userMapper.toResponse(
                 repository.save(
                         new User(
@@ -139,6 +149,7 @@ public class UserService {
                             clientService.delete(client.id());
                         });
         internalService.getByUser(id).stream().map(Internal::id).forEach(internalService::delete);
+        refreshTokenService.removeAllByUser(id);
         repository.remove(model);
     }
 

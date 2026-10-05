@@ -16,6 +16,7 @@ import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.Comparator;
+import java.util.Optional;
 
 @ApplicationScoped
 public class AuthService {
@@ -36,7 +37,13 @@ public class AuthService {
 
     @Inject TokenService tokenService;
 
-    public TokenResponse login(LoginRequest request) {
+    @Inject RefreshTokenService refreshTokenService;
+
+    /** Access token para o corpo da resposta e refresh token para o cookie. */
+    public record Session(
+            TokenResponse accessToken, RefreshTokenService.IssuedRefreshToken refreshToken) {}
+
+    public Session login(LoginRequest request) {
         User user = userRepository.getByEmail(request.email().trim());
         boolean passwordMatches =
                 BcryptUtil.matches(request.password(), user == null ? DUMMY_HASH : user.password());
@@ -48,7 +55,29 @@ public class AuthService {
                 permissionResolver
                         .resolve(user.id())
                         .orElseThrow(() -> new UnauthorizedException(INVALID_CREDENTIALS));
-        TokenService.AccessToken token = tokenService.issueAccessToken(authenticated);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.id());
+        return new Session(accessToken(authenticated, refreshToken), refreshToken);
+    }
+
+    public Session refresh(String refreshToken) {
+        RefreshTokenService.IssuedRefreshToken next = refreshTokenService.rotate(refreshToken);
+        Optional<AuthenticatedUser> authenticated = permissionResolver.resolve(next.userId());
+        if (authenticated.isEmpty()) {
+            // A desativação já revoga os tokens; isto cobre um usuário removido no meio do caminho.
+            refreshTokenService.revokeAllByUser(next.userId());
+            throw new UnauthorizedException("Invalid refresh token");
+        }
+        return new Session(accessToken(authenticated.get(), next), next);
+    }
+
+    public void logout(String refreshToken) {
+        refreshTokenService.revoke(refreshToken);
+    }
+
+    private TokenResponse accessToken(
+            AuthenticatedUser user, RefreshTokenService.IssuedRefreshToken refreshToken) {
+        TokenService.AccessToken token =
+                tokenService.issueAccessToken(user, refreshToken.sessionId());
         return new TokenResponse(token.value(), "Bearer", token.expiresInSeconds());
     }
 

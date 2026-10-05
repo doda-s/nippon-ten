@@ -135,8 +135,18 @@ class AuthTest {
 
     @Test
     void meRequiresAValidToken() {
-        given().get("/auth/me").then().statusCode(401);
-        given().auth().oauth2("not-a-jwt").get("/auth/me").then().statusCode(401);
+        given().get("/auth/me")
+                .then()
+                .statusCode(401)
+                .contentType(ContentType.JSON)
+                .body("message", is("Invalid or expired token"));
+        given().auth()
+                .oauth2("not-a-jwt")
+                .get("/auth/me")
+                .then()
+                .statusCode(401)
+                .contentType(ContentType.JSON)
+                .body("message", is("Invalid or expired token"));
     }
 
     @Test
@@ -150,7 +160,13 @@ class AuthTest {
                 .post("/users/{id}/deactivate", userId)
                 .then()
                 .statusCode(200);
-        given().auth().oauth2(token).get("/auth/me").then().statusCode(401);
+        given().auth()
+                .oauth2(token)
+                .get("/auth/me")
+                .then()
+                .statusCode(401)
+                .contentType(ContentType.JSON)
+                .body("message", is("Invalid or expired token"));
     }
 
     @Test

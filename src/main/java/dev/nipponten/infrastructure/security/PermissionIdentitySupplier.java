@@ -1,6 +1,7 @@
 package dev.nipponten.infrastructure.security;
 
 import dev.nipponten.application.services.PermissionResolver;
+import dev.nipponten.application.services.RefreshTokenService;
 import dev.nipponten.domain.models.AuthenticatedUser;
 import io.quarkus.security.AuthenticationFailedException;
 import io.quarkus.security.identity.SecurityIdentity;
@@ -8,6 +9,7 @@ import io.quarkus.security.runtime.QuarkusSecurityIdentity;
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.inject.Inject;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
@@ -17,6 +19,8 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
     static final String AUTHENTICATED_USER_ATTRIBUTE = "nippon.authenticated-user";
 
     @Inject PermissionResolver permissionResolver;
+
+    @Inject RefreshTokenService refreshTokenService;
 
     private SecurityIdentity identity;
 
@@ -34,6 +38,11 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
         }
         // getName() devolve o upn (email); o id do usuário está no subject.
         Long userId = parseUserId(jwt.getSubject());
+        // Logout, troca de senha, desativação e reuso de refresh token encerram a sessão; o access
+        // token dela morre junto, sem esperar expirar.
+        if (!refreshTokenService.isSessionActive(parseSessionId(jwt))) {
+            throw new AuthenticationFailedException("Session is no longer active");
+        }
         AuthenticatedUser user =
                 permissionResolver
                         .resolve(userId)
@@ -44,6 +53,18 @@ class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
                         .addAttribute(AUTHENTICATED_USER_ATTRIBUTE, user);
         user.permissions().forEach(permission -> builder.addRole(permission.name()));
         return builder.build();
+    }
+
+    private UUID parseSessionId(JsonWebToken jwt) {
+        String sessionId = jwt.getClaim(SmallRyeTokenService.SESSION_CLAIM);
+        if (sessionId == null) {
+            throw new AuthenticationFailedException("Token without session");
+        }
+        try {
+            return UUID.fromString(sessionId);
+        } catch (IllegalArgumentException e) {
+            throw new AuthenticationFailedException("Invalid token session");
+        }
     }
 
     private Long parseUserId(String subject) {

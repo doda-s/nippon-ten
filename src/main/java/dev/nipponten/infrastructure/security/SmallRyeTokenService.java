@@ -5,6 +5,7 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import io.smallrye.jwt.build.Jwt;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Duration;
+import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
@@ -15,6 +16,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 public class SmallRyeTokenService implements TokenService {
 
     static final String TYPE_CLAIM = "type";
+    static final String SESSION_CLAIM = "sid";
 
     @ConfigProperty(name = "mp.jwt.verify.issuer")
     String issuer;
@@ -23,12 +25,13 @@ public class SmallRyeTokenService implements TokenService {
     Duration accessTokenTtl;
 
     @Override
-    public AccessToken issueAccessToken(AuthenticatedUser user) {
+    public AccessToken issueAccessToken(AuthenticatedUser user, UUID sessionId) {
         String token =
                 Jwt.issuer(issuer)
                         .subject(user.userId().toString())
                         .upn(user.email())
                         .claim(TYPE_CLAIM, user.type().name())
+                        .claim(SESSION_CLAIM, sessionId.toString())
                         .expiresIn(accessTokenTtl)
                         .sign();
         return new AccessToken(token, accessTokenTtl.toSeconds());
