@@ -3,13 +3,18 @@ package dev.nipponten.application.services;
 import dev.nipponten.application.exceptions.ForbiddenException;
 import dev.nipponten.application.exceptions.InternalNotFoundException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
+import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.InternalRole;
 import dev.nipponten.domain.repositories.ClientRepository;
 import dev.nipponten.domain.repositories.InternalRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 @ApplicationScoped
 public class InternalService {
@@ -32,6 +37,9 @@ public class InternalService {
                         : internalRoleService.getDefault();
         Long roleId = role.id();
         requireSuperAdminFor(role);
+        // Ninguém concede o que não tem: nem pela role, nem pelas permissões individuais.
+        currentUser.requireHolds(role.permissions());
+        currentUser.requireHolds(model.userPermissions());
         requireNotClient(model.userId());
         return repository.save(
                 new Internal(
@@ -56,10 +64,26 @@ public class InternalService {
 
     public Internal update(Long id, Internal model) {
         Internal current = getById(id);
-        requireSuperAdminFor(internalRoleService.getById(model.internalRoleId()));
+        InternalRole role = internalRoleService.getById(model.internalRoleId());
+        requireSuperAdminFor(role);
         if (current.internalRoleId() != null) {
             requireSuperAdminFor(internalRoleService.getById(current.internalRoleId()));
         }
+        boolean roleChanged = !Objects.equals(current.internalRoleId(), model.internalRoleId());
+        Set<InternalPermission> granted = toSet(model.userPermissions());
+        granted.removeAll(toSet(current.userPermissions()));
+        boolean permissionsChanged =
+                !toSet(model.userPermissions()).equals(toSet(current.userPermissions()));
+        AuthenticatedUser actor = currentUser.get();
+        if (actor.userId().equals(current.userId()) && (roleChanged || permissionsChanged)) {
+            throw new ForbiddenException("Cannot change your own role or permissions");
+        }
+        // Só o que muda precisa ser coberto por quem edita: um interno pode já ter permissões que o
+        // editor não tem, e editar o nome dele não as concede de novo.
+        if (roleChanged) {
+            currentUser.requireHolds(role.permissions());
+        }
+        currentUser.requireHolds(granted);
         authenticationCache.invalidateUser(current.userId());
         return repository.save(
                 new Internal(
@@ -85,6 +109,14 @@ public class InternalService {
             throw new ForbiddenException(
                     "Only a super admin can manage internal users with role " + role.name());
         }
+    }
+
+    private static Set<InternalPermission> toSet(List<InternalPermission> permissions) {
+        Set<InternalPermission> set = EnumSet.noneOf(InternalPermission.class);
+        if (permissions != null) {
+            set.addAll(permissions);
+        }
+        return set;
     }
 
     /**

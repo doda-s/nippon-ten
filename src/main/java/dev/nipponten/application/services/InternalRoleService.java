@@ -18,7 +18,12 @@ public class InternalRoleService {
 
     @Inject AuthenticationCache authenticationCache;
 
+    @Inject CurrentUser currentUser;
+
+    // Criar, editar ou reativar uma role exige ter todas as permissões que ela terá: senão quem
+    // gerencia roles daria a si mesmo, ou a outros, o que não tem.
     public InternalRole create(InternalRole model) {
+        currentUser.requireHolds(model.permissions());
         requireUniqueName(model.name(), null);
         if (model.defaultRole()) {
             clearCurrentDefault(null);
@@ -49,6 +54,7 @@ public class InternalRoleService {
     public InternalRole update(Long id, InternalRole model) {
         InternalRole current = getById(id);
         requireNotReserved(current);
+        currentUser.requireHolds(model.permissions());
         requireUniqueName(model.name(), id);
         if (model.defaultRole()) {
             clearCurrentDefault(id);
@@ -67,6 +73,9 @@ public class InternalRoleService {
     public InternalRole setActive(Long id, boolean active) {
         InternalRole current = getById(id);
         requireNotReserved(current);
+        if (active) {
+            currentUser.requireHolds(current.permissions());
+        }
         authenticationCache.invalidateAll();
         return repository.save(
                 new InternalRole(

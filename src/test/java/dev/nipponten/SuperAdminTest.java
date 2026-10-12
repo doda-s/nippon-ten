@@ -132,6 +132,8 @@ class SuperAdminTest {
                         true,
                         true));
         String otherEmail = "outro.admin." + System.nanoTime() + "@example.com";
+        // Outros testes criam super_admins; o que importa é o bootstrap não criar mais nenhum.
+        int superAdmins = internalRepository.getByInternalRole(reserved.id()).size();
 
         superAdminService.bootstrap(Optional.of(otherEmail), Optional.of(PASSWORD));
         superAdminService.bootstrap(Optional.of(otherEmail), Optional.of(PASSWORD));
@@ -139,7 +141,7 @@ class SuperAdminTest {
         assertEquals(
                 Set.of(InternalPermission.values()),
                 Set.copyOf(roleRepository.getReserved().permissions()));
-        assertEquals(1, internalRepository.getByInternalRole(reserved.id()).size());
+        assertEquals(superAdmins, internalRepository.getByInternalRole(reserved.id()).size());
         // Já existe um super_admin, então as variáveis não criam outro.
         assertNull(userRepository.getByEmail(otherEmail));
     }

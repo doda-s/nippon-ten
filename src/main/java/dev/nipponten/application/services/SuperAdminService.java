@@ -36,6 +36,20 @@ public class SuperAdminService {
 
     @Inject AuthenticationCache authenticationCache;
 
+    /** O usuário é um interno com a role reservada. */
+    public boolean isSuperAdmin(Long userId) {
+        return internalRepository.getByUser(userId).stream()
+                .map(Internal::internalRoleId)
+                .filter(roleId -> roleId != null)
+                .map(roleRepository::getById)
+                .anyMatch(role -> role != null && role.reserved());
+    }
+
+    public long countActiveSuperAdmins() {
+        InternalRole role = roleRepository.getReserved();
+        return role == null ? 0 : internalRepository.countActiveByInternalRole(role.id());
+    }
+
     @Transactional
     public void bootstrap(Optional<String> email, Optional<String> password) {
         InternalRole role = ensureReservedRole();

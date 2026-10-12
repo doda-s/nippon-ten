@@ -104,6 +104,46 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 ---
 
+## Autenticação: implantação e riscos conhecidos
+
+A autenticação guarda estado em memória e depende do IP do cliente. Antes de colocar a API atrás de um proxy ou de subir mais de uma instância, confira os pontos abaixo.
+
+### Proxy ou load balancer na frente da API
+
+O limite de tentativas de login conta falhas por e-mail e por IP (`LoginAttemptLimiter`). O IP vem de `HttpServerRequest.remoteAddress()`. Atrás de um proxy, esse endereço é o do proxy, então **todos os clientes passam a dividir o mesmo contador por IP**: 20 falhas de quaisquer usuários bloqueiam o login de todo mundo por 15 minutos.
+
+Para o IP real chegar à API, habilite o encaminhamento no Quarkus e aceite os cabeçalhos **só do proxy confiável**:
+
+```properties
+%prod.quarkus.http.proxy.proxy-address-forwarding=true
+%prod.quarkus.http.proxy.allow-x-forwarded=true
+%prod.quarkus.http.proxy.enable-forwarded-host=true
+# Só confia nos cabeçalhos vindos destes endereços (o proxy):
+%prod.quarkus.http.proxy.trusted-proxies=10.0.0.10
+```
+
+Sem `trusted-proxies`, qualquer cliente pode mandar `X-Forwarded-For` com um IP inventado a cada tentativa e escapar do limite por IP. O limite por e-mail continua valendo de qualquer forma.
+
+### Mais de uma instância da API
+
+Dois componentes guardam estado na memória de cada instância:
+
+| Componente | O que guarda | Efeito com várias instâncias |
+|---|---|---|
+| `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
+| `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
+
+O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
+
+### Riscos conhecidos
+
+- **Refresh concorrente.** Cada refresh token vale para um único uso. Se duas abas chamarem `/auth/refresh` ao mesmo tempo com o mesmo cookie, a segunda é tratada como reuso de token roubado, e todas as sessões do usuário são revogadas. O front deve serializar o refresh (uma chamada por vez, compartilhada entre as abas). Outra opção seria aceitar o token anterior por alguns segundos após a rotação.
+- **Expiração do refresh token sem teste automatizado.** A regra existe (`RefreshTokenService.rotate` recusa token expirado, e a consulta de sessão exige `expires_at > agora`), mas os testes não simulam a passagem de 7 dias.
+- **Datas sem fuso.** Os timestamps de autenticação (`refresh_token.expires_at`, `created_at`, `revoked_at`) usam `LocalDateTime` e colunas `timestamp` sem fuso, no fuso padrão da JVM. Instâncias ou bancos em fusos diferentes comparariam horários deslocados.
+- **Sem recuperação de senha.** Fora de escopo por decisão. Um usuário que perde a senha depende de alguém com `MANAGE_USERS` para trocá-la (no caso de um super_admin, de outro super_admin).
+
+---
+
 ## O que ainda não existe (fora do escopo desta documentação)
 
 Os documentos [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) descrevem um sistema de permissões por cargo que está só parcialmente implementado. Já existem o catálogo de permissões (enum `InternalPermission`), as permissões de cada `InternalRole` (coluna array em `internal_role`) e a role padrão. Ainda não existem a role reservada `super_admin` (nem o seed de bootstrap que a cria junto do primeiro usuário interno) e a autenticação/autorização de fato: as permissões são apenas gravadas e todos os endpoints são abertos.

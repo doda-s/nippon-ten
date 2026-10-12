@@ -1,5 +1,6 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.ForbiddenException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.UserNotFoundException;
 import dev.nipponten.application.requests.ClientRequest;
@@ -20,6 +21,7 @@ import dev.nipponten.application.responses.UserAddressResponseMapper;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.responses.UserResponseMapper;
+import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.Internal;
 import dev.nipponten.domain.models.InternalPermission;
@@ -66,6 +68,8 @@ public class UserService {
 
     @Inject CurrentUser currentUser;
 
+    @Inject SuperAdminService superAdminService;
+
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
         requireUniqueEmail(request.user().email(), null);
@@ -109,6 +113,7 @@ public class UserService {
     public UserResponse update(Long id, UserRequest request) {
         requireSelfOrManager(id);
         User current = getById(id);
+        requireSuperAdminToManageSuperAdmin(id);
         requireUniqueEmail(request.email(), id);
         User model = userRequestMapper.toModel(id, request);
         // Trocar a senha encerra todas as sessões abertas com a senha antiga.
@@ -134,7 +139,15 @@ public class UserService {
             requireSelfOrManager(id);
         }
         User current = getById(id);
+        requireSuperAdminToManageSuperAdmin(id);
         if (!active) {
+            // Sem um super_admin ativo, ninguém mais atribui a role reservada nem apaga internos.
+            if (current.active()
+                    && superAdminService.isSuperAdmin(id)
+                    && superAdminService.countActiveSuperAdmins() <= 1) {
+                throw new InvalidRequestException(
+                        "User " + id + " is the last active super admin and cannot be deactivated");
+            }
             refreshTokenService.revokeAllByUser(id);
         }
         return userMapper.toResponse(
@@ -147,9 +160,18 @@ public class UserService {
                                 active)));
     }
 
+    // Conta de interno segue as regras de DELETE /internal/{id} também por este caminho: só um
+    // super_admin apaga, e só depois de desativada.
     @Transactional
     public void delete(Long id) {
         requireSelfOrManager(id);
+        User user = getById(id);
+        if (!internalService.getByUser(id).isEmpty()) {
+            if (!currentUser.get().superAdmin()) {
+                throw new ForbiddenException("Only a super admin can delete internal user " + id);
+            }
+            requireInactiveInternal(user);
+        }
         remove(id);
     }
 
@@ -175,15 +197,26 @@ public class UserService {
     @Transactional
     public void deleteInternal(Long internalId) {
         User user = getById(internalService.getById(internalId).userId());
+        requireInactiveInternal(user);
+        remove(user.id());
+    }
+
+    private static void requireInactiveInternal(User user) {
         if (user.active()) {
             throw new InvalidRequestException(
-                    "Internal user "
-                            + internalId
-                            + " must be deactivated before deletion (user "
-                            + user.id()
-                            + ")");
+                    "Internal user " + user.id() + " must be deactivated before deletion");
         }
-        remove(user.id());
+    }
+
+    // Quem tem MANAGE_USERS sem ser super_admin não edita nem ativa/desativa um super_admin: trocar
+    // a senha dele bastaria para entrar como ele.
+    private void requireSuperAdminToManageSuperAdmin(Long userId) {
+        AuthenticatedUser actor = currentUser.get();
+        if (!actor.superAdmin()
+                && !actor.userId().equals(userId)
+                && superAdminService.isSuperAdmin(userId)) {
+            throw new ForbiddenException("Only a super admin can manage super admin " + userId);
+        }
     }
 
     public ClientResponse getClient(Long userId) {
