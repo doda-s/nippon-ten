@@ -9,6 +9,7 @@ import dev.nipponten.application.responses.ComboProductResponse;
 import dev.nipponten.application.responses.ComboProductResponseMapper;
 import dev.nipponten.application.responses.ComboResponse;
 import dev.nipponten.application.responses.ComboResponseMapper;
+import dev.nipponten.application.services.BusinessTime;
 import dev.nipponten.application.services.ComboProductService;
 import dev.nipponten.application.services.ComboService;
 import dev.nipponten.domain.models.Combo;
@@ -29,7 +30,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.LocalDateTime;
 import java.util.List;
 
 // Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
@@ -38,6 +38,8 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 public class ComboResource {
+
+    @Inject BusinessTime businessTime;
 
     @Inject ComboService service;
 
@@ -72,7 +74,7 @@ public class ComboResource {
     @PermitAll
     public List<ComboResponse> getAll(@QueryParam("available") boolean available) {
         List<Combo> combos =
-                available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
+                available ? service.getAvailable(businessTime.now()) : service.getAll();
         return combos.stream().map(mapper::toResponse).toList();
     }
 

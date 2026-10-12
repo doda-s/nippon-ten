@@ -6,7 +6,8 @@ import dev.nipponten.domain.models.UserAccess;
 import dev.nipponten.domain.repositories.UserAccessRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
@@ -23,6 +24,8 @@ public class PermissionResolver {
 
     @Inject AuthenticationCache cache;
 
+    @Inject Clock clock;
+
     /** Login e refresh. Vazio quando o usuário não existe mais ou está desativado. */
     public Optional<AuthenticatedUser> resolve(Long userId) {
         return repository.findActiveUser(userId).map(PermissionResolver::toAuthenticated);
@@ -38,7 +41,7 @@ public class PermissionResolver {
                 sessionId,
                 () ->
                         repository
-                                .findActiveSession(userId, sessionId, LocalDateTime.now())
+                                .findActiveSession(userId, sessionId, Instant.now(clock))
                                 .map(PermissionResolver::toAuthenticated));
     }
 

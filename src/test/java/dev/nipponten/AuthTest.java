@@ -3,6 +3,7 @@ package dev.nipponten;
 import static dev.nipponten.TestAuth.asAdmin;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -135,6 +136,17 @@ class AuthTest {
                     .body("message", is("Invalid email or password"));
         }
         asAdmin().get("/users/{id}", userId).then().statusCode(200);
+    }
+
+    @Test
+    void creationTimeIsAnUtcInstant() {
+        long userId = registerClient(uniqueEmail("cliente"));
+
+        asAdmin()
+                .get("/users/{id}", userId)
+                .then()
+                .statusCode(200)
+                .body("createdAt", matchesPattern("\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z"));
     }
 
     @Test

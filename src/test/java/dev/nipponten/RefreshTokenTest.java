@@ -13,11 +13,15 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
+import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class RefreshTokenTest {
+
+    @Inject TestClock clock;
 
     private static final String PASSWORD = "secret123";
     private static final String COOKIE = "nt_refresh";
@@ -317,5 +321,22 @@ class RefreshTokenTest {
                 .statusCode(200);
 
         given().auth().oauth2(accessToken(session)).get("/auth/me").then().statusCode(401);
+    }
+
+    @Test
+    void anExpiredRefreshTokenEndsTheSession() {
+        String email = uniqueEmail();
+        registerClient(email);
+        Response session = login(email);
+
+        try {
+            clock.advance(Duration.ofDays(7).plusMinutes(1));
+
+            refresh(session.cookie(COOKIE)).then().statusCode(401);
+            // O JWT ainda não expirou no relógio real, mas a sessão dele acabou.
+            given().auth().oauth2(accessToken(session)).get("/auth/me").then().statusCode(401);
+        } finally {
+            clock.reset();
+        }
     }
 }

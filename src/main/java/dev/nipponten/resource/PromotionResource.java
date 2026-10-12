@@ -4,6 +4,7 @@ import dev.nipponten.application.requests.PromotionRequest;
 import dev.nipponten.application.requests.PromotionRequestMapper;
 import dev.nipponten.application.responses.PromotionResponse;
 import dev.nipponten.application.responses.PromotionResponseMapper;
+import dev.nipponten.application.services.BusinessTime;
 import dev.nipponten.application.services.PromotionService;
 import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.resource.security.Permissions;
@@ -22,7 +23,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.LocalDateTime;
 import java.util.List;
 
 // Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
@@ -31,6 +31,8 @@ import java.util.List;
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 public class PromotionResource {
+
+    @Inject BusinessTime businessTime;
 
     @Inject PromotionService service;
 
@@ -59,7 +61,7 @@ public class PromotionResource {
     @PermitAll
     public List<PromotionResponse> getAll(@QueryParam("available") boolean available) {
         List<Promotion> promotions =
-                available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
+                available ? service.getAvailable(businessTime.now()) : service.getAll();
         return promotions.stream()
                 .map(promotion -> mapper.toResponse(promotion, service.getPrices(promotion)))
                 .toList();

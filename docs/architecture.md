@@ -104,6 +104,19 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 ---
 
+## Datas: instante em UTC, horário de negócio no fuso do restaurante
+
+O sistema guarda dois tipos de data, com tipos diferentes:
+
+| Tipo | Exemplos | Java | Postgres |
+|---|---|---|---|
+| Instante técnico: quando algo aconteceu ou expira | `user.created_at`, datas de `refresh_token` | `Instant` (UTC) | `timestamptz` |
+| Horário de negócio: hora local do restaurante | início e fim de combos e promoções | `LocalDateTime` | `timestamp` |
+
+"Agora" vem sempre de um `Clock` injetado (`ClockProducer`, em UTC), nunca de `now()` direto. Para horários de negócio, `BusinessTime.now()` converte esse relógio para o fuso `nippon.business-zone` (`America/Sao_Paulo`). Assim o resultado não depende do fuso do servidor, e os testes podem adiantar o tempo com `TestClock`.
+
+---
+
 ## Autenticação: implantação e riscos conhecidos
 
 A autenticação guarda estado em memória e depende do IP do cliente. Antes de colocar a API atrás de um proxy ou de subir mais de uma instância, confira os pontos abaixo.
@@ -138,8 +151,6 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 ### Riscos conhecidos
 
 - **Refresh concorrente.** Cada refresh token vale para um único uso. Se duas abas chamarem `/auth/refresh` ao mesmo tempo com o mesmo cookie, a segunda é tratada como reuso de token roubado, e todas as sessões do usuário são revogadas. O front deve serializar o refresh (uma chamada por vez, compartilhada entre as abas). Outra opção seria aceitar o token anterior por alguns segundos após a rotação.
-- **Expiração do refresh token sem teste automatizado.** A regra existe (`RefreshTokenService.rotate` recusa token expirado, e a consulta de sessão exige `expires_at > agora`), mas os testes não simulam a passagem de 7 dias.
-- **Datas sem fuso.** Os timestamps de autenticação (`refresh_token.expires_at`, `created_at`, `revoked_at`) usam `LocalDateTime` e colunas `timestamp` sem fuso, no fuso padrão da JVM. Instâncias ou bancos em fusos diferentes comparariam horários deslocados.
 - **Sem recuperação de senha.** Fora de escopo por decisão. Um usuário que perde a senha depende de alguém com `MANAGE_USERS` para trocá-la (no caso de um super_admin, de outro super_admin).
 
 ---

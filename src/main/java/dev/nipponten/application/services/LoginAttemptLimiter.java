@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import dev.nipponten.application.exceptions.TooManyRequestsException;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
@@ -42,6 +44,8 @@ public class LoginAttemptLimiter {
 
     private Cache<String, Attempts> byIp;
 
+    @Inject Clock clock;
+
     @PostConstruct
     void init() {
         byEmail = newCache();
@@ -55,7 +59,7 @@ public class LoginAttemptLimiter {
 
     /** Antes de conferir a senha, para quem estourou o limite nem chegar ao bcrypt. */
     public void check(String email, String ip) {
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         requireUnderLimit(byEmail.getIfPresent(normalize(email)), maxFailuresPerEmail, now);
         if (ip != null) {
             requireUnderLimit(byIp.getIfPresent(ip), maxFailuresPerIp, now);
@@ -63,7 +67,7 @@ public class LoginAttemptLimiter {
     }
 
     public void recordFailure(String email, String ip) {
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         increment(byEmail, normalize(email), now);
         if (ip != null) {
             increment(byIp, ip, now);

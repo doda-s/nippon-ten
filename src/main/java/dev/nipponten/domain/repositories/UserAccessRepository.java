@@ -1,7 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.UserAccess;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,5 +14,5 @@ public interface UserAccessRepository {
      * Como {@link #findActiveUser}, mas também vazio quando a sessão não tem mais nenhum refresh
      * token válido (logout, troca de senha, reuso detectado ou expiração).
      */
-    Optional<UserAccess> findActiveSession(Long userId, UUID sessionId, LocalDateTime now);
+    Optional<UserAccess> findActiveSession(Long userId, UUID sessionId, Instant now);
 }

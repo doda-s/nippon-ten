@@ -10,8 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
@@ -32,6 +33,8 @@ public class RefreshTokenService {
 
     @Inject AuthenticationCache authenticationCache;
 
+    @Inject Clock clock;
+
     @ConfigProperty(name = "nippon.auth.refresh-token-ttl")
     Duration ttl;
 
@@ -39,13 +42,13 @@ public class RefreshTokenService {
 
     /** Login: abre uma sessão nova. */
     public IssuedRefreshToken issue(Long userId) {
-        return issue(userId, UUID.randomUUID(), LocalDateTime.now()).issued();
+        return issue(userId, UUID.randomUUID(), Instant.now(clock)).issued();
     }
 
     // dontRollbackOn: a revogação em massa por reuso precisa ficar gravada mesmo com o 401.
     @Transactional(dontRollbackOn = UnauthorizedException.class)
     public IssuedRefreshToken rotate(String value) {
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now(clock);
         RefreshToken current = requireKnown(value);
         if (current.isRevoked()) {
             revokeAllByUser(current.userId());
@@ -83,14 +86,14 @@ public class RefreshTokenService {
                             current.tokenHash(),
                             current.expiresAt(),
                             current.createdAt(),
-                            LocalDateTime.now(),
+                            Instant.now(clock),
                             current.replacedById()));
             authenticationCache.invalidateSession(current.sessionId());
         }
     }
 
     public void revokeAllByUser(Long userId) {
-        repository.revokeAllByUser(userId, LocalDateTime.now());
+        repository.revokeAllByUser(userId, Instant.now(clock));
         authenticationCache.invalidateUser(userId);
     }
 
@@ -101,7 +104,7 @@ public class RefreshTokenService {
 
     private record Issued(RefreshToken model, IssuedRefreshToken issued) {}
 
-    private Issued issue(Long userId, UUID sessionId, LocalDateTime now) {
+    private Issued issue(Long userId, UUID sessionId, Instant now) {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         String value = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);

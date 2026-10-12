@@ -8,7 +8,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Optional;
@@ -41,7 +41,7 @@ public class PanacheUserAccessRepository implements UserAccessRepository {
     }
 
     @Override
-    public Optional<UserAccess> findActiveSession(Long userId, UUID sessionId, LocalDateTime now) {
+    public Optional<UserAccess> findActiveSession(Long userId, UUID sessionId, Instant now) {
         return first(
                 entityManager
                         .createQuery(

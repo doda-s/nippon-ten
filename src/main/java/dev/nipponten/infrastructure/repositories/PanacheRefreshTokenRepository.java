@@ -8,7 +8,7 @@ import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @ApplicationScoped
 public class PanacheRefreshTokenRepository
@@ -37,7 +37,7 @@ public class PanacheRefreshTokenRepository
 
     @Override
     @Transactional
-    public void revokeAllByUser(Long userId, LocalDateTime revokedAt) {
+    public void revokeAllByUser(Long userId, Instant revokedAt) {
         update("revokedAt = ?1 where user.id = ?2 and revokedAt is null", revokedAt, userId);
     }
 

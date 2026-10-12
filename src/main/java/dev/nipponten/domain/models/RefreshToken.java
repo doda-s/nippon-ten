@@ -1,6 +1,6 @@
 package dev.nipponten.domain.models;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public record RefreshToken(
@@ -8,16 +8,16 @@ public record RefreshToken(
         Long userId,
         UUID sessionId,
         String tokenHash,
-        LocalDateTime expiresAt,
-        LocalDateTime createdAt,
-        LocalDateTime revokedAt,
+        Instant expiresAt,
+        Instant createdAt,
+        Instant revokedAt,
         Long replacedById) {
 
     public boolean isRevoked() {
         return revokedAt != null;
     }
 
-    public boolean isExpiredAt(LocalDateTime now) {
+    public boolean isExpiredAt(Instant now) {
         return !expiresAt.isAfter(now);
     }
 }
