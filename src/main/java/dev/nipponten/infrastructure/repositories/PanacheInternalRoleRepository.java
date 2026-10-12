@@ -58,4 +58,10 @@ public class PanacheInternalRoleRepository
         InternalRoleEntity entity = find("defaultRole", true).firstResult();
         return entity == null ? null : mapper.toModel(entity);
     }
+
+    @Override
+    public InternalRole getReserved() {
+        InternalRoleEntity entity = find("reserved", true).firstResult();
+        return entity == null ? null : mapper.toModel(entity);
+    }
 }

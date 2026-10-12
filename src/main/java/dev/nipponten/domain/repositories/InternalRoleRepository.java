@@ -15,4 +15,7 @@ public interface InternalRoleRepository {
     InternalRole getByName(String name);
 
     InternalRole getDefault();
+
+    /** A role do super_admin, ou nulo se o bootstrap ainda não rodou. */
+    InternalRole getReserved();
 }

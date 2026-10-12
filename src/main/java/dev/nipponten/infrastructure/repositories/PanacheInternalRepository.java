@@ -56,4 +56,9 @@ public class PanacheInternalRepository
     public List<Internal> getByInternalRole(Long internalRoleId) {
         return list("internalRole.id", internalRoleId).stream().map(mapper::toModel).toList();
     }
+
+    @Override
+    public long countActiveByInternalRole(Long internalRoleId) {
+        return count("internalRole.id = ?1 and user.active = true", internalRoleId);
+    }
 }

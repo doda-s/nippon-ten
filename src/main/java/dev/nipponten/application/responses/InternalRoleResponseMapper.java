@@ -11,6 +11,7 @@ public class InternalRoleResponseMapper {
                 internalRole.id(),
                 internalRole.name(),
                 internalRole.defaultRole(),
-                internalRole.active());
+                internalRole.active(),
+                internalRole.reserved());
     }
 }

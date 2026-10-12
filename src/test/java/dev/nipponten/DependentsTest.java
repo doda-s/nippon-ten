@@ -1,6 +1,6 @@
 package dev.nipponten;
 
-import static io.restassured.RestAssured.given;
+import static dev.nipponten.TestAuth.asAdmin;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
@@ -17,25 +17,32 @@ class DependentsTest {
         long product = TestFixtures.createProduct("Pastel de carne seca");
         long ingredient = TestFixtures.createIngredient("Carne seca-" + System.nanoTime());
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("ingredientId", ingredient))
                 .post("/products/{id}/ingredients", product)
                 .then()
                 .statusCode(201);
 
         // Marcar como esgotado não propaga status: só devolve quem depende, para decisão manual.
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", "Carne seca", "price", 1.5, "status", "OUT_OF_STOCK"))
                 .put("/ingredients/{id}", ingredient)
                 .then()
                 .statusCode(200);
 
-        given().get("/ingredients/{id}/dependents", ingredient)
+        asAdmin()
+                .get("/ingredients/{id}/dependents", ingredient)
                 .then()
                 .statusCode(200)
                 .body("products.id", hasItem((int) product));
 
-        given().get("/products/{id}", product).then().statusCode(200).body("status", is("ACTIVE"));
+        asAdmin()
+                .get("/products/{id}", product)
+                .then()
+                .statusCode(200)
+                .body("status", is("ACTIVE"));
     }
 
     @Test
@@ -44,7 +51,8 @@ class DependentsTest {
         long second = TestFixtures.createProduct("Bebida dependente");
 
         long comboId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "combo",
@@ -66,7 +74,8 @@ class DependentsTest {
                         .jsonPath()
                         .getLong("id");
 
-        given().get("/products/{id}/dependents", first)
+        asAdmin()
+                .get("/products/{id}/dependents", first)
                 .then()
                 .statusCode(200)
                 .body("combos.id", hasItem((int) comboId));

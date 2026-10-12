@@ -5,7 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import org.hibernate.annotations.ColumnDefault;
 
 @Entity
@@ -19,7 +19,7 @@ public class UserEntity {
 
     private String password;
 
-    private LocalDateTime createdAt;
+    private Instant createdAt;
 
     @ColumnDefault("true")
     @Column(nullable = false)
@@ -47,11 +47,11 @@ public class UserEntity {
         this.password = password;
     }
 
-    public LocalDateTime getCreatedAt() {
+    public Instant getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
+    public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
 

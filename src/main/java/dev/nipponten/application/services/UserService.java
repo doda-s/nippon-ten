@@ -1,5 +1,6 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.ForbiddenException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.UserNotFoundException;
 import dev.nipponten.application.requests.ClientRequest;
@@ -20,12 +21,15 @@ import dev.nipponten.application.responses.UserAddressResponseMapper;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.responses.UserResponseMapper;
+import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.User;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserProfile;
 import dev.nipponten.domain.repositories.UserRepository;
+import io.quarkus.elytron.security.common.BcryptUtil;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -58,6 +62,14 @@ public class UserService {
 
     @Inject InternalRequestMapper internalRequestMapper;
 
+    @Inject RefreshTokenService refreshTokenService;
+
+    @Inject AuthenticationCache authenticationCache;
+
+    @Inject CurrentUser currentUser;
+
+    @Inject SuperAdminService superAdminService;
+
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
         requireUniqueEmail(request.user().email(), null);
@@ -86,6 +98,7 @@ public class UserService {
     }
 
     public UserDetailResponse getProfile(Long id) {
+        requireSelfOrManager(id);
         User user = getById(id);
         Client client = clientService.findByUser(id).orElse(null);
         List<UserAddress> addresses =
@@ -98,9 +111,17 @@ public class UserService {
     }
 
     public UserResponse update(Long id, UserRequest request) {
+        requireSelfOrManager(id);
         User current = getById(id);
+        requireSuperAdminToManageSuperAdmin(id);
         requireUniqueEmail(request.email(), id);
         User model = userRequestMapper.toModel(id, request);
+        // Trocar a senha encerra todas as sessões abertas com a senha antiga.
+        if (!BcryptUtil.matches(request.password(), current.password())) {
+            refreshTokenService.revokeAllByUser(id);
+        }
+        // O email faz parte do usuário autenticado guardado no cache.
+        authenticationCache.invalidateUser(id);
         return userMapper.toResponse(
                 repository.save(
                         new User(
@@ -111,8 +132,24 @@ public class UserService {
                                 current.active())));
     }
 
+    // Ativar exige MANAGE_USERS na anotação do Resource; desativar também vale para o próprio
+    // usuário.
     public UserResponse setActive(Long id, boolean active) {
+        if (!active) {
+            requireSelfOrManager(id);
+        }
         User current = getById(id);
+        requireSuperAdminToManageSuperAdmin(id);
+        if (!active) {
+            // Sem um super_admin ativo, ninguém mais atribui a role reservada nem apaga internos.
+            if (current.active()
+                    && superAdminService.isSuperAdmin(id)
+                    && superAdminService.countActiveSuperAdmins() <= 1) {
+                throw new InvalidRequestException(
+                        "User " + id + " is the last active super admin and cannot be deactivated");
+            }
+            refreshTokenService.revokeAllByUser(id);
+        }
         return userMapper.toResponse(
                 repository.save(
                         new User(
@@ -123,8 +160,22 @@ public class UserService {
                                 active)));
     }
 
+    // Conta de interno segue as regras de DELETE /internal/{id} também por este caminho: só um
+    // super_admin apaga, e só depois de desativada.
     @Transactional
     public void delete(Long id) {
+        requireSelfOrManager(id);
+        User user = getById(id);
+        if (!internalService.getByUser(id).isEmpty()) {
+            if (!currentUser.get().superAdmin()) {
+                throw new ForbiddenException("Only a super admin can delete internal user " + id);
+            }
+            requireInactiveInternal(user);
+        }
+        remove(id);
+    }
+
+    private void remove(Long id) {
         User model = getById(id);
         clientService
                 .findByUser(id)
@@ -139,28 +190,42 @@ public class UserService {
                             clientService.delete(client.id());
                         });
         internalService.getByUser(id).stream().map(Internal::id).forEach(internalService::delete);
+        refreshTokenService.removeAllByUser(id);
         repository.remove(model);
     }
 
     @Transactional
     public void deleteInternal(Long internalId) {
         User user = getById(internalService.getById(internalId).userId());
+        requireInactiveInternal(user);
+        remove(user.id());
+    }
+
+    private static void requireInactiveInternal(User user) {
         if (user.active()) {
             throw new InvalidRequestException(
-                    "Internal user "
-                            + internalId
-                            + " must be deactivated before deletion (user "
-                            + user.id()
-                            + ")");
+                    "Internal user " + user.id() + " must be deactivated before deletion");
         }
-        delete(user.id());
+    }
+
+    // Quem tem MANAGE_USERS sem ser super_admin não edita nem ativa/desativa um super_admin: trocar
+    // a senha dele bastaria para entrar como ele.
+    private void requireSuperAdminToManageSuperAdmin(Long userId) {
+        AuthenticatedUser actor = currentUser.get();
+        if (!actor.superAdmin()
+                && !actor.userId().equals(userId)
+                && superAdminService.isSuperAdmin(userId)) {
+            throw new ForbiddenException("Only a super admin can manage super admin " + userId);
+        }
     }
 
     public ClientResponse getClient(Long userId) {
+        requireSelfOrManager(userId);
         return clientMapper.toResponse(requireClientOf(userId));
     }
 
     public ClientResponse updateClient(Long userId, ClientRequest request) {
+        requireSelfOrManager(userId);
         Client current = requireClientOf(userId);
         return clientMapper.toResponse(
                 clientService.update(
@@ -168,12 +233,14 @@ public class UserService {
     }
 
     public List<UserAddressResponse> getAddresses(Long userId) {
+        requireSelfOrManager(userId);
         return userAddressService.getByClient(requireClientOf(userId).id()).stream()
                 .map(userAddressMapper::toResponse)
                 .toList();
     }
 
     public UserAddressResponse addAddress(Long userId, UserAddressRequest request) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         return userAddressMapper.toResponse(
                 userAddressService.create(
@@ -182,6 +249,7 @@ public class UserService {
 
     public UserAddressResponse updateAddress(
             Long userId, Long addressId, UserAddressRequest request) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         return userAddressMapper.toResponse(
                 userAddressService.update(
@@ -191,8 +259,13 @@ public class UserService {
     }
 
     public void removeAddress(Long userId, Long addressId) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         userAddressService.delete(client.id(), addressId);
+    }
+
+    private void requireSelfOrManager(Long userId) {
+        currentUser.requireSelfOr(InternalPermission.MANAGE_USERS, userId);
     }
 
     private User getById(Long id) {

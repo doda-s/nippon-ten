@@ -4,8 +4,8 @@ O código está organizado em quatro pacotes sob `dev.nipponten`, de dentro para
 
 - `domain` — `models` (records Java puros, sem anotação de framework) e `repositories` (as *portas*: interfaces que o domínio exige para persistir e recuperar seus dados, sem saber como isso é feito).
 - `application` — `services` (orquestração e regras de aplicação), `requests`/`responses` (DTOs de entrada e saída) e `exceptions` (erros de domínio/aplicação).
-- `infrastructure` — `entities` (JPA/Panache), `mappers` (Entity ↔ Domain Model) e `repositories` (as *implementações* Panache das portas do domínio).
-- `resource` — os endpoints REST (Quarkus/JAX-RS) e o mapeamento de exceção para resposta HTTP (`resource.exception`).
+- `infrastructure` — `entities` (JPA/Panache), `mappers` (Entity ↔ Domain Model), `repositories` (as *implementações* Panache das portas do domínio), `security` (JWT e identidade do request), `bootstrap` (rotinas de startup) e `time` (o `Clock` da aplicação).
+- `resource` — os endpoints REST (Quarkus/JAX-RS), as constantes das anotações de segurança (`resource.security`) e o mapeamento de exceção para resposta HTTP (`resource.exception`).
 
 O domínio nunca importa nada de `infrastructure` ou `resource`. `application` depende só de `domain`. `resource` depende de `application` e `domain`, nunca diretamente de `infrastructure`.
 
@@ -81,7 +81,7 @@ Todo id que chega no **corpo** do request e aponta para outro agregado (`ingredi
 
 Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dependentes (não os services, que já injetam o service do pai e criariam ciclo):
 
-- **filhos do próprio agregado são removidos em cascata**: `Product` → `ProductSize`, `ProductIngredient`, `AdditionalIngredient`; `Combo` → `ComboProduct`; `User` → `UserAddress`, `Client`, `Internal`;
+- **filhos do próprio agregado são removidos em cascata**: `Product` → `ProductSize`, `ProductIngredient`, `AdditionalIngredient`; `Combo` → `ComboProduct`; `User` → `UserAddress`, `Client`, `Internal`, `RefreshToken`;
 - **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
 
 ---
@@ -90,7 +90,7 @@ Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dep
 
 Toda escrita de um único agregado é transacional no nível do repositório Panache (`PanacheXRepository.save`/`remove`). Isso é suficiente para a maioria dos casos.
 
-Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `User`), `ProductService.delete` (remove os filhos do produto + `Product`), `ComboService.register` (cria `Combo` + os `ComboProduct`(s) do fluxo de criação) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
+Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `RefreshToken`(s) + `User`), `SuperAdminService.bootstrap` (cria ou sincroniza a role reservada + `User` + `Internal`), `RefreshTokenService.rotate` (revoga o token atual + emite o próximo; na detecção de reuso, a revogação em massa é gravada mesmo com o `401`, via `dontRollbackOn`), `ProductService.delete` (remove os filhos do produto + `Product`), `ComboService.register` (cria `Combo` + os `ComboProduct`(s) do fluxo de criação) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
 
 ---
 
@@ -104,9 +104,79 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 ---
 
+## Autenticação e autorização: identidade no request, regra no Service
+
+O fluxo para os clientes da API (tokens, cookie, refresh) está em [`api-client.md`](api-client.md); quem pode chamar cada endpoint e as regras de permissão estão em [`user-management.md`](user-management.md). Esta seção mostra onde cada parte vive no código.
+
+1. **Token.** `POST /auth/login` emite um access token JWT RS256 de 15 min (`SmallRyeTokenService`) que carrega só identidade: `sub` (id do usuário), `upn` (email), `type` e `sid` (a sessão). Nenhuma permissão vai no token. O refresh token é opaco, guardado só como SHA-256 em `refresh_token`, e muda a cada uso (`RefreshTokenService`).
+2. **Identidade do request.** O smallrye-jwt valida assinatura e expiração antes do JAX-RS. Em seguida o `PermissionAugmentor` consulta o banco numa só query (`UserAccessRepository`): usuário ativo, sessão ainda com refresh token válido, role e permissões. Com isso monta a identidade com os grupos `CLIENT`/`INTERNAL`, `SUPER_ADMIN` e uma role por permissão efetiva. O resultado fica 30 s no `AuthenticationCache`, que é invalidado por qualquer mudança de acesso. Por isso desativar um usuário, trocar a senha ou fazer logout valem no request seguinte, sem esperar o token expirar.
+3. **Regra que depende só da permissão** fica no `Resource`, como anotação: `@PermitAll`, `@Authenticated` ou `@RolesAllowed(Permissions.X)`. Endpoint sem anotação é negado (`deny-unannotated-endpoints`). As anotações ficam nos métodos, e não na classe, para o OpenAPI marcar só as rotas protegidas.
+4. **Regra que depende de dados** fica no `Service`, via `CurrentUser` (porta em `application`, implementada sobre a `SecurityIdentity` em `infrastructure`): `requireSelfOr(permissão, userId)` para "o próprio usuário ou X" e `requireHolds(permissões)` para "ninguém concede o que não tem". Pelo mesmo motivo das demais regras de negócio, elas nunca ficam no `Resource`.
+
+Respostas de erro, todas no formato `ErrorResponse`:
+
+| Status | Origem |
+| --- | --- |
+| `401` | Falha de token antes do JAX-RS → `AuthenticationFailureHandler` (failure handler do Vert.x, porque os `ExceptionMapper`s não alcançam essa fase); endpoint protegido sem token → `MissingCredentialsExceptionMapper`; login ou refresh recusado → `UnauthorizedExceptionMapper`. Falhas de token usam sempre a mesma mensagem, para não revelar o motivo. |
+| `403` | Falta de permissão na anotação, ou `ForbiddenException` lançada pelo `Service` → `ForbiddenExceptionMapper`. |
+| `429` | Limite de tentativas de login (`LoginAttemptLimiter`) → `TooManyRequestsExceptionMapper`, com `Retry-After`. |
+
+---
+
+## Datas: instante em UTC, horário de negócio no fuso do restaurante
+
+O sistema guarda dois tipos de data, com tipos diferentes:
+
+| Tipo | Exemplos | Java | Postgres |
+|---|---|---|---|
+| Instante técnico: quando algo aconteceu ou expira | `user.created_at`, datas de `refresh_token` | `Instant` (UTC) | `timestamptz` |
+| Horário de negócio: hora local do restaurante | início e fim de combos e promoções | `LocalDateTime` | `timestamp` |
+
+"Agora" vem sempre de um `Clock` injetado (`ClockProducer`, em UTC), nunca de `now()` direto. Para horários de negócio, `BusinessTime.now()` converte esse relógio para o fuso `nippon.business-zone` (`America/Sao_Paulo`). Assim o resultado não depende do fuso do servidor, e os testes podem adiantar o tempo com `TestClock`.
+
+---
+
+## Autenticação: implantação e riscos conhecidos
+
+A autenticação guarda estado em memória e depende do IP do cliente. Antes de colocar a API atrás de um proxy ou de subir mais de uma instância, confira os pontos abaixo.
+
+### Proxy ou load balancer na frente da API
+
+O limite de tentativas de login conta falhas por e-mail e por IP (`LoginAttemptLimiter`). O IP vem de `HttpServerRequest.remoteAddress()`. Atrás de um proxy, esse endereço é o do proxy, então **todos os clientes passam a dividir o mesmo contador por IP**: 20 falhas de quaisquer usuários bloqueiam o login de todo mundo por 15 minutos.
+
+Para o IP real chegar à API, habilite o encaminhamento no Quarkus e aceite os cabeçalhos **só do proxy confiável**:
+
+```properties
+%prod.quarkus.http.proxy.proxy-address-forwarding=true
+%prod.quarkus.http.proxy.allow-x-forwarded=true
+%prod.quarkus.http.proxy.enable-forwarded-host=true
+# Só confia nos cabeçalhos vindos destes endereços (o proxy):
+%prod.quarkus.http.proxy.trusted-proxies=10.0.0.10
+```
+
+Sem `trusted-proxies`, qualquer cliente pode mandar `X-Forwarded-For` com um IP inventado a cada tentativa e escapar do limite por IP. O limite por e-mail continua valendo de qualquer forma.
+
+### Mais de uma instância da API
+
+Dois componentes guardam estado na memória de cada instância:
+
+| Componente | O que guarda | Efeito com várias instâncias |
+|---|---|---|
+| `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
+| `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
+
+O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
+
+### Riscos conhecidos
+
+- **Refresh concorrente.** Cada refresh token vale para um único uso. Se duas abas chamarem `/auth/refresh` ao mesmo tempo com o mesmo cookie, a segunda é tratada como reuso de token roubado, e todas as sessões do usuário são revogadas. O front deve serializar o refresh (uma chamada por vez, compartilhada entre as abas). Outra opção seria aceitar o token anterior por alguns segundos após a rotação.
+- **Sem recuperação de senha.** Fora de escopo por decisão. Um usuário que perde a senha depende de alguém com `MANAGE_USERS` para trocá-la (no caso de um super_admin, de outro super_admin).
+
+---
+
 ## O que ainda não existe (fora do escopo desta documentação)
 
-Os documentos [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) descrevem um sistema de permissões por cargo que está só parcialmente implementado. Já existem o catálogo de permissões (enum `InternalPermission`), as permissões de cada `InternalRole` (coluna array em `internal_role`) e a role padrão. Ainda não existem a role reservada `super_admin` (nem o seed de bootstrap que a cria junto do primeiro usuário interno) e a autenticação/autorização de fato: as permissões são apenas gravadas e todos os endpoints são abertos.
+A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

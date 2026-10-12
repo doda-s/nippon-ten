@@ -1,6 +1,6 @@
 package dev.nipponten;
 
-import static io.restassured.RestAssured.given;
+import static dev.nipponten.TestAuth.asAdmin;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -19,7 +19,8 @@ class ComboBusinessRulesTest {
     void rejectsComboWithASingleProduct() {
         long product = TestFixtures.createProduct("Pastel");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("combo", combo(), "products", List.of(Map.of("productId", product))))
                 .post("/combos")
                 .then()
@@ -32,7 +33,8 @@ class ComboBusinessRulesTest {
         long second = TestFixtures.createProduct("Refrigerante");
 
         long comboId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "combo",
@@ -48,7 +50,8 @@ class ComboBusinessRulesTest {
                         .jsonPath()
                         .getLong("id");
 
-        given().get("/combos/{id}/products", comboId)
+        asAdmin()
+                .get("/combos/{id}/products", comboId)
                 .then()
                 .statusCode(200)
                 .body("size()", org.hamcrest.Matchers.is(2));
@@ -60,7 +63,8 @@ class ComboBusinessRulesTest {
         long second = TestFixtures.createProduct("Suco");
 
         long comboId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "combo",
@@ -77,14 +81,16 @@ class ComboBusinessRulesTest {
                         .getLong("id");
 
         long comboProductId =
-                given().get("/combos/{id}/products", comboId)
+                asAdmin()
+                        .get("/combos/{id}/products", comboId)
                         .then()
                         .statusCode(200)
                         .extract()
                         .jsonPath()
                         .getLong("[0].id");
 
-        given().delete("/combos/{comboId}/products/{id}", comboId, comboProductId)
+        asAdmin()
+                .delete("/combos/{comboId}/products/{id}", comboId, comboProductId)
                 .then()
                 .statusCode(400);
     }
@@ -94,7 +100,8 @@ class ComboBusinessRulesTest {
         long first = TestFixtures.createProduct("Pastel de palmito");
         long second = TestFixtures.createProduct("Agua");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(
                         Map.of(
                                 "combo",

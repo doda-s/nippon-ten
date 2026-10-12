@@ -3,16 +3,20 @@ package dev.nipponten.infrastructure.mappers;
 import dev.nipponten.domain.models.User;
 import dev.nipponten.infrastructure.entities.UserEntity;
 import jakarta.enterprise.context.ApplicationScoped;
-import java.time.LocalDateTime;
+import jakarta.inject.Inject;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @ApplicationScoped
 public class UserMapper {
 
+    @Inject Clock clock;
+
     public UserEntity toEntity(User model) {
         UserEntity entity = new UserEntity();
         applyToEntity(entity, model);
-        entity.setCreatedAt(LocalDateTime.now().truncatedTo(ChronoUnit.MICROS));
+        entity.setCreatedAt(Instant.now(clock).truncatedTo(ChronoUnit.MICROS));
         return entity;
     }
 

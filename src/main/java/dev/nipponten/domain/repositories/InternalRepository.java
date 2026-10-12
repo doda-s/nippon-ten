@@ -15,4 +15,7 @@ public interface InternalRepository {
     java.util.List<Internal> getByUser(Long userId);
 
     java.util.List<Internal> getByInternalRole(Long internalRoleId);
+
+    /** Internos com a role cujo usuário está ativo. */
+    long countActiveByInternalRole(Long internalRoleId);
 }
