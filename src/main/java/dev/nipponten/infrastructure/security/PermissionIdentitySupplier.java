@@ -13,11 +13,11 @@ import java.util.function.Supplier;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 @Dependent
-class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
+public class PermissionIdentitySupplier implements Supplier<SecurityIdentity> {
 
     static final String AUTHENTICATED_USER_ATTRIBUTE = "nippon.authenticated-user";
 
-    static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
+    public static final String SUPER_ADMIN_ROLE = "SUPER_ADMIN";
 
     @Inject PermissionResolver permissionResolver;
 

@@ -1,5 +1,6 @@
 package dev.nipponten;
 
+import static dev.nipponten.TestAuth.asAdmin;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -162,11 +163,13 @@ class RefreshTokenTest {
         long userId = registerClient(email);
         String token = login(email).cookie(COOKIE);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/users/{id}/deactivate", userId)
                 .then()
                 .statusCode(200);
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/users/{id}/activate", userId)
                 .then()
                 .statusCode(200);
@@ -180,7 +183,8 @@ class RefreshTokenTest {
         long userId = registerClient(email);
         String beforeSameUpdate = login(email).cookie(COOKIE);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("email", email, "password", PASSWORD))
                 .put("/users/{id}", userId)
                 .then()
@@ -188,7 +192,8 @@ class RefreshTokenTest {
         String stillValid =
                 refresh(beforeSameUpdate).then().statusCode(200).extract().cookie(COOKIE);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("email", email, "password", "another-secret"))
                 .put("/users/{id}", userId)
                 .then()
@@ -203,8 +208,8 @@ class RefreshTokenTest {
         String first = login(email).cookie(COOKIE);
         refresh(first).then().statusCode(200);
 
-        given().delete("/users/{id}", userId).then().statusCode(204);
-        given().get("/users/{id}", userId).then().statusCode(404);
+        asAdmin().delete("/users/{id}", userId).then().statusCode(204);
+        asAdmin().get("/users/{id}", userId).then().statusCode(404);
     }
 
     @Test
@@ -304,7 +309,8 @@ class RefreshTokenTest {
         long userId = registerClient(email);
         Response session = login(email);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("email", email, "password", "another-secret"))
                 .put("/users/{id}", userId)
                 .then()

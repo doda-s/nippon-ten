@@ -8,6 +8,9 @@ import dev.nipponten.application.responses.IngredientResponseMapper;
 import dev.nipponten.application.responses.ProductResponseMapper;
 import dev.nipponten.application.services.IngredientService;
 import dev.nipponten.domain.models.Ingredient;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -22,6 +25,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
+// Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
+// nos métodos para o OpenAPI marcar só as rotas protegidas.
 @Path("/ingredients")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -36,23 +41,27 @@ public class IngredientResource {
     @Inject ProductResponseMapper productMapper;
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_INGREDIENTS)
     public Response create(@Valid IngredientRequest request) {
         Ingredient saved = service.create(requestMapper.toModel(null, request));
         return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
     }
 
     @GET
+    @PermitAll
     @Path("/{id}")
     public IngredientResponse getById(@PathParam("id") Long id) {
         return mapper.toResponse(service.getById(id));
     }
 
     @GET
+    @PermitAll
     public List<IngredientResponse> getAll() {
         return service.getAll().stream().map(mapper::toResponse).toList();
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_INGREDIENTS)
     @Path("/{id}")
     public IngredientResponse update(@PathParam("id") Long id, @Valid IngredientRequest request) {
         Ingredient updated = service.update(id, requestMapper.toModel(id, request));
@@ -62,6 +71,7 @@ public class IngredientResource {
     // Lista quem depende do ingrediente, para o usuário interno decidir manualmente o que
     // também deve ser marcado como esgotado.
     @GET
+    @RolesAllowed(Permissions.MANAGE_INGREDIENTS)
     @Path("/{id}/dependents")
     public IngredientDependentsResponse getDependents(@PathParam("id") Long id) {
         return new IngredientDependentsResponse(
@@ -74,6 +84,7 @@ public class IngredientResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_INGREDIENTS)
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
         service.delete(id);

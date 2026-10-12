@@ -1,5 +1,6 @@
 package dev.nipponten;
 
+import static dev.nipponten.TestAuth.asAdmin;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -34,7 +35,8 @@ class AuthTest {
     }
 
     private static long createRole(List<String> permissions) {
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", "role-" + System.nanoTime(), "permissions", permissions))
                 .post("/internal-roles")
                 .then()
@@ -45,7 +47,8 @@ class AuthTest {
     }
 
     private static long registerInternal(String email, long roleId, List<String> userPermissions) {
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(
                         Map.of(
                                 "user", Map.of("email", email, "password", PASSWORD),
@@ -113,7 +116,8 @@ class AuthTest {
         long userId = registerClient(email);
         String inactiveEmail = uniqueEmail("inativo");
         long inactiveId = registerClient(inactiveEmail);
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/users/{id}/deactivate", inactiveId)
                 .then()
                 .statusCode(200);
@@ -130,7 +134,7 @@ class AuthTest {
                     .statusCode(401)
                     .body("message", is("Invalid email or password"));
         }
-        given().get("/users/{id}", userId).then().statusCode(200);
+        asAdmin().get("/users/{id}", userId).then().statusCode(200);
     }
 
     @Test
@@ -156,7 +160,8 @@ class AuthTest {
         String token = login(email);
 
         given().auth().oauth2(token).get("/auth/me").then().statusCode(200);
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/users/{id}/deactivate", userId)
                 .then()
                 .statusCode(200);
@@ -187,7 +192,8 @@ class AuthTest {
                         "permissions",
                         is(List.of("MANAGE_USERS", "MANAGE_PRODUCTS", "MANAGE_INGREDIENTS")));
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/internal-roles/{id}/deactivate", roleId)
                 .then()
                 .statusCode(200);
@@ -206,7 +212,8 @@ class AuthTest {
         String email = uniqueEmail("interno");
         long userId = registerInternal(email, roleId, List.of());
         long internalId =
-                given().get("/internal")
+                asAdmin()
+                        .get("/internal")
                         .then()
                         .statusCode(200)
                         .extract()
@@ -219,7 +226,8 @@ class AuthTest {
                 .then()
                 .body("permissions", is(List.of("MANAGE_PRODUCTS")));
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(
                         Map.of(
                                 "internalRoleId", roleId,

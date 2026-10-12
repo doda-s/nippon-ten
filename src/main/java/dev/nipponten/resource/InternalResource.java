@@ -8,6 +8,8 @@ import dev.nipponten.application.responses.InternalResponseMapper;
 import dev.nipponten.application.services.InternalService;
 import dev.nipponten.application.services.UserService;
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -22,6 +24,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
+@RolesAllowed(Permissions.MANAGE_USERS)
 @Path("/internal")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -62,6 +65,7 @@ public class InternalResource {
 
     @DELETE
     @Path("/{id}")
+    @RolesAllowed(Permissions.SUPER_ADMIN)
     public Response delete(@PathParam("id") Long id) {
         userService.deleteInternal(id);
         return Response.noContent().build();

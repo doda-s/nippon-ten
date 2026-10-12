@@ -6,6 +6,8 @@ import dev.nipponten.application.responses.InternalRoleResponse;
 import dev.nipponten.application.responses.InternalRoleResponseMapper;
 import dev.nipponten.application.services.InternalRoleService;
 import dev.nipponten.domain.models.InternalRole;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -20,6 +22,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
+@RolesAllowed(Permissions.MANAGE_ROLES)
 @Path("/internal-roles")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)

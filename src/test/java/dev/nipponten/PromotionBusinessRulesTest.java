@@ -1,6 +1,6 @@
 package dev.nipponten;
 
-import static io.restassured.RestAssured.given;
+import static dev.nipponten.TestAuth.asAdmin;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -34,9 +34,19 @@ class PromotionBusinessRulesTest {
         Map<String, Object> body =
                 promotion(product, type, "2026-10-01T00:00:00", "2026-10-31T00:00:00");
 
-        given().contentType(ContentType.JSON).body(body).post("/promotions").then().statusCode(201);
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/promotions")
+                .then()
+                .statusCode(201);
 
-        given().contentType(ContentType.JSON).body(body).post("/promotions").then().statusCode(400);
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/promotions")
+                .then()
+                .statusCode(400);
     }
 
     @Test
@@ -44,7 +54,8 @@ class PromotionBusinessRulesTest {
         long product = TestFixtures.createProduct("Pastel janela");
         long type = TestFixtures.createPromotionType("janela invalida");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(promotion(product, type, "2026-10-31T00:00:00", "2026-10-01T00:00:00"))
                 .post("/promotions")
                 .then()
@@ -57,7 +68,8 @@ class PromotionBusinessRulesTest {
         long type = TestFixtures.createPromotionType("expirada");
 
         long promotionId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 promotion(
                                         product,
@@ -71,9 +83,10 @@ class PromotionBusinessRulesTest {
                         .jsonPath()
                         .getLong("id");
 
-        given().get("/promotions").then().statusCode(200).body("id", hasItem((int) promotionId));
+        asAdmin().get("/promotions").then().statusCode(200).body("id", hasItem((int) promotionId));
 
-        given().queryParam("available", true)
+        asAdmin()
+                .queryParam("available", true)
                 .get("/promotions")
                 .then()
                 .statusCode(200)
@@ -85,7 +98,8 @@ class PromotionBusinessRulesTest {
         long size = TestFixtures.createSize("Grande-" + System.nanoTime());
         long type = TestFixtures.createPromotionType("desconto 10");
         long product =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 TestFixtures.productRegistration(
                                         "Pastel com preco",
@@ -98,7 +112,8 @@ class PromotionBusinessRulesTest {
                         .jsonPath()
                         .getLong("id");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(promotion(product, type, "2026-10-01T00:00:00", "2026-10-31T00:00:00"))
                 .post("/promotions")
                 .then()

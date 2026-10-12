@@ -1,6 +1,6 @@
 package dev.nipponten;
 
-import static io.restassured.RestAssured.given;
+import static dev.nipponten.TestAuth.asAdmin;
 
 import io.restassured.http.ContentType;
 import java.util.List;
@@ -14,7 +14,8 @@ final class TestFixtures {
     // Todo produto nasce com ao menos um tamanho (é onde fica o preço).
     static long createProduct(String name) {
         long size = createSize("Unico-" + System.nanoTime());
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(productRegistration(name, List.of(), List.of(sizeWithPrice(size, 10.0))))
                 .post("/products")
                 .then()
@@ -40,7 +41,8 @@ final class TestFixtures {
     }
 
     static long createSize(String name) {
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", name))
                 .post("/sizes")
                 .then()
@@ -51,7 +53,8 @@ final class TestFixtures {
     }
 
     static long createIngredient(String name) {
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", name, "price", 1.5, "status", "ACTIVE"))
                 .post("/ingredients")
                 .then()
@@ -62,7 +65,8 @@ final class TestFixtures {
     }
 
     static long createPromotionType(String name) {
-        return given().contentType(ContentType.JSON)
+        return asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", name, "type", "PERCENTAGE_DISCOUNT", "value", 10))
                 .post("/promotion-types")
                 .then()

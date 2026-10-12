@@ -13,6 +13,9 @@ import dev.nipponten.application.services.ComboProductService;
 import dev.nipponten.application.services.ComboService;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -29,6 +32,8 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
+// nos métodos para o OpenAPI marcar só as rotas protegidas.
 @Path("/combos")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -47,6 +52,7 @@ public class ComboResource {
     @Inject ComboProductRequestMapper comboProductRequestMapper;
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     public Response create(@Valid ComboRegistrationRequest request) {
         Combo saved =
                 service.register(
@@ -56,12 +62,14 @@ public class ComboResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{id}")
     public ComboResponse getById(@PathParam("id") Long id) {
         return mapper.toResponse(service.getById(id));
     }
 
     @GET
+    @PermitAll
     public List<ComboResponse> getAll(@QueryParam("available") boolean available) {
         List<Combo> combos =
                 available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
@@ -69,6 +77,7 @@ public class ComboResource {
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{id}")
     public ComboResponse update(@PathParam("id") Long id, @Valid ComboRequest request) {
         Combo updated = service.update(id, requestMapper.toModel(id, request));
@@ -76,6 +85,7 @@ public class ComboResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
         service.delete(id);
@@ -83,6 +93,7 @@ public class ComboResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{comboId}/products")
     public List<ComboProductResponse> getProducts(@PathParam("comboId") Long comboId) {
         return comboProductService.getByCombo(comboId).stream()
@@ -91,6 +102,7 @@ public class ComboResource {
     }
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{comboId}/products")
     public Response addProduct(
             @PathParam("comboId") Long comboId, @Valid ComboProductRequest request) {
@@ -103,6 +115,7 @@ public class ComboResource {
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{comboId}/products/{comboProductId}")
     public ComboProductResponse updateProduct(
             @PathParam("comboId") Long comboId,
@@ -117,6 +130,7 @@ public class ComboResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{comboId}/products/{comboProductId}")
     public Response removeProduct(
             @PathParam("comboId") Long comboId, @PathParam("comboProductId") Long comboProductId) {

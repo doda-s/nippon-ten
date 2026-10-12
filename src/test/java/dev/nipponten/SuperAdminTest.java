@@ -1,5 +1,6 @@
 package dev.nipponten;
 
+import static dev.nipponten.TestAuth.asAdmin;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,7 +53,8 @@ class SuperAdminTest {
     }
 
     private static long reservedRoleId() {
-        return given().get("/internal-roles")
+        return asAdmin()
+                .get("/internal-roles")
                 .then()
                 .statusCode(200)
                 .extract()
@@ -74,7 +76,8 @@ class SuperAdminTest {
 
     private static String internalWithoutSuperAdmin() {
         long roleId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "name",
@@ -88,7 +91,8 @@ class SuperAdminTest {
                         .jsonPath()
                         .getLong("id");
         String email = "gerente." + System.nanoTime() + "@example.com";
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(internalRegistration(email, roleId))
                 .post("/internal")
                 .then()
@@ -98,7 +102,8 @@ class SuperAdminTest {
 
     @Test
     void startupCreatesTheReservedRoleAndTheFirstSuperAdmin() {
-        given().get("/internal-roles/{id}", reservedRoleId())
+        asAdmin()
+                .get("/internal-roles/{id}", reservedRoleId())
                 .then()
                 .statusCode(200)
                 .body("name", is(SuperAdminService.ROLE_NAME))
@@ -143,18 +148,21 @@ class SuperAdminTest {
     void reservedRoleCannotBeEditedDeactivatedOrDeleted() {
         long roleId = reservedRoleId();
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("name", "renomeada", "permissions", List.of(), "defaultRole", true))
                 .put("/internal-roles/{id}", roleId)
                 .then()
                 .statusCode(400);
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .post("/internal-roles/{id}/deactivate", roleId)
                 .then()
                 .statusCode(400);
-        given().delete("/internal-roles/{id}", roleId).then().statusCode(400);
+        asAdmin().delete("/internal-roles/{id}", roleId).then().statusCode(400);
 
-        given().get("/internal-roles/{id}", roleId)
+        asAdmin()
+                .get("/internal-roles/{id}", roleId)
                 .then()
                 .body("name", is(SuperAdminService.ROLE_NAME))
                 .body("active", is(true))

@@ -22,6 +22,7 @@ import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.responses.UserResponseMapper;
 import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.User;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserProfile;
@@ -63,6 +64,8 @@ public class UserService {
 
     @Inject AuthenticationCache authenticationCache;
 
+    @Inject CurrentUser currentUser;
+
     @Transactional
     public UserDetailResponse register(UserRegistrationRequest request) {
         requireUniqueEmail(request.user().email(), null);
@@ -91,6 +94,7 @@ public class UserService {
     }
 
     public UserDetailResponse getProfile(Long id) {
+        requireSelfOrManager(id);
         User user = getById(id);
         Client client = clientService.findByUser(id).orElse(null);
         List<UserAddress> addresses =
@@ -103,6 +107,7 @@ public class UserService {
     }
 
     public UserResponse update(Long id, UserRequest request) {
+        requireSelfOrManager(id);
         User current = getById(id);
         requireUniqueEmail(request.email(), id);
         User model = userRequestMapper.toModel(id, request);
@@ -122,7 +127,12 @@ public class UserService {
                                 current.active())));
     }
 
+    // Ativar exige MANAGE_USERS na anotação do Resource; desativar também vale para o próprio
+    // usuário.
     public UserResponse setActive(Long id, boolean active) {
+        if (!active) {
+            requireSelfOrManager(id);
+        }
         User current = getById(id);
         if (!active) {
             refreshTokenService.revokeAllByUser(id);
@@ -139,6 +149,11 @@ public class UserService {
 
     @Transactional
     public void delete(Long id) {
+        requireSelfOrManager(id);
+        remove(id);
+    }
+
+    private void remove(Long id) {
         User model = getById(id);
         clientService
                 .findByUser(id)
@@ -168,14 +183,16 @@ public class UserService {
                             + user.id()
                             + ")");
         }
-        delete(user.id());
+        remove(user.id());
     }
 
     public ClientResponse getClient(Long userId) {
+        requireSelfOrManager(userId);
         return clientMapper.toResponse(requireClientOf(userId));
     }
 
     public ClientResponse updateClient(Long userId, ClientRequest request) {
+        requireSelfOrManager(userId);
         Client current = requireClientOf(userId);
         return clientMapper.toResponse(
                 clientService.update(
@@ -183,12 +200,14 @@ public class UserService {
     }
 
     public List<UserAddressResponse> getAddresses(Long userId) {
+        requireSelfOrManager(userId);
         return userAddressService.getByClient(requireClientOf(userId).id()).stream()
                 .map(userAddressMapper::toResponse)
                 .toList();
     }
 
     public UserAddressResponse addAddress(Long userId, UserAddressRequest request) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         return userAddressMapper.toResponse(
                 userAddressService.create(
@@ -197,6 +216,7 @@ public class UserService {
 
     public UserAddressResponse updateAddress(
             Long userId, Long addressId, UserAddressRequest request) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         return userAddressMapper.toResponse(
                 userAddressService.update(
@@ -206,8 +226,13 @@ public class UserService {
     }
 
     public void removeAddress(Long userId, Long addressId) {
+        requireSelfOrManager(userId);
         Client client = requireClientOf(userId);
         userAddressService.delete(client.id(), addressId);
+    }
+
+    private void requireSelfOrManager(Long userId) {
+        currentUser.requireSelfOr(InternalPermission.MANAGE_USERS, userId);
     }
 
     private User getById(Long id) {

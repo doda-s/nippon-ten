@@ -34,6 +34,8 @@ public class SuperAdminService {
 
     @Inject UserRequestMapper userRequestMapper;
 
+    @Inject AuthenticationCache authenticationCache;
+
     @Transactional
     public void bootstrap(Optional<String> email, Optional<String> password) {
         InternalRole role = ensureReservedRole();
@@ -87,6 +89,7 @@ public class SuperAdminService {
         if (upToDate) {
             return role;
         }
+        authenticationCache.invalidateAll();
         return roleRepository.save(
                 new InternalRole(role.id(), role.name(), all, false, true, true));
     }

@@ -6,6 +6,9 @@ import dev.nipponten.application.responses.PromotionResponse;
 import dev.nipponten.application.responses.PromotionResponseMapper;
 import dev.nipponten.application.services.PromotionService;
 import dev.nipponten.domain.models.Promotion;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -22,6 +25,8 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
+// nos métodos para o OpenAPI marcar só as rotas protegidas.
 @Path("/promotions")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -34,6 +39,7 @@ public class PromotionResource {
     @Inject PromotionRequestMapper requestMapper;
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     public Response create(@Valid PromotionRequest request) {
         Promotion saved = service.create(requestMapper.toModel(null, request));
         return Response.status(Response.Status.CREATED)
@@ -42,6 +48,7 @@ public class PromotionResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{id}")
     public PromotionResponse getById(@PathParam("id") Long id) {
         Promotion promotion = service.getById(id);
@@ -49,6 +56,7 @@ public class PromotionResource {
     }
 
     @GET
+    @PermitAll
     public List<PromotionResponse> getAll(@QueryParam("available") boolean available) {
         List<Promotion> promotions =
                 available ? service.getAvailable(LocalDateTime.now()) : service.getAll();
@@ -58,6 +66,7 @@ public class PromotionResource {
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{id}")
     public PromotionResponse update(@PathParam("id") Long id, @Valid PromotionRequest request) {
         Promotion updated = service.update(id, requestMapper.toModel(id, request));
@@ -65,6 +74,7 @@ public class PromotionResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
         service.delete(id);
