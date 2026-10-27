@@ -68,13 +68,14 @@ class ProductRegistrationTest {
     }
 
     @Test
-    void rejectsProductWithoutSizes() {
+    void allowsProductWithoutSizes() {
         asAdmin()
                 .contentType(ContentType.JSON)
                 .body(TestFixtures.productRegistration("Sem preco", List.of(), List.of()))
                 .post("/products")
                 .then()
-                .statusCode(400);
+                .statusCode(201)
+                .body("sizes", hasSize(0));
     }
 
     @Test

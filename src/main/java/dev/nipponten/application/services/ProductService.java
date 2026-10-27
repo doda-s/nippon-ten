@@ -50,9 +50,6 @@ public class ProductService {
     @Transactional
     public Product register(
             Product model, List<ProductIngredient> ingredients, List<ProductSize> sizes) {
-        if (sizes.isEmpty()) {
-            throw new InvalidRequestException("Product must have at least one size");
-        }
         requireNoDuplicates(ingredients, ProductIngredient::ingredientId, "ingredient");
         requireNoDuplicates(sizes, ProductSize::sizeId, "size");
         ingredients.forEach(ingredient -> ingredientService.getById(ingredient.ingredientId()));

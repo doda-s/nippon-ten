@@ -89,13 +89,14 @@ public class ProductResource {
     public Response create(@Valid ProductRegistrationRequest request) {
         List<ProductIngredientRequest> ingredients =
                 request.ingredients() == null ? List.of() : request.ingredients();
+        List<ProductSizeRequest> sizes = request.sizes() == null ? List.of() : request.sizes();
         Product saved =
                 service.register(
                         productRequestMapper.toModel(null, request.product()),
                         ingredients.stream()
                                 .map(i -> productIngredientRequestMapper.toModel(null, null, i))
                                 .toList(),
-                        request.sizes().stream()
+                        sizes.stream()
                                 .map(s -> productSizeRequestMapper.toModel(null, null, s))
                                 .toList());
         return Response.status(Response.Status.CREATED)
