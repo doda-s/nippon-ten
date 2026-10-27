@@ -4,6 +4,7 @@ import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.ProductNotFoundException;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Product;
 import dev.nipponten.domain.models.ProductIngredient;
 import dev.nipponten.domain.models.ProductSize;
@@ -81,6 +82,10 @@ public class ProductService {
 
     public List<Product> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<Product> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public Product update(Long id, Product model) {

@@ -5,6 +5,7 @@ import dev.nipponten.application.requests.InternalRequest;
 import dev.nipponten.application.requests.InternalRequestMapper;
 import dev.nipponten.application.responses.InternalResponse;
 import dev.nipponten.application.responses.InternalResponseMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.services.InternalService;
 import dev.nipponten.application.services.UserService;
 import dev.nipponten.domain.models.Internal;
@@ -14,15 +15,16 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 
 @RolesAllowed(Permissions.MANAGE_USERS)
 @Path("/internal")
@@ -52,8 +54,15 @@ public class InternalResource {
     }
 
     @GET
-    public List<InternalResponse> getAll() {
-        return service.getAll().stream().map(mapper::toResponse).toList();
+    public PageResponse<InternalResponse> getAll(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                service.getPage(params.page(), params.size()),
+                params.page(),
+                params.size(),
+                mapper::toResponse);
     }
 
     @PUT

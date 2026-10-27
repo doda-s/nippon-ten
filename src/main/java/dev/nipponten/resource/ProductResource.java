@@ -12,6 +12,7 @@ import dev.nipponten.application.requests.ProductSizeRequestMapper;
 import dev.nipponten.application.responses.AdditionalIngredientResponse;
 import dev.nipponten.application.responses.AdditionalIngredientResponseMapper;
 import dev.nipponten.application.responses.ComboResponseMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.responses.ProductDependentsResponse;
 import dev.nipponten.application.responses.ProductDetailResponse;
 import dev.nipponten.application.responses.ProductIngredientResponse;
@@ -37,12 +38,14 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
@@ -122,8 +125,15 @@ public class ProductResource {
 
     @GET
     @PermitAll
-    public List<ProductResponse> getAll() {
-        return service.getAll().stream().map(productMapper::toResponse).toList();
+    public PageResponse<ProductResponse> getAll(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                service.getPage(params.page(), params.size()),
+                params.page(),
+                params.size(),
+                productMapper::toResponse);
     }
 
     @PUT

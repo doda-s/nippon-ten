@@ -59,7 +59,7 @@ class SuperAdminTest {
                 .statusCode(200)
                 .extract()
                 .jsonPath()
-                .getLong("find { it.reserved == true }.id");
+                .getLong("content.find { it.reserved == true }.id");
     }
 
     private static Map<String, Object> internalRegistration(String email, long roleId) {

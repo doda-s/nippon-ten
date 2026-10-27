@@ -1,6 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.Ingredient;
+import dev.nipponten.domain.models.PageResult;
 import java.util.List;
 
 public interface IngredientRepository {
@@ -11,4 +12,6 @@ public interface IngredientRepository {
     Ingredient getById(Long id);
 
     List<Ingredient> getAll();
+
+    PageResult<Ingredient> getPage(int page, int size);
 }

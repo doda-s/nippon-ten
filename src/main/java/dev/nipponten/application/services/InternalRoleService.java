@@ -3,6 +3,7 @@ package dev.nipponten.application.services;
 import dev.nipponten.application.exceptions.InternalRoleNotFoundException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.InternalRole;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.InternalRepository;
 import dev.nipponten.domain.repositories.InternalRoleRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -41,6 +42,10 @@ public class InternalRoleService {
 
     public List<InternalRole> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<InternalRole> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public InternalRole getDefault() {

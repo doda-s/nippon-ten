@@ -4,6 +4,7 @@ import dev.nipponten.application.exceptions.IngredientNotFoundException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.AdditionalIngredient;
 import dev.nipponten.domain.models.Ingredient;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Product;
 import dev.nipponten.domain.models.ProductIngredient;
 import dev.nipponten.domain.repositories.AdditionalIngredientRepository;
@@ -39,6 +40,10 @@ public class IngredientService {
 
     public List<Ingredient> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<Ingredient> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public Ingredient update(Long id, Ingredient model) {

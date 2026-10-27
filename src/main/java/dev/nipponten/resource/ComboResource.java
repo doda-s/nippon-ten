@@ -9,6 +9,7 @@ import dev.nipponten.application.responses.ComboProductResponse;
 import dev.nipponten.application.responses.ComboProductResponseMapper;
 import dev.nipponten.application.responses.ComboResponse;
 import dev.nipponten.application.responses.ComboResponseMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.services.BusinessTime;
 import dev.nipponten.application.services.ComboProductService;
 import dev.nipponten.application.services.ComboService;
@@ -21,6 +22,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -72,10 +74,16 @@ public class ComboResource {
 
     @GET
     @PermitAll
-    public List<ComboResponse> getAll(@QueryParam("available") boolean available) {
-        List<Combo> combos =
-                available ? service.getAvailable(businessTime.now()) : service.getAll();
-        return combos.stream().map(mapper::toResponse).toList();
+    public PageResponse<ComboResponse> getAll(
+            @QueryParam("available") boolean available,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        var result =
+                available
+                        ? service.getAvailablePage(businessTime.now(), params.page(), params.size())
+                        : service.getPage(params.page(), params.size());
+        return PageResponse.of(result, params.page(), params.size(), mapper::toResponse);
     }
 
     @PUT

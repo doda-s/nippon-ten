@@ -91,14 +91,18 @@ class PromotionBusinessRulesTest {
                         .jsonPath()
                         .getLong("id");
 
-        asAdmin().get("/promotions").then().statusCode(200).body("id", hasItem((int) promotionId));
+        asAdmin()
+                .get("/promotions")
+                .then()
+                .statusCode(200)
+                .body("content.id", hasItem((int) promotionId));
 
         asAdmin()
                 .queryParam("available", true)
                 .get("/promotions")
                 .then()
                 .statusCode(200)
-                .body("id", not(hasItem((int) promotionId)));
+                .body("content.id", not(hasItem((int) promotionId)));
     }
 
     @Test
@@ -133,7 +137,7 @@ class PromotionBusinessRulesTest {
                     .get("/promotions")
                     .then()
                     .statusCode(200)
-                    .body("id", hasItem((int) promotionId));
+                    .body("content.id", hasItem((int) promotionId));
         } finally {
             clock.reset();
         }

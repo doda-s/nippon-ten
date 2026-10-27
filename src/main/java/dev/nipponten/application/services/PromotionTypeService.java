@@ -2,6 +2,7 @@ package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.PromotionTypeNotFoundException;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.PromotionType;
 import dev.nipponten.domain.repositories.PromotionRepository;
 import dev.nipponten.domain.repositories.PromotionTypeRepository;
@@ -30,6 +31,10 @@ public class PromotionTypeService {
 
     public List<PromotionType> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<PromotionType> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public PromotionType update(Long id, PromotionType model) {

@@ -4,6 +4,7 @@ import dev.nipponten.application.exceptions.ComboNotFoundException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.ComboProductRepository;
 import dev.nipponten.domain.repositories.ComboRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -44,6 +45,10 @@ public class ComboService {
         return repository.getAll();
     }
 
+    public PageResult<Combo> getPage(int page, int size) {
+        return repository.getPage(page, size);
+    }
+
     public Combo update(Long id, Combo model) {
         getById(id);
         requireValidWindow(model);
@@ -53,6 +58,10 @@ public class ComboService {
     // Disponível no catálogo: ativo e dentro da janela. Sem datas, vale sempre.
     public List<Combo> getAvailable(LocalDateTime now) {
         return repository.getAvailable(now);
+    }
+
+    public PageResult<Combo> getAvailablePage(LocalDateTime now, int page, int size) {
+        return repository.getAvailablePage(now, page, size);
     }
 
     @Transactional

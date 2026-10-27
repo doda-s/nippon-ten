@@ -132,7 +132,7 @@ class ProductRegistrationTest {
         asAdmin()
                 .get("/products")
                 .then()
-                .body("findAll { it.name == '%s' }".formatted(name), hasSize(0));
+                .body("content.findAll { it.name == '%s' }".formatted(name), hasSize(0));
         // O tamanho não ficou associado a nenhum produto, então pode ser removido.
         asAdmin().delete("/sizes/{id}", size).then().statusCode(204);
     }

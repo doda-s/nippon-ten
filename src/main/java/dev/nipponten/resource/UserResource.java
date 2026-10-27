@@ -5,6 +5,7 @@ import dev.nipponten.application.requests.UserAddressRequest;
 import dev.nipponten.application.requests.UserRegistrationRequest;
 import dev.nipponten.application.requests.UserRequest;
 import dev.nipponten.application.responses.ClientResponse;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.responses.UserAddressResponse;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
@@ -17,15 +18,18 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.function.Function;
 
 // "O próprio usuário ou MANAGE_USERS" depende do {id}: as rotas com @Authenticated fazem essa
 // checagem no UserService. As anotações ficam nos métodos para o OpenAPI marcar só as protegidas.
@@ -51,8 +55,15 @@ public class UserResource {
 
     @GET
     @RolesAllowed(Permissions.MANAGE_USERS)
-    public List<UserResponse> getAll() {
-        return service.getAll();
+    public PageResponse<UserResponse> getAll(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                service.getPage(params.page(), params.size()),
+                params.page(),
+                params.size(),
+                Function.identity());
     }
 
     @PUT

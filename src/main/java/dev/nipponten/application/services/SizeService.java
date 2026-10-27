@@ -2,6 +2,7 @@ package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.SizeNotFoundException;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Size;
 import dev.nipponten.domain.repositories.ProductSizeRepository;
 import dev.nipponten.domain.repositories.SizeRepository;
@@ -28,6 +29,10 @@ public class SizeService {
 
     public List<Size> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<Size> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public Size update(Long id, Size model) {

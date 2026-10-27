@@ -230,7 +230,7 @@ class AuthTest {
                         .statusCode(200)
                         .extract()
                         .jsonPath()
-                        .getLong("find { it.userId == " + userId + " }.id");
+                        .getLong("content.find { it.userId == " + userId + " }.id");
         String token = login(email);
         given().auth()
                 .oauth2(token)

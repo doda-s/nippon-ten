@@ -1,6 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.PageResult;
 import java.util.List;
 
 public interface InternalRepository {
@@ -11,6 +12,8 @@ public interface InternalRepository {
     Internal getById(Long id);
 
     List<Internal> getAll();
+
+    PageResult<Internal> getPage(int page, int size);
 
     java.util.List<Internal> getByUser(Long userId);
 

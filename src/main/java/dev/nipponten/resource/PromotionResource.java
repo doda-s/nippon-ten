@@ -2,6 +2,7 @@ package dev.nipponten.resource;
 
 import dev.nipponten.application.requests.PromotionRequest;
 import dev.nipponten.application.requests.PromotionRequestMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.responses.PromotionResponse;
 import dev.nipponten.application.responses.PromotionResponseMapper;
 import dev.nipponten.application.services.BusinessTime;
@@ -14,6 +15,7 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -23,7 +25,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 
 // Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
 // nos métodos para o OpenAPI marcar só as rotas protegidas.
@@ -59,12 +60,20 @@ public class PromotionResource {
 
     @GET
     @PermitAll
-    public List<PromotionResponse> getAll(@QueryParam("available") boolean available) {
-        List<Promotion> promotions =
-                available ? service.getAvailable(businessTime.now()) : service.getAll();
-        return promotions.stream()
-                .map(promotion -> mapper.toResponse(promotion, service.getPrices(promotion)))
-                .toList();
+    public PageResponse<PromotionResponse> getAll(
+            @QueryParam("available") boolean available,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        var result =
+                available
+                        ? service.getAvailablePage(businessTime.now(), params.page(), params.size())
+                        : service.getPage(params.page(), params.size());
+        return PageResponse.of(
+                result,
+                params.page(),
+                params.size(),
+                promotion -> mapper.toResponse(promotion, service.getPrices(promotion)));
     }
 
     @PUT
