@@ -1,9 +1,8 @@
 package dev.nipponten.application.requests;
 
-import java.util.List;
-
 import dev.nipponten.domain.models.InternalPermission;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 
 public record InternalRequest(
         Long internalRoleId,
