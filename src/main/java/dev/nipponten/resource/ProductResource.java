@@ -180,13 +180,20 @@ public class ProductResource {
     @POST
     @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/ingredients")
-    public Response addIngredient(
-            @PathParam("productId") Long productId, @Valid ProductIngredientRequest request) {
-        ProductIngredient saved =
-                productIngredientService.create(
-                        productIngredientRequestMapper.toModel(null, productId, request));
+    public Response addIngredients(
+            @PathParam("productId") Long productId,
+            List<@Valid ProductIngredientRequest> requests) {
+        List<ProductIngredient> saved =
+                productIngredientService.createBatch(
+                        productId,
+                        requests.stream()
+                                .map(
+                                        request ->
+                                                productIngredientRequestMapper.toModel(
+                                                        null, productId, request))
+                                .toList());
         return Response.status(Response.Status.CREATED)
-                .entity(productIngredientMapper.toResponse(saved))
+                .entity(saved.stream().map(productIngredientMapper::toResponse).toList())
                 .build();
     }
 
@@ -259,13 +266,20 @@ public class ProductResource {
     @POST
     @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/additional-ingredients")
-    public Response addAdditionalIngredient(
-            @PathParam("productId") Long productId, @Valid AdditionalIngredientRequest request) {
-        AdditionalIngredient saved =
-                additionalIngredientService.create(
-                        additionalIngredientRequestMapper.toModel(null, productId, request));
+    public Response addAdditionalIngredients(
+            @PathParam("productId") Long productId,
+            List<@Valid AdditionalIngredientRequest> requests) {
+        List<AdditionalIngredient> saved =
+                additionalIngredientService.createBatch(
+                        productId,
+                        requests.stream()
+                                .map(
+                                        request ->
+                                                additionalIngredientRequestMapper.toModel(
+                                                        null, productId, request))
+                                .toList());
         return Response.status(Response.Status.CREATED)
-                .entity(additionalIngredientMapper.toResponse(saved))
+                .entity(saved.stream().map(additionalIngredientMapper::toResponse).toList())
                 .build();
     }
 

@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,7 @@ class DependentsTest {
 
         asAdmin()
                 .contentType(ContentType.JSON)
-                .body(Map.of("ingredientId", ingredient))
+                .body(List.of(Map.of("ingredientId", ingredient)))
                 .post("/products/{id}/ingredients", product)
                 .then()
                 .statusCode(201);

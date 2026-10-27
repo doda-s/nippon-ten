@@ -16,11 +16,11 @@ Para a criação de um produto, o usuário interno precisa conter a [[user-manag
 
 ### Product Ingredients
 
-*Product Ingredients* representa a relação entre os ingredientes cadastrados, e os ingredientes necessários para o produto. Essa relação é feita durante a criação de um produto. Nesse fluxo o usuário interno define quais são os ingredientes que o produto depende.
+*Product Ingredients* representa a relação entre os ingredientes cadastrados, e os ingredientes necessários para o produto. Essa relação é feita durante a criação de um produto, ou depois pelo endpoint aninhado `POST /products/{id}/ingredients`, que recebe uma lista e cria todos atomicamente (mesma regra da criação: 404 se algum ingrediente não existir, 400 se houver repetido na própria lista).
 
 ### Additional Ingredients
 
-*Additional Ingredients* representa um ingrediente **opcional** que o cliente pode adicionar ao pedido daquele produto (diferente de *Product Ingredient*, que é a composição obrigatória do produto). Cada *Additional Ingredient* define, para um produto e um ingrediente específicos, a quantidade máxima (`maximum_quantity`) que o cliente pode adicionar naquele item do pedido, e um status de disponibilidade (`ACTIVE`/`INACTIVE`). É essa configuração que permite ao sistema limitar a quantidade de adicionais no pedido (ver `requirements.md`).
+*Additional Ingredients* representa um ingrediente **opcional** que o cliente pode adicionar ao pedido daquele produto (diferente de *Product Ingredient*, que é a composição obrigatória do produto). Cada *Additional Ingredient* define, para um produto e um ingrediente específicos, a quantidade máxima (`maximum_quantity`) que o cliente pode adicionar naquele item do pedido, e um status de disponibilidade (`ACTIVE`/`INACTIVE`). É essa configuração que permite ao sistema limitar a quantidade de adicionais no pedido (ver `requirements.md`). Assim como os ingredientes do produto, `POST /products/{id}/additional-ingredients` recebe uma lista e cria todos atomicamente.
 
 ### Product Size
 

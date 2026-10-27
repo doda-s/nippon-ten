@@ -1,10 +1,13 @@
 package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.AdditionalIngredientNotFoundException;
+import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.AdditionalIngredient;
 import dev.nipponten.domain.repositories.AdditionalIngredientRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.util.HashSet;
 import java.util.List;
 
 @ApplicationScoped
@@ -20,6 +23,30 @@ public class AdditionalIngredientService {
         productService.getById(model.productId());
         ingredientService.getById(model.ingredientId());
         return repository.save(model);
+    }
+
+    // Mesma lógica de ProductService.register: lote atômico, nada é criado se algum ingrediente
+    // não existir ou se houver repetidos no próprio request.
+    @Transactional
+    public List<AdditionalIngredient> createBatch(
+            Long productId, List<AdditionalIngredient> models) {
+        productService.getById(productId);
+        requireNoDuplicates(models);
+        models.forEach(model -> ingredientService.getById(model.ingredientId()));
+        return models.stream().map(repository::save).toList();
+    }
+
+    private static void requireNoDuplicates(List<AdditionalIngredient> models) {
+        var seen = new HashSet<Long>();
+        models.stream()
+                .map(AdditionalIngredient::ingredientId)
+                .filter(value -> !seen.add(value))
+                .findFirst()
+                .ifPresent(
+                        value -> {
+                            throw new InvalidRequestException(
+                                    "Duplicated ingredient in product: " + value);
+                        });
     }
 
     public AdditionalIngredient getById(Long id) {
