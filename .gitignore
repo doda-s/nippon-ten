@@ -9,6 +9,6 @@ application-dev.properties
 application-local.properties
 *.local.properties
 
-.claude
+# .claude
 # Obsidian files
 .obsidian/
