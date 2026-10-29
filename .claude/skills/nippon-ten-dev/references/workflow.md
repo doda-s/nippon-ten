@@ -41,8 +41,7 @@ o context com `docker context use default`. Não altere a configuração do proj
 - **Se a aplicação não sobe com erro de schema validation:** a entity e a migration não batem.
   Corrija a migration nova, sem desligar o `validate`.
 - **Se encontrar `migrate-at-start` comentado** no `application.properties`: o boot quebra em
-  banco novo e nos Dev Services. Avise o usuário. Na `main` a linha ainda está comentada; o commit
-  `d854d16`, da `fix/resource-endpoints-review`, a restaura.
+  banco novo e nos Dev Services. Avise o usuário: a linha deve ficar ativa.
 
 ## Formatação
 

@@ -30,7 +30,7 @@ public interface CouponRepository {
     Coupon save(Coupon model);
     void remove(Coupon model);
     Coupon getById(Long id);
-    List<Coupon> getAll(); // listagem: ver listing-and-errors.md
+    PageResult<Coupon> getPage(int page, int size); // listagem: ver listing-and-errors.md
 }
 ```
 
@@ -181,7 +181,7 @@ public class CouponResource {
         Coupon saved = service.create(requestMapper.toModel(null, request));
         return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
     }
-    // GET /{id} → 200; GET (listagem) → 200; PUT /{id} → 200; DELETE /{id} → 204
+    // GET /{id} → 200; GET (listagem paginada) → 200; PUT /{id} → 200; DELETE /{id} → 204
 }
 ```
 
