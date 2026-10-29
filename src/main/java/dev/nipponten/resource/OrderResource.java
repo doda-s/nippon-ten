@@ -8,17 +8,21 @@ import dev.nipponten.application.requests.OrderRequest;
 import dev.nipponten.application.requests.OrderRequestMapper;
 import dev.nipponten.application.requests.OrderStatusRequest;
 import dev.nipponten.application.responses.OrderCreatedResponse;
+import dev.nipponten.application.responses.OrderEventResponse;
 import dev.nipponten.application.responses.OrderQuoteResponse;
 import dev.nipponten.application.responses.OrderQuoteResponseMapper;
 import dev.nipponten.application.responses.OrderResponse;
 import dev.nipponten.application.responses.OrderResponseMapper;
 import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
+import dev.nipponten.application.services.OrderEventBus;
 import dev.nipponten.application.services.OrderQuoteService;
 import dev.nipponten.application.services.OrderService;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
 import dev.nipponten.resource.security.Permissions;
+import io.smallrye.common.annotation.Blocking;
+import io.smallrye.mutiny.Multi;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -35,6 +39,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.jboss.resteasy.reactive.RestStreamElementType;
 
 // As rotas públicas mudam com quem chama (visitante, cliente ou funcionário); essa regra depende
 // de dados e fica no OrderService.
@@ -56,6 +61,8 @@ public class OrderResource {
     @Inject OrderQuoteResponseMapper quoteMapper;
 
     @Inject OrderResponseMapper mapper;
+
+    @Inject OrderEventBus eventBus;
 
     // Pública: o visitante também monta carrinho. Não grava nada.
     @POST
@@ -84,6 +91,32 @@ public class OrderResource {
     public OrderResponse getById(
             @PathParam("id") Long id, @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken) {
         return toResponse(service.getForViewer(id, trackingToken));
+    }
+
+    // O acesso é conferido antes de abrir o stream (401/403 normais); @Blocking porque a
+    // checagem consulta o banco.
+    @GET
+    @PermitAll
+    @Blocking
+    @Path("/{id}/events")
+    @Produces(MediaType.SERVER_SENT_EVENTS)
+    @RestStreamElementType(MediaType.APPLICATION_JSON)
+    public Multi<OrderEventResponse> events(
+            @PathParam("id") Long id, @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken) {
+        service.requireViewer(id, trackingToken);
+        return eventBus.stream()
+                .filter(event -> event.orderId().equals(id))
+                .map(OrderEventResponse::of);
+    }
+
+    // Feed do dashboard: todos os pedidos.
+    @GET
+    @RolesAllowed(Permissions.MANAGE_ORDERS)
+    @Path("/events")
+    @Produces(MediaType.SERVER_SENT_EVENTS)
+    @RestStreamElementType(MediaType.APPLICATION_JSON)
+    public Multi<OrderEventResponse> allEvents() {
+        return eventBus.stream().map(OrderEventResponse::of);
     }
 
     @GET

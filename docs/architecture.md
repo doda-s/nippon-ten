@@ -177,7 +177,7 @@ Dois componentes guardam estado na memória de cada instância:
 | `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
 | `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
 
-Quando os pedidos forem implementados, um terceiro componente entra nesta lista: o broadcaster de eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]), que também vive em memória. Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
+Um terceiro componente também vive em memória: o `OrderEventBus`, que repassa os eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]). Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
 
 O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
 
