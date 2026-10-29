@@ -1,4 +1,4 @@
-> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existe a cotação (`POST /orders/quote`): preço, promoção, combo e disponibilidade. O resto (gravar o pedido, status, SSE, feedback) ainda não existe no código.
+> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação (`POST /orders/quote`), a criação do pedido (`POST /orders`), a consulta (`GET /orders/{id}`) e o histórico do cliente (`GET /users/{id}/orders`). Mudança de status, pagamento, cancelamento, edição, SSE e feedback ainda não existem no código.
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -88,20 +88,20 @@ A taxa de entrega fica fora da v1: `delivery_fee` existe e vale `0`.
 
 | Quem | Como | Dados |
 | --- | --- | --- |
-| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Nome e endereço vêm do cadastro. |
-| *Guest User* (visitante) | Sem token (escopo 2) | `guestName`, `guestPhone` e endereço gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). |
-| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7): em nome de um cliente (`clientId`, validado como qualquer id do corpo) ou de um visitante. O pedido guarda `created_by_internal_id`. |
+| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone` nem `address` (`400`). |
+| *Guest User* (visitante) | Sem token (escopo 2) | `guestName` e `guestPhone` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
+| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão), e na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
 
 Um *Internal User* sem `manage_orders` não cria pedidos: ele não é cliente (um `User` é cliente **ou** interno).
 
 ### Acompanhamento do visitante
 
-O visitante não tem login, então a resposta de `POST /orders` devolve, uma única vez:
+A resposta de `POST /orders` é `{order, trackingToken}`. Todo pedido sem cliente (o do visitante e o que o funcionário lança para um visitante) recebe, uma única vez:
 
-- `code`: código curto e legível do pedido, mostrado ao cliente e usado no balcão;
+- `code`: código de 6 caracteres, sem os que se confundem lidos em voz alta (0/O, 1/I/L), mostrado ao cliente e usado no balcão;
 - `trackingToken`: segredo aleatório que o front guarda e envia no header `X-Order-Token`.
 
-O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso.
+O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
 
 ## Status
 
@@ -172,7 +172,9 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | `manage_orders` |
 | `GET /users/{id}/orders` (paginado, histórico) | o próprio usuário ou `manage_users` |
 
-A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `OrderService`, via `CurrentUser` (mesmo padrão do `requireSelfOr`). Um pedido inexistente devolve `403` para quem não pode acessá-lo, sem revelar se ele existe. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
+A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `OrderService`, via `CurrentUser` (mesmo padrão do `requireSelfOr`). Um pedido inexistente devolve `403` para quem não pode acessá-lo, sem revelar se ele existe; só quem tem `manage_orders` recebe `404`. Sem login e sem `X-Order-Token`, a resposta é `401`.
+
+`GET /users/{id}/orders` devolve uma página de resumos (código, status, atendimento, pagamento, quantidade de itens, total e data), do mais recente para o mais antigo. Um usuário interno não tem pedidos próprios e recebe uma página vazia. O detalhe com itens e histórico de status fica em `GET /orders/{id}`. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
 
 ## Modelo de dados
 
@@ -208,7 +210,7 @@ Cada fase é uma branch própria, a partir de `main`:
 
 1. ✅ `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
 2. ✅ `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
-3. `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
+3. ✅ `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. `feat/order-events`: SSE do pedido e do dashboard.
 6. `feat/order-feedback`.

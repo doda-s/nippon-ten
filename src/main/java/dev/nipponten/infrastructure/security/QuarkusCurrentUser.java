@@ -6,6 +6,7 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
+import java.util.Optional;
 
 @RequestScoped
 public class QuarkusCurrentUser implements CurrentUser {
@@ -20,5 +21,11 @@ public class QuarkusCurrentUser implements CurrentUser {
             throw new UnauthorizedException("Authentication required");
         }
         return user;
+    }
+
+    @Override
+    public Optional<AuthenticatedUser> find() {
+        return Optional.ofNullable(
+                identity.getAttribute(PermissionIdentitySupplier.AUTHENTICATED_USER_ATTRIBUTE));
     }
 }
