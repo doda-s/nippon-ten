@@ -46,7 +46,7 @@ O cliente informa:
 
 ### `COMBO`
 
-O cliente informa `comboId`, `quantity` e `notes`. O combo tem **precificação própria**: o valor do item é `combo.price × quantity`. Os preços de tamanho e as promoções de produto não se aplicam dentro de um combo. A composição do combo (produto, tamanho e quantidade de cada `combo_product`) é copiada para o item **sem preço**, só para a cozinha saber o que preparar.
+O cliente informa `comboId`, `quantity` e `notes`. O combo tem **precificação própria**: o valor do item é `combo.price × quantity`. Os preços de tamanho e as promoções de produto não se aplicam dentro de um combo. A composição do combo (produto, tamanho quando houver, e quantidade de cada `combo_product`) é copiada para o item **sem preço**, só para a cozinha saber o que preparar.
 
 ### Disponibilidade
 
@@ -181,7 +181,7 @@ order_item(id, order_id, item_type, product_size_id NULL, combo_id NULL, promoti
            name, size_name, quantity, original_unit_price, unit_price, notes)
 order_item_additional(id, order_item_id, ingredient_id NULL, name, quantity, unit_price)
 order_item_removed_ingredient(id, order_item_id, ingredient_id NULL, name)
-order_item_combo_component(id, order_item_id, product_size_id NULL, name, size_name, quantity)
+order_item_combo_component(id, order_item_id, product_id NULL, product_size_id NULL, name, size_name NULL, quantity)
 order_status_history(id, order_id, status, changed_at, changed_by_user_id NULL)
 order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 ```
@@ -190,7 +190,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 - `created_at`, `updated_at`, `paid_at`, `changed_at` são instantes técnicos (`Instant` / `timestamptz`). A janela de promoção e de combo continua em horário de negócio (`BusinessTime`).
 - Valores em `numeric(38, 2)`, como os preços do catálogo. `discount` fica reservado para cupons e pontos (fora da v1) e vale `0`.
 - Os itens, adicionais, removidos, componentes, histórico e feedback são **filhos do agregado** `Order`: não têm endpoint próprio e só são lidos e gravados pelo pedido.
-- As FKs para `client`, `internal`, `user`, `product_size`, `combo`, `promotion` e `ingredient` são `on delete set null` (ver [[#Snapshot de preço e nome|Snapshot]]).
+- As FKs para `client`, `internal`, `user`, `product`, `product_size`, `combo`, `promotion` e `ingredient` são `on delete set null` (ver [[#Snapshot de preço e nome|Snapshot]]).
 
 ## Fora da v1
 
@@ -202,7 +202,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 Cada fase é uma branch própria, a partir de `main`:
 
-1. `refactor/combo-product-size`: `combo_product` passa a apontar para `product_size`, com `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
+1. `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
 2. `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
 3. `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
