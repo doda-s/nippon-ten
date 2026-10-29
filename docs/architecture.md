@@ -1,3 +1,13 @@
+## Diagramas
+
+Fontes editáveis em `docs/diagrams/` (abrir no draw.io / diagrams.net):
+
+- [`architecture.drawio`](diagrams/architecture.drawio) — camadas, portas e adapters (página *Camadas*) e o caminho de um request autenticado do token até o banco (página *Fluxo de um request*).
+- [`database-erd.drawio`](diagrams/database-erd.drawio) — schema final das migrations V1–V7, agrupado por agregado, com o comportamento de cada FK na exclusão.
+- [`resources.drawio`](diagrams/resources.drawio) — rotas e permissão de cada resource (página *Rotas e permissões*), quais services cada resource usa (*Resources → services*) e as dependências entre services (*Services → services*).
+
+---
+
 ## Camadas
 
 O código está organizado em quatro pacotes sob `dev.nipponten`, de dentro para fora:
