@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class ComboProductRequestMapper {
 
     public ComboProduct toModel(Long id, Long comboId, ComboProductRequest request) {
-        return new ComboProduct(id, comboId, request.productId());
+        return new ComboProduct(
+                id, comboId, request.productId(), request.productSizeId(), request.quantity());
     }
 }

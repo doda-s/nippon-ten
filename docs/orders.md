@@ -1,4 +1,4 @@
-> **Status:** especificação aprovada, ainda não implementada. A implementação segue as fases da seção [[#Roadmap de implementação|Roadmap]]. Enquanto uma fase não for entregue, o código não tem o comportamento descrito aqui.
+> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação, a criação, a consulta, o histórico do cliente, a listagem do dashboard, a mudança de status, o pagamento, o cancelamento e a edição de itens. SSE e feedback ainda não existem no código.
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -39,8 +39,10 @@ O cliente informa:
 
 - `productSizeId`: o produto já no tamanho escolhido (a combinação de `product_size`, onde mora o preço);
 - `quantity` (≥ 1) e `notes` (observação do item, req. 44);
-- `additionals`: lista de `{ingredientId, quantity}`. Cada adicional precisa estar configurado como *Additional Ingredient* `ACTIVE` daquele produto, e a quantidade não pode passar do `maximumQuantity` (req. 53). O acréscimo é `ingredient.price × quantity`;
-- `removedIngredients`: lista de `ingredientId` da composição do produto (*Product Ingredient*) que o cliente quer tirar (req. 45). Remover não muda o preço.
+- `additionals`: lista de `{ingredientId, quantity}`. Cada adicional precisa estar configurado como *Additional Ingredient* `ACTIVE` daquele produto, e a quantidade não pode passar do `maximumQuantity` (req. 53). A quantidade é **por unidade do item** ("2 de queijo extra" em cada pastel), e o acréscimo por unidade é `ingredient.price × quantity`. O mesmo ingrediente não se repete na lista: a repetição é a quantidade;
+- `removedIngredientIds`: lista de `ingredientId` da composição do produto (*Product Ingredient*) que o cliente quer tirar (req. 45). Remover não muda o preço.
+
+**Total do item:** `(preço unitário + acréscimo dos adicionais) × quantity`, arredondado para 2 casas.
 
 **Preço unitário:** o preço do `product_size`. Se existir uma promoção `ACTIVE` para o produto, dentro da janela de datas no horário do restaurante (`BusinessTime.now()`), o preço é o promocional, calculado pela mesma regra de *Promotion Type* que já existe (ver [[products-and-promotions#Promotions|products-and-promotions.md]]). A promoção é aplicada **automaticamente**: o cliente não escolhe a promoção, ele pede o produto. O item guarda o `promotion_id` e o preço original para referência.
 
@@ -50,13 +52,15 @@ O cliente informa `comboId`, `quantity` e `notes`. O combo tem **precificação 
 
 ### Disponibilidade
 
-A cotação, o checkout e a edição recusam com `400` e listam **todos** os itens com problema de uma vez, para o front mostrar ao cliente o que ajustar (req. 54). Contam como problema:
+A cotação, o checkout e a edição recusam com `400` e listam **todos** os itens com problema de uma vez, para o front mostrar ao cliente o que ajustar (req. 54). A resposta usa o mesmo formato da falha de validação, com `message` = `Some items are unavailable` e uma entrada em `violations` por problema, cujo `field` aponta o item (`items[1]`, `items[1].additionals[0]`, `items[2].removedIngredientIds[0]`). Contam como problema:
 
 - produto `INACTIVE`, combinação de tamanho `INACTIVE` ou combo `INACTIVE`;
 - combo fora da janela de datas;
 - adicional `INACTIVE` ou não configurado para o produto, ou acima do `maximumQuantity`;
-- ingrediente (adicional ou da composição) `OUT_OF_STOCK`;
-- ingrediente removido que não faz parte da composição do produto.
+- adicional `OUT_OF_STOCK`;
+- ingrediente da composição `OUT_OF_STOCK`, **a menos que o cliente o tenha removido** do item: um pastel de palmito sem palmito pode ser vendido com o palmito esgotado;
+- ingrediente removido que não faz parte da composição do produto, ou repetido na lista;
+- item `PRODUCT` sem `productSizeId` (ou com `comboId`), e item `COMBO` sem `comboId` (ou com `productSizeId`, adicionais ou ingredientes removidos).
 
 A propagação de "esgotado" entre ingrediente, produto e combo continua manual (ver [[products-and-promotions#Product|products-and-promotions.md]]). O pedido só respeita o status que cada item tem no momento.
 
@@ -84,20 +88,20 @@ A taxa de entrega fica fora da v1: `delivery_fee` existe e vale `0`.
 
 | Quem | Como | Dados |
 | --- | --- | --- |
-| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Nome e endereço vêm do cadastro. |
-| *Guest User* (visitante) | Sem token (escopo 2) | `guestName`, `guestPhone` e endereço gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). |
-| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7): em nome de um cliente (`clientId`, validado como qualquer id do corpo) ou de um visitante. O pedido guarda `created_by_internal_id`. |
+| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone` nem `address` (`400`). |
+| *Guest User* (visitante) | Sem token (escopo 2) | `guestName` e `guestPhone` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
+| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão), e na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
 
 Um *Internal User* sem `manage_orders` não cria pedidos: ele não é cliente (um `User` é cliente **ou** interno).
 
 ### Acompanhamento do visitante
 
-O visitante não tem login, então a resposta de `POST /orders` devolve, uma única vez:
+A resposta de `POST /orders` é `{order, trackingToken}`. Todo pedido sem cliente (o do visitante e o que o funcionário lança para um visitante) recebe, uma única vez:
 
-- `code`: código curto e legível do pedido, mostrado ao cliente e usado no balcão;
+- `code`: código de 6 caracteres, sem os que se confundem lidos em voz alta (0/O, 1/I/L), mostrado ao cliente e usado no balcão;
 - `trackingToken`: segredo aleatório que o front guarda e envia no header `X-Order-Token`.
 
-O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso.
+O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
 
 ## Status
 
@@ -123,13 +127,16 @@ CANCELLED --> [*]
   - o cliente ou o visitante cancela só em `PENDING`, ou seja, antes de a cozinha começar;
   - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`).
 - `COMPLETED` e `CANCELLED` são finais.
+- `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
+- `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
+- A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
 "Pedidos ativos" (req. 42) são os que não estão em `COMPLETED` nem em `CANCELLED`.
 
 ### Pagamento
 
-Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
+Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
 
 A integração com um gateway (Pix dinâmico, cartão online) fica para uma fase 2, como um agregado `Payment` próprio. Nessa fase deve surgir um estado anterior a `PENDING` (aguardando pagamento).
 
@@ -168,7 +175,9 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | `manage_orders` |
 | `GET /users/{id}/orders` (paginado, histórico) | o próprio usuário ou `manage_users` |
 
-A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `OrderService`, via `CurrentUser` (mesmo padrão do `requireSelfOr`). Um pedido inexistente devolve `403` para quem não pode acessá-lo, sem revelar se ele existe. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
+A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `OrderService`, via `CurrentUser` (mesmo padrão do `requireSelfOr`). Um pedido inexistente devolve `403` para quem não pode acessá-lo, sem revelar se ele existe; só quem tem `manage_orders` recebe `404`. Sem login e sem `X-Order-Token`, a resposta é `401`.
+
+`GET /users/{id}/orders` devolve uma página de resumos (código, status, atendimento, pagamento, quantidade de itens, total e data), do mais recente para o mais antigo. Um usuário interno não tem pedidos próprios e recebe uma página vazia. O detalhe com itens e histórico de status fica em `GET /orders/{id}`. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
 
 ## Modelo de dados
 
@@ -202,9 +211,9 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 Cada fase é uma branch própria, a partir de `main`:
 
-1. `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
-2. `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
-3. `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
-4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
+1. ✅ `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
+2. ✅ `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
+3. ✅ `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
+4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. `feat/order-events`: SSE do pedido e do dashboard.
 6. `feat/order-feedback`.

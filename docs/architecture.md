@@ -90,7 +90,7 @@ Todo id que chega no **corpo** do request e aponta para outro agregado (`ingredi
 Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dependentes (não os services, que já injetam o service do pai e criariam ciclo):
 
 - **filhos do próprio agregado são removidos em cascata**: `Product` → `ProductSize`, `ProductIngredient`, `AdditionalIngredient`; `Combo` → `ComboProduct`; `User` → `UserAddress`, `Client`, `Internal`, `RefreshToken`;
-- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
+- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `ProductSize` usado por combo; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
 
 ---
 
@@ -100,7 +100,7 @@ Toda escrita de um único agregado é transacional no nível do repositório Pan
 
 Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `RefreshToken`(s) + `User`), `SuperAdminService.bootstrap` (cria ou sincroniza a role reservada + `User` + `Internal`), `RefreshTokenService.rotate` (revoga o token atual + emite o próximo; na detecção de reuso, a revogação em massa é gravada mesmo com o `401`, via `dontRollbackOn`), `ProductService.delete` (remove os filhos do produto + `Product`), `ComboService.register` (cria `Combo` + os `ComboProduct`(s) do fluxo de criação) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
 
-Planejados com os pedidos (ver [`orders.md`](orders.md)): `OrderService.create` (lê produto, tamanho, combo, promoção e cliente e grava `Order` + itens + adicionais + removidos + componentes + histórico), `OrderService.updateItems` (substitui os itens e reprecifica) e as mudanças de status, pagamento e cancelamento (alteram o pedido e gravam `order_status_history` juntos). Os eventos SSE dessas operações só são publicados depois do commit.
+Nos pedidos (ver [`orders.md`](orders.md)), `OrderService.place` (lê produto, tamanho, combo, promoção, cliente e endereço e grava `Order` + itens + adicionais + removidos + componentes + a primeira linha de `order_status_history`) também leva `@Transactional`, assim como `OrderService.updateItems` (substitui os itens e reprecifica), `changeStatus` e `cancel` (alteram o pedido e gravam `order_status_history` juntos) e `markPaid`. Os eventos SSE dessas operações só são publicados depois do commit.
 
 ---
 
@@ -109,6 +109,8 @@ Planejados com os pedidos (ver [`orders.md`](orders.md)): `OrderService.create` 
 Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Positive`, `@Email` etc.) e todo método de `Resource` que recebe um request usa `@Valid`. A extensão `quarkus-hibernate-validator` intercepta antes do request chegar ao `Service` e devolve `400` automaticamente se alguma constraint falhar. Esse `ConstraintViolationException` é mapeado por `ConstraintViolationExceptionMapper` (`resource.exception`) para o mesmo formato de erro do resto da API — `{"message": "Invalid request", "violations": [{"field": ..., "message": ...}]}` — em vez do payload padrão (mais verboso, com o caminho completo do método) do Hibernate Validator.
 
 `InvalidRequestException` (mapeada para `400` por `InvalidRequestExceptionMapper`) fica reservada para regras que Bean Validation não consegue expressar — invariantes que dependem de mais de um campo, de outra entidade ou de uma consulta (ex.: "um combo precisa ter no mínimo dois produtos"). Se a regra é sobre a forma de um campo isolado, ela é uma anotação no `Request`, não uma checagem manual no `Service`.
+
+Quando vários itens de uma lista podem falhar ao mesmo tempo e o cliente precisa ver todos (hoje, a disponibilidade dos itens do pedido), o `Service` acumula os problemas e lança uma única `UnavailableItemsException`. O `UnavailableItemsExceptionMapper` a devolve como `400` no formato `ValidationErrorResponse`, com o caminho do item em `field` (ex.: `items[1].additionals[0]`), em vez de parar no primeiro erro.
 
 `XNotFoundException` (todas estendendo `NotFoundException`, mapeada para `404` por `GlobalExceptionMapper`) é usada para "esse id não existe" ou "esse filho não pertence a esse pai" — nunca para validação de formato de request.
 
@@ -190,7 +192,7 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
 
-Os pedidos estão especificados em [`orders.md`](orders.md), mas ainda não implementados; a doc traz o roadmap das fases.
+Os pedidos estão especificados em [`orders.md`](orders.md) e são entregues por fases (o roadmap está lá). Já existem a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard e o ciclo de vida (status, pagamento, cancelamento e edição de itens). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status tem repositório próprio.
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

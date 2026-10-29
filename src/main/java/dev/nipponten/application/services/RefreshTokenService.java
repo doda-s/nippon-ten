@@ -6,15 +6,9 @@ import dev.nipponten.domain.repositories.RefreshTokenRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -26,8 +20,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 public class RefreshTokenService {
 
     private static final String INVALID_REFRESH_TOKEN = "Invalid refresh token";
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     @Inject RefreshTokenRepository repository;
 
@@ -76,7 +68,7 @@ public class RefreshTokenService {
         if (value == null || value.isBlank()) {
             return;
         }
-        RefreshToken current = repository.getByHash(hash(value));
+        RefreshToken current = repository.getByHash(OpaqueTokens.hash(value));
         if (current != null && !current.isRevoked()) {
             repository.save(
                     new RefreshToken(
@@ -105,16 +97,14 @@ public class RefreshTokenService {
     private record Issued(RefreshToken model, IssuedRefreshToken issued) {}
 
     private Issued issue(Long userId, UUID sessionId, Instant now) {
-        byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        String value = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String value = OpaqueTokens.generate();
         RefreshToken saved =
                 repository.save(
                         new RefreshToken(
                                 null,
                                 userId,
                                 sessionId,
-                                hash(value),
+                                OpaqueTokens.hash(value),
                                 now.plus(ttl),
                                 now,
                                 null,
@@ -126,22 +116,10 @@ public class RefreshTokenService {
         if (value == null || value.isBlank()) {
             throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
         }
-        RefreshToken token = repository.getByHash(hash(value));
+        RefreshToken token = repository.getByHash(OpaqueTokens.hash(value));
         if (token == null) {
             throw new UnauthorizedException(INVALID_REFRESH_TOKEN);
         }
         return token;
-    }
-
-    // O token é aleatório com 256 bits, então SHA-256 basta; bcrypt seria custo sem ganho.
-    private static String hash(String value) {
-        try {
-            byte[] digest =
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(value.getBytes(StandardCharsets.US_ASCII));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
     }
 }

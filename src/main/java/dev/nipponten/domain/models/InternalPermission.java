@@ -5,5 +5,6 @@ public enum InternalPermission {
     MANAGE_ROLES,
     MANAGE_PRODUCTS,
     MANAGE_INGREDIENTS,
-    MANAGE_PROMOTIONS;
+    MANAGE_PROMOTIONS,
+    MANAGE_ORDERS;
 }

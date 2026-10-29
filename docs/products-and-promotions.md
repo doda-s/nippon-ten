@@ -62,20 +62,20 @@ Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário
 
 ### Combo Product
 
-É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser, com o mínimo de dois. A relação entre combo e produtos é feita durante o fluxo de criação de um combo: `POST /combos` recebe o combo e a lista de produtos de uma vez, e recusa a criação com menos de dois. Remover um produto que deixaria o combo abaixo desse mínimo também é recusado.
+É a relação entre um combo e os produtos que compõem o combo. Cada linha diz o **produto**, o **tamanho** (`productSizeId`, a combinação produto+tamanho, ex.: "Pastel de Carne – Grande") e a **quantidade** (`quantity` ≥ 1). A relação é feita durante o fluxo de criação de um combo: `POST /combos` recebe o combo e a lista de produtos de uma vez. Depois, os produtos podem ser adicionados, trocados ou removidos em `/combos/{id}/products`.
 
 O combo tem **precificação própria**: o cliente paga o `price` do combo, nunca a soma dos preços dos produtos que o compõem. A composição só diz o que o combo contém, ou seja, o que a cozinha prepara.
 
-> **Mudança planejada** (fase 1 de [[orders#Roadmap de implementação|orders.md]], ainda não implementada; hoje `combo_product` guarda só `product_id`): como o preço e o tamanho de um produto vivem no *Product Size*, um combo só com o produto não diz se o pastel é pequeno ou grande. Por isso cada linha de `combo_product` continua apontando para o **produto** e ganha o **tamanho** (`product_size_id`, a combinação produto+tamanho, ex.: "Pastel de Carne – Grande") e a **quantidade** (`quantity` ≥ 1):
->
-> - se o produto tem ao menos um tamanho, o tamanho é **obrigatório** (a cozinha precisa saber qual preparar); se o produto não tem nenhum tamanho, o tamanho fica vazio. Um produto sem tamanho não tem preço e não é vendido sozinho, mas pode entrar num combo, porque quem dá o preço é o combo;
-> - o tamanho informado precisa ser daquele produto (`404` se não for, como em `requireByParent`);
-> - a mesma combinação produto+tamanho aparece no máximo uma vez em cada combo (`400`); para "2× Pastel de Carne Grande" usa-se `quantity = 2`. Tamanhos diferentes do mesmo produto podem coexistir;
-> - o mínimo de dois produtos conta a **soma das quantidades** (2× o mesmo pastel já é um combo válido);
-> - um `product_size` usado por algum combo não pode ser removido do produto (`400`), seguindo a regra de bloqueio de referências de outro agregado;
-> - quando um produto sem tamanho ganha o primeiro tamanho, os combos que já o tinham continuam válidos, sem tamanho. Assim como a propagação de "esgotado", o sistema não escolhe um tamanho sozinho: o usuário interno revisa esses combos.
->
-> Os combos que já existem antes da mudança mantêm o produto e ficam sem tamanho, para revisão no dashboard. Modelo: `combo_product(id, combo_id, product_id, product_size_id NULL, quantity)`. O diagrama (página *Products*) já mostra esse formato.
+Regras:
+
+- **Mínimo de dois produtos**, contando a **soma das quantidades**: 2× o mesmo pastel já é um combo válido. Criar, editar a quantidade ou remover um produto de forma que o combo fique abaixo disso é recusado (`400`).
+- **Tamanho:** se o produto tem ao menos um tamanho, o tamanho é **obrigatório** (`400` sem ele), porque a cozinha precisa saber qual preparar. Se o produto não tem nenhum tamanho, o tamanho fica vazio: um produto sem tamanho não tem preço e não é vendido sozinho, mas pode entrar num combo, porque quem dá o preço é o combo.
+- O tamanho informado precisa ser daquele produto (`404` se não for, como em `requireByParent`).
+- A mesma combinação produto+tamanho aparece no máximo uma vez em cada combo (`400`); para "2× Pastel de Carne Grande" usa-se `quantity = 2`. Tamanhos diferentes do mesmo produto podem coexistir.
+- Um tamanho usado por algum combo não pode ser removido do produto (`400`), seguindo a regra de bloqueio de referências de outro agregado.
+- Quando um produto sem tamanho ganha o primeiro tamanho, os combos que já o tinham continuam válidos, sem tamanho. Assim como na propagação de "esgotado", o sistema não escolhe um tamanho sozinho: o usuário interno revisa esses combos. O mesmo vale para os combos criados antes do tamanho existir no combo: a migration `V5` manteve o produto, deixou o tamanho vazio e juntou produtos repetidos numa linha com a quantidade somada.
+
+> Modelo de dados: `combo_product(id, combo_id, product_id, product_size_id NULL, quantity)`, com a combinação `(combo_id, product_id, product_size_id)` única. O diagrama (página *Products*) já mostra esse formato.
 
 Assim como em Product/Ingredient, quando um produto que compõe o combo fica esgotado, a propagação para o status do combo **não é automática** — o usuário interno decide manualmente se o combo também deve ser marcado como esgotado.
 

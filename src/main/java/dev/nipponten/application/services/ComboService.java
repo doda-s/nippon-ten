@@ -5,16 +5,21 @@ import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
 import dev.nipponten.domain.models.PageResult;
+import dev.nipponten.domain.models.ProductSize;
 import dev.nipponten.domain.repositories.ComboProductRepository;
 import dev.nipponten.domain.repositories.ComboRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 @ApplicationScoped
 public class ComboService {
+
+    public static final int MINIMUM_PRODUCTS = 2;
 
     @Inject ComboRepository repository;
 
@@ -22,17 +27,67 @@ public class ComboService {
 
     @Inject ProductService productService;
 
+    @Inject ProductSizeService productSizeService;
+
     // Combo + produtos são criados juntos: a relação é feita durante o fluxo de criação e o
     // combo precisa de no mínimo dois produtos, então a operação inteira é atômica.
     @Transactional
-    public Combo register(Combo model, List<Long> productIds) {
+    public Combo register(Combo model, List<ComboProduct> products) {
         requireValidWindow(model);
-        productIds.forEach(productService::getById);
+        products.forEach(this::requireValidProduct);
+        requireNoRepeatedProducts(products);
+        requireMinimumProducts(products.stream().mapToInt(ComboProduct::quantity).sum());
         Combo saved = repository.save(model);
-        productIds.forEach(
-                productId ->
-                        comboProductRepository.save(new ComboProduct(null, saved.id(), productId)));
+        products.forEach(
+                product ->
+                        comboProductRepository.save(
+                                new ComboProduct(
+                                        null,
+                                        saved.id(),
+                                        product.productId(),
+                                        product.productSizeId(),
+                                        product.quantity())));
         return saved;
+    }
+
+    // A cozinha precisa saber o tamanho: ele só pode faltar se o produto não tem nenhum.
+    public void requireValidProduct(ComboProduct product) {
+        List<ProductSize> sizes = productSizeService.getByProduct(product.productId());
+        if (product.productSizeId() == null) {
+            if (!sizes.isEmpty()) {
+                throw new InvalidRequestException(
+                        "Product " + product.productId() + " has sizes: productSizeId is required");
+            }
+            return;
+        }
+        productSizeService.requireByProduct(product.productId(), product.productSizeId());
+    }
+
+    // O mínimo conta a soma das quantidades: 2x o mesmo pastel já é um combo.
+    public void requireMinimumProducts(int totalQuantity) {
+        if (totalQuantity < MINIMUM_PRODUCTS) {
+            throw new InvalidRequestException(
+                    "Combo must have at least "
+                            + MINIMUM_PRODUCTS
+                            + " products (sum of quantities), got "
+                            + totalQuantity);
+        }
+    }
+
+    // A mesma combinação produto+tamanho aparece uma vez; a repetição é a quantidade.
+    private void requireNoRepeatedProducts(List<ComboProduct> products) {
+        // Arrays.asList aceita o tamanho nulo como parte da chave.
+        var seen = new HashSet<List<Long>>();
+        for (ComboProduct product : products) {
+            if (!seen.add(Arrays.asList(product.productId(), product.productSizeId()))) {
+                throw new InvalidRequestException(
+                        "Product "
+                                + product.productId()
+                                + " with size "
+                                + product.productSizeId()
+                                + " is repeated: use quantity instead");
+            }
+        }
     }
 
     public Combo getById(Long id) {
@@ -43,6 +98,13 @@ public class ComboService {
 
     public List<Combo> getAll() {
         return repository.getAll();
+    }
+
+    // Mesma regra de getAvailable, para um combo só: ativo e dentro da janela, se houver.
+    public boolean isAvailable(Combo combo, LocalDateTime now) {
+        return combo.status() == Combo.Status.ACTIVE
+                && (combo.startDate() == null || !combo.startDate().isAfter(now))
+                && (combo.endDate() == null || combo.endDate().isAfter(now));
     }
 
     public PageResult<Combo> getPage(int page, int size) {

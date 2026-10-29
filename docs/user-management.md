@@ -111,7 +111,7 @@ Quem gerencia roles só cria, edita ou reativa uma role com permissões que ele 
 | manage_products    | Permissão para gerenciar produtos. Possibilita criar, editar, deletar e alterar o status de produtos. Também permite modificar os ingredientes ao qual um produto depende. |
 | manage_ingredients | Permissão para gerenciar os ingredientes cadastrados no sistema. Possibilita cadastrar, editar, deletar e alterar o status de um ingrediente.                              |
 | manage_promotions  | Permissão para gerenciar os combos e promotions existentes. Possibilita criar, editar, deletar e alterar o status de um combo/promotion.                                   |
-| manage_orders      | Permissão para operar pedidos (planejada, ver [[orders]]). Possibilita lançar pedidos no balcão, listar e acompanhar todos os pedidos, avançar status, marcar como pago, editar itens e cancelar. |
+| manage_orders      | Permissão para operar pedidos (ver [[orders]]). Possibilita lançar pedidos no balcão, listar e acompanhar todos os pedidos, avançar status, marcar como pago, editar itens e cancelar. |
 
 ## Bootstrap
 
@@ -147,14 +147,16 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `/users/{id}/**` | o próprio usuário ou `manage_users` | o próprio usuário ou `manage_users` |
 | `POST /users/{id}/activate` | — | `manage_users` |
 | `GET /auth/me` | autenticado | — |
-| `POST /orders/quote` *(planejado)* | — | pública |
-| `POST /orders` *(planejado)* | — | pública (visitante), cliente autenticado ou `manage_orders` |
-| `GET /orders`, `GET /orders/events` *(planejado)* | `manage_orders` | — |
-| `GET /orders/{id}`, `GET /orders/{id}/events` *(planejado)* | dono, token de acompanhamento ou `manage_orders` | — |
-| `POST /orders/{id}/cancel` *(planejado)* | — | dono ou token (só em `PENDING`), ou `manage_orders` |
+| `POST /orders/quote` | — | pública |
+| `POST /orders` | — | pública (visitante), cliente autenticado ou `manage_orders` |
+| `GET /orders` | `manage_orders` | — |
+| `GET /orders/events` *(planejado)* | `manage_orders` | — |
+| `GET /orders/{id}` | dono, token de acompanhamento (`X-Order-Token`) ou `manage_orders` | — |
+| `GET /orders/{id}/events` *(planejado)* | dono, token de acompanhamento ou `manage_orders` | — |
+| `POST /orders/{id}/cancel` | — | dono ou token (só em `PENDING`), ou `manage_orders` |
 | `POST /orders/{id}/feedback` *(planejado)* | — | dono ou token |
-| `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` *(planejado)* | — | `manage_orders` |
-| `GET /users/{id}/orders` *(planejado)* | o próprio usuário ou `manage_users` | — |
+| `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
+| `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
 
 `POST /auth/login`, `/auth/refresh` e `/auth/logout` são públicas. O Swagger (`/api`) e o schema (`/q/openapi`) também.
 

@@ -1,5 +1,6 @@
 package dev.nipponten.infrastructure.entities;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -21,6 +22,13 @@ public class ComboProductEntity {
     @JoinColumn(name = "product_id")
     private ProductEntity product;
 
+    @ManyToOne
+    @JoinColumn(name = "product_size_id")
+    private ProductSizeEntity productSize;
+
+    @Column(nullable = false)
+    private int quantity;
+
     public ComboProductEntity() {}
 
     public Long getId() {
@@ -41,5 +49,21 @@ public class ComboProductEntity {
 
     public void setProduct(ProductEntity product) {
         this.product = product;
+    }
+
+    public ProductSizeEntity getProductSize() {
+        return productSize;
+    }
+
+    public void setProductSize(ProductSizeEntity productSize) {
+        this.productSize = productSize;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 }

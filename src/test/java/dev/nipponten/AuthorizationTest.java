@@ -54,7 +54,11 @@ class AuthorizationTest {
                     new Route("GET", "/internal", Permissions.MANAGE_USERS),
                     new Route("POST", "/internal", Permissions.MANAGE_USERS),
                     new Route("GET", "/users", Permissions.MANAGE_USERS),
-                    new Route("POST", "/users/999999/activate", Permissions.MANAGE_USERS));
+                    new Route("POST", "/users/999999/activate", Permissions.MANAGE_USERS),
+                    new Route("GET", "/orders", Permissions.MANAGE_ORDERS),
+                    new Route("POST", "/orders/999999/status", Permissions.MANAGE_ORDERS),
+                    new Route("POST", "/orders/999999/pay", Permissions.MANAGE_ORDERS),
+                    new Route("PUT", "/orders/999999/items", Permissions.MANAGE_ORDERS));
 
     private static final List<String> PUBLIC_READS =
             List.of(
