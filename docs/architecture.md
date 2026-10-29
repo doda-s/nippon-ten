@@ -110,6 +110,8 @@ Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Posit
 
 `InvalidRequestException` (mapeada para `400` por `InvalidRequestExceptionMapper`) fica reservada para regras que Bean Validation não consegue expressar — invariantes que dependem de mais de um campo, de outra entidade ou de uma consulta (ex.: "um combo precisa ter no mínimo dois produtos"). Se a regra é sobre a forma de um campo isolado, ela é uma anotação no `Request`, não uma checagem manual no `Service`.
 
+Quando vários itens de uma lista podem falhar ao mesmo tempo e o cliente precisa ver todos (hoje, a disponibilidade dos itens do pedido), o `Service` acumula os problemas e lança uma única `UnavailableItemsException`. O `UnavailableItemsExceptionMapper` a devolve como `400` no formato `ValidationErrorResponse`, com o caminho do item em `field` (ex.: `items[1].additionals[0]`), em vez de parar no primeiro erro.
+
 `XNotFoundException` (todas estendendo `NotFoundException`, mapeada para `404` por `GlobalExceptionMapper`) é usada para "esse id não existe" ou "esse filho não pertence a esse pai" — nunca para validação de formato de request.
 
 ---
@@ -190,7 +192,7 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
 
-Os pedidos estão especificados em [`orders.md`](orders.md), mas ainda não implementados; a doc traz o roadmap das fases.
+Os pedidos estão especificados em [`orders.md`](orders.md) e são entregues por fases (o roadmap está lá). Por enquanto só a cotação existe (`OrderQuoteService`, `POST /orders/quote`); ela lê o catálogo e não grava nada.
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

@@ -147,7 +147,7 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `/users/{id}/**` | o próprio usuário ou `manage_users` | o próprio usuário ou `manage_users` |
 | `POST /users/{id}/activate` | — | `manage_users` |
 | `GET /auth/me` | autenticado | — |
-| `POST /orders/quote` *(planejado)* | — | pública |
+| `POST /orders/quote` | — | pública |
 | `POST /orders` *(planejado)* | — | pública (visitante), cliente autenticado ou `manage_orders` |
 | `GET /orders`, `GET /orders/events` *(planejado)* | `manage_orders` | — |
 | `GET /orders/{id}`, `GET /orders/{id}/events` *(planejado)* | dono, token de acompanhamento ou `manage_orders` | — |

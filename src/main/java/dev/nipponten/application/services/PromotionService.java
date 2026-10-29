@@ -14,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @ApplicationScoped
 public class PromotionService {
@@ -89,6 +90,20 @@ public class PromotionService {
                                         size.price(),
                                         applyDiscount(size.price(), promotionType)))
                 .toList();
+    }
+
+    // Mesma regra de getAvailable (ativa e dentro da janela), para um produto só. Um produto tem
+    // no máximo uma promoção.
+    public Optional<Promotion> getActiveForProduct(Long productId, LocalDateTime now) {
+        return repository.getByProduct(productId).stream()
+                .filter(promotion -> promotion.status() == Promotion.Status.ACTIVE)
+                .filter(promotion -> !promotion.startDate().isAfter(now))
+                .filter(promotion -> promotion.endDate().isAfter(now))
+                .findFirst();
+    }
+
+    public BigDecimal getPromotionalPrice(Promotion promotion, BigDecimal price) {
+        return applyDiscount(price, promotionTypeService.getById(promotion.promotionTypeId()));
     }
 
     private BigDecimal applyDiscount(BigDecimal price, PromotionType promotionType) {
