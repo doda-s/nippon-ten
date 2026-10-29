@@ -60,4 +60,24 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
                 query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
         return new PageResult<>(content, total);
     }
+
+    @Override
+    public PageResult<Order> getPage(int page, int size) {
+        return toPage(findAll(Sort.by("id")), page, size);
+    }
+
+    @Override
+    public PageResult<Order> getPageByStatus(Order.Status status, int page, int size) {
+        return toPage(
+                find("status", Sort.by("id"), OrderEntity.Status.valueOf(status.name())),
+                page,
+                size);
+    }
+
+    private PageResult<Order> toPage(PanacheQuery<OrderEntity> query, int page, int size) {
+        long total = query.count();
+        List<Order> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
+    }
 }

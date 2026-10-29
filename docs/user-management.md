@@ -149,12 +149,13 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `GET /auth/me` | autenticado | — |
 | `POST /orders/quote` | — | pública |
 | `POST /orders` | — | pública (visitante), cliente autenticado ou `manage_orders` |
-| `GET /orders`, `GET /orders/events` *(planejado)* | `manage_orders` | — |
+| `GET /orders` | `manage_orders` | — |
+| `GET /orders/events` *(planejado)* | `manage_orders` | — |
 | `GET /orders/{id}` | dono, token de acompanhamento (`X-Order-Token`) ou `manage_orders` | — |
 | `GET /orders/{id}/events` *(planejado)* | dono, token de acompanhamento ou `manage_orders` | — |
-| `POST /orders/{id}/cancel` *(planejado)* | — | dono ou token (só em `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/cancel` | — | dono ou token (só em `PENDING`), ou `manage_orders` |
 | `POST /orders/{id}/feedback` *(planejado)* | — | dono ou token |
-| `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` *(planejado)* | — | `manage_orders` |
+| `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
 | `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
 
 `POST /auth/login`, `/auth/refresh` e `/auth/logout` são públicas. O Swagger (`/api`) e o schema (`/q/openapi`) também.

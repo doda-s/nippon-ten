@@ -1,4 +1,4 @@
-> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação (`POST /orders/quote`), a criação do pedido (`POST /orders`), a consulta (`GET /orders/{id}`) e o histórico do cliente (`GET /users/{id}/orders`). Mudança de status, pagamento, cancelamento, edição, SSE e feedback ainda não existem no código.
+> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação, a criação, a consulta, o histórico do cliente, a listagem do dashboard, a mudança de status, o pagamento, o cancelamento e a edição de itens. SSE e feedback ainda não existem no código.
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -127,13 +127,16 @@ CANCELLED --> [*]
   - o cliente ou o visitante cancela só em `PENDING`, ou seja, antes de a cozinha começar;
   - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`).
 - `COMPLETED` e `CANCELLED` são finais.
+- `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
+- `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
+- A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
 "Pedidos ativos" (req. 42) são os que não estão em `COMPLETED` nem em `CANCELLED`.
 
 ### Pagamento
 
-Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
+Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
 
 A integração com um gateway (Pix dinâmico, cartão online) fica para uma fase 2, como um agregado `Payment` próprio. Nessa fase deve surgir um estado anterior a `PENDING` (aguardando pagamento).
 
@@ -211,6 +214,6 @@ Cada fase é uma branch própria, a partir de `main`:
 1. ✅ `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
 2. ✅ `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
 3. ✅ `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
-4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
+4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. `feat/order-events`: SSE do pedido e do dashboard.
 6. `feat/order-feedback`.
