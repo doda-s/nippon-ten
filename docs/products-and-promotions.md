@@ -64,6 +64,16 @@ Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário
 
 É a relação entre um combo e os produtos que compõem o combo. Podem ser atribuídos quantos produtos o usuário interno quiser, com o mínimo de dois. A relação entre combo e produtos é feita durante o fluxo de criação de um combo: `POST /combos` recebe o combo e a lista de produtos de uma vez, e recusa a criação com menos de dois. Remover um produto que deixaria o combo abaixo desse mínimo também é recusado.
 
+O combo tem **precificação própria**: o cliente paga o `price` do combo, nunca a soma dos preços dos produtos que o compõem. A composição só diz o que o combo contém, ou seja, o que a cozinha prepara.
+
+> **Mudança planejada** (fase 1 de [[orders#Roadmap de implementação|orders.md]], ainda não implementada; hoje `combo_product` guarda só `product_id`): como o preço e o tamanho de um produto vivem no *Product Size*, um combo sem tamanho não diz se o pastel é pequeno ou grande. Por isso cada linha de `combo_product` passa a apontar para um **`product_size`** (o produto já num tamanho, ex.: "Pastel de Carne – Grande") e ganha `quantity` (≥ 1):
+>
+> - o mesmo `product_size` aparece no máximo uma vez em cada combo; para "2× Pastel de Carne Grande" usa-se `quantity = 2`;
+> - o mínimo de dois produtos conta a **soma das quantidades** (2× o mesmo pastel já é um combo válido);
+> - o `product_size` precisa existir, e um `product_size` usado por algum combo não pode ser removido do produto (`400`), seguindo a regra de bloqueio de referências de outro agregado.
+>
+> Modelo: `combo_product(id, combo_id, product_size_id, quantity)`. O diagrama (página *Products*) já mostra esse formato.
+
 Assim como em Product/Ingredient, quando um produto que compõe o combo fica esgotado, a propagação para o status do combo **não é automática** — o usuário interno decide manualmente se o combo também deve ser marcado como esgotado.
 
 ---

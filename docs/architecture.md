@@ -100,6 +100,8 @@ Toda escrita de um único agregado é transacional no nível do repositório Pan
 
 Quando um `Service` precisa orquestrar **mais de um agregado em sequência** dentro da mesma operação — hoje isso acontece em `UserService.register` (cria `User` + `Client` + `UserAddress` opcional), `UserService.registerInternal` (cria `User` + `Internal`), `UserService.delete`/`deleteInternal` (remove `UserAddress`(s) + `Client` + `Internal` + `RefreshToken`(s) + `User`), `SuperAdminService.bootstrap` (cria ou sincroniza a role reservada + `User` + `Internal`), `RefreshTokenService.rotate` (revoga o token atual + emite o próximo; na detecção de reuso, a revogação em massa é gravada mesmo com o `401`, via `dontRollbackOn`), `ProductService.delete` (remove os filhos do produto + `Product`), `ComboService.register` (cria `Combo` + os `ComboProduct`(s) do fluxo de criação) e `ComboService.delete` (remove `ComboProduct`(s) + `Combo`) — o método do `Service` também leva `@Transactional`, garantindo que a operação inteira seja atômica. Fora desses casos, não se adiciona `@Transactional` no nível de `Service`.
 
+Planejados com os pedidos (ver [`orders.md`](orders.md)): `OrderService.create` (lê produto, tamanho, combo, promoção e cliente e grava `Order` + itens + adicionais + removidos + componentes + histórico), `OrderService.updateItems` (substitui os itens e reprecifica) e as mudanças de status, pagamento e cancelamento (alteram o pedido e gravam `order_status_history` juntos). Os eventos SSE dessas operações só são publicados depois do commit.
+
 ---
 
 ## Validação: Bean Validation nos requests, exceção de domínio para o resto
@@ -173,6 +175,8 @@ Dois componentes guardam estado na memória de cada instância:
 | `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
 | `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
 
+Quando os pedidos forem implementados, um terceiro componente entra nesta lista: o broadcaster de eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]), que também vive em memória. Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
+
 O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
 
 ### Riscos conhecidos
@@ -185,6 +189,8 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 ## O que ainda não existe (fora do escopo desta documentação)
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
+
+Os pedidos estão especificados em [`orders.md`](orders.md), mas ainda não implementados; a doc traz o roadmap das fases.
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 
