@@ -5,12 +5,16 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.InternalPermission;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /** Usuário do request atual. A implementação lê a identidade de segurança em infrastructure. */
 public interface CurrentUser {
 
     /** Lança {@link dev.nipponten.application.exceptions.UnauthorizedException} se anônimo. */
     AuthenticatedUser get();
+
+    /** Vazio se o request é anônimo, para as rotas públicas que mudam com quem chama. */
+    Optional<AuthenticatedUser> find();
 
     /**
      * Libera quando o usuário do request é o próprio {@code userId} ou tem a permissão; senão 403.

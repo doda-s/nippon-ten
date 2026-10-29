@@ -5,10 +5,12 @@ import dev.nipponten.application.requests.UserAddressRequest;
 import dev.nipponten.application.requests.UserRegistrationRequest;
 import dev.nipponten.application.requests.UserRequest;
 import dev.nipponten.application.responses.ClientResponse;
+import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.responses.UserAddressResponse;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
+import dev.nipponten.application.services.OrderService;
 import dev.nipponten.application.services.UserService;
 import dev.nipponten.resource.security.Permissions;
 import io.quarkus.security.Authenticated;
@@ -40,6 +42,8 @@ public class UserResource {
 
     @Inject UserService service;
 
+    @Inject OrderService orderService;
+
     @POST
     @PermitAll
     public Response create(@Valid UserRegistrationRequest request) {
@@ -64,6 +68,22 @@ public class UserResource {
                 params.page(),
                 params.size(),
                 Function.identity());
+    }
+
+    // Histórico de pedidos do cliente; "o próprio usuário ou MANAGE_USERS" é conferido no service.
+    @GET
+    @Authenticated
+    @Path("/{userId}/orders")
+    public PageResponse<OrderSummaryResponse> getOrders(
+            @PathParam("userId") Long userId,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                orderService.getPageByUser(userId, params.page(), params.size()),
+                params.page(),
+                params.size(),
+                OrderSummaryResponse::of);
     }
 
     @PUT

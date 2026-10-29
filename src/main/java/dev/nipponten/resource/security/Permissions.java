@@ -12,6 +12,7 @@ public final class Permissions {
     public static final String MANAGE_PRODUCTS = "MANAGE_PRODUCTS";
     public static final String MANAGE_INGREDIENTS = "MANAGE_INGREDIENTS";
     public static final String MANAGE_PROMOTIONS = "MANAGE_PROMOTIONS";
+    public static final String MANAGE_ORDERS = "MANAGE_ORDERS";
 
     /** Interno com a role reservada; ver {@code SuperAdminService}. */
     public static final String SUPER_ADMIN = "SUPER_ADMIN";

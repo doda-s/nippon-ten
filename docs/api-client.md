@@ -78,11 +78,12 @@ Todas usam o corpo `{ "message": "..." }`.
 
 O login devolve sempre a mesma mensagem (`Invalid email or password`) para senha errada, e-mail inexistente ou usuário desativado.
 
-## Pedidos (planejado)
+## Pedidos
 
 As regras estão em [`orders.md`](orders.md). O que muda para o front:
 
 - **O carrinho é do front.** Guarde os itens localmente e chame `POST /orders/quote` sempre que o carrinho mudar, para mostrar preços, promoções e totais. Nunca calcule nem envie preço: a API recalcula tudo na cotação e no checkout.
 - **Itens indisponíveis** voltam como `400` no mesmo formato da falha de validação (`{message, violations: [{field, message}]}`), listando todos os itens com problema de uma vez. O `field` aponta o item do carrinho (`items[1]`, `items[1].additionals[0]`), para o front marcar o que o cliente precisa ajustar.
-- **Visitante:** a resposta de `POST /orders` traz `code` e `trackingToken` uma única vez. Guarde o token (ex.: `localStorage`, por pedido) e envie no header `X-Order-Token` nas chamadas daquele pedido.
+- **Checkout:** `POST /orders` devolve `201` com `{order, trackingToken}`. O mesmo endpoint serve visitante (sem token), cliente logado e funcionário; os campos aceitos mudam com quem chama (ver [[orders#Quem faz o pedido|orders.md]]).
+- **Visitante:** `trackingToken` vem uma única vez, porque o banco guarda só o hash. Guarde o token (ex.: `localStorage`, por pedido) e envie no header `X-Order-Token` nas chamadas daquele pedido.
 - **Tempo real:** `GET /orders/{id}/events` (cliente) e `GET /orders/events` (dashboard) são *Server-Sent Events*. O `EventSource` nativo do navegador não envia headers, então não carrega o `Authorization` nem o `X-Order-Token`. Use um cliente SSE sobre `fetch`, como `@microsoft/fetch-event-source`, com os mesmos headers das outras chamadas. Ao reconectar, recarregue o pedido (`GET /orders/{id}`) ou a listagem: o SSE é só um aviso, e eventos perdidos durante a queda não são reenviados.
