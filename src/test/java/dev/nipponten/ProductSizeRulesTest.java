@@ -1,6 +1,6 @@
 package dev.nipponten;
 
-import static io.restassured.RestAssured.given;
+import static dev.nipponten.TestAuth.asAdmin;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -14,7 +14,8 @@ class ProductSizeRulesTest {
     void rejectsUnknownSizeWithNotFound() {
         long product = TestFixtures.createProduct("Pastel sem tamanho");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("sizeId", 999999, "price", 10.0, "status", "ACTIVE"))
                 .post("/products/{id}/sizes", product)
                 .then()
@@ -27,13 +28,15 @@ class ProductSizeRulesTest {
         long size = TestFixtures.createSize("Medio-" + System.nanoTime());
         Map<String, Object> body = Map.of("sizeId", size, "price", 10.0, "status", "ACTIVE");
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(body)
                 .post("/products/{id}/sizes", product)
                 .then()
                 .statusCode(201);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(body)
                 .post("/products/{id}/sizes", product)
                 .then()
@@ -45,13 +48,14 @@ class ProductSizeRulesTest {
         long product = TestFixtures.createProduct("Pastel com tamanho");
         long size = TestFixtures.createSize("Pequeno-" + System.nanoTime());
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("sizeId", size, "price", 10.0, "status", "ACTIVE"))
                 .post("/products/{id}/sizes", product)
                 .then()
                 .statusCode(201);
 
-        given().delete("/sizes/{id}", size).then().statusCode(400);
+        asAdmin().delete("/sizes/{id}", size).then().statusCode(400);
     }
 
     @Test
@@ -60,13 +64,15 @@ class ProductSizeRulesTest {
         long second = TestFixtures.createProduct("Pastel B");
         long size = TestFixtures.createSize("Familia-" + System.nanoTime());
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("sizeId", size, "price", 10.0, "status", "ACTIVE"))
                 .post("/products/{id}/sizes", first)
                 .then()
                 .statusCode(201);
 
-        given().contentType(ContentType.JSON)
+        asAdmin()
+                .contentType(ContentType.JSON)
                 .body(Map.of("sizeId", size, "price", 25.0, "status", "ACTIVE"))
                 .post("/products/{id}/sizes", second)
                 .then()

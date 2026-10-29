@@ -30,6 +30,9 @@ import dev.nipponten.domain.models.AdditionalIngredient;
 import dev.nipponten.domain.models.Product;
 import dev.nipponten.domain.models.ProductIngredient;
 import dev.nipponten.domain.models.ProductSize;
+import dev.nipponten.resource.security.Permissions;
+import jakarta.annotation.security.PermitAll;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
@@ -44,6 +47,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 
+// Cardápio público para leitura; escrita e dependents exigem a permissão. As anotações ficam
+// nos métodos para o OpenAPI marcar só as rotas protegidas.
 @Path("/products")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
@@ -80,6 +85,7 @@ public class ProductResource {
     @Inject PromotionResponseMapper promotionMapper;
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     public Response create(@Valid ProductRegistrationRequest request) {
         List<ProductIngredientRequest> ingredients =
                 request.ingredients() == null ? List.of() : request.ingredients();
@@ -103,6 +109,7 @@ public class ProductResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{id}")
     public ProductDetailResponse getById(@PathParam("id") Long id) {
         return productMapper.toDetailResponse(
@@ -113,11 +120,13 @@ public class ProductResource {
     }
 
     @GET
+    @PermitAll
     public List<ProductResponse> getAll() {
         return service.getAll().stream().map(productMapper::toResponse).toList();
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{id}")
     public ProductResponse update(@PathParam("id") Long id, @Valid ProductRequest request) {
         Product updated = service.update(id, productRequestMapper.toModel(id, request));
@@ -127,6 +136,7 @@ public class ProductResource {
     // Lista quem depende do produto, para o usuário interno decidir manualmente o que também
     // deve ser marcado como esgotado.
     @GET
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{id}/dependents")
     public ProductDependentsResponse getDependents(@PathParam("id") Long id) {
         return new ProductDependentsResponse(
@@ -140,6 +150,7 @@ public class ProductResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{id}")
     public Response delete(@PathParam("id") Long id) {
         service.delete(id);
@@ -147,6 +158,7 @@ public class ProductResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{productId}/ingredients")
     public List<ProductIngredientResponse> getIngredients(@PathParam("productId") Long productId) {
         return productIngredientService.getByProduct(productId).stream()
@@ -155,6 +167,7 @@ public class ProductResource {
     }
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/ingredients")
     public Response addIngredient(
             @PathParam("productId") Long productId, @Valid ProductIngredientRequest request) {
@@ -167,6 +180,7 @@ public class ProductResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/ingredients/{productIngredientId}")
     public Response removeIngredient(
             @PathParam("productId") Long productId,
@@ -176,6 +190,7 @@ public class ProductResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{productId}/sizes")
     public List<ProductSizeResponse> getSizes(@PathParam("productId") Long productId) {
         return productSizeService.getByProduct(productId).stream()
@@ -184,6 +199,7 @@ public class ProductResource {
     }
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/sizes")
     public Response addSize(
             @PathParam("productId") Long productId, @Valid ProductSizeRequest request) {
@@ -196,6 +212,7 @@ public class ProductResource {
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/sizes/{sizeId}")
     public ProductSizeResponse updateSize(
             @PathParam("productId") Long productId,
@@ -210,6 +227,7 @@ public class ProductResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/sizes/{sizeId}")
     public Response removeSize(
             @PathParam("productId") Long productId, @PathParam("sizeId") Long sizeId) {
@@ -218,6 +236,7 @@ public class ProductResource {
     }
 
     @GET
+    @PermitAll
     @Path("/{productId}/additional-ingredients")
     public List<AdditionalIngredientResponse> getAdditionalIngredients(
             @PathParam("productId") Long productId) {
@@ -227,6 +246,7 @@ public class ProductResource {
     }
 
     @POST
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/additional-ingredients")
     public Response addAdditionalIngredient(
             @PathParam("productId") Long productId, @Valid AdditionalIngredientRequest request) {
@@ -239,6 +259,7 @@ public class ProductResource {
     }
 
     @PUT
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/additional-ingredients/{additionalIngredientId}")
     public AdditionalIngredientResponse updateAdditionalIngredient(
             @PathParam("productId") Long productId,
@@ -254,6 +275,7 @@ public class ProductResource {
     }
 
     @DELETE
+    @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/additional-ingredients/{additionalIngredientId}")
     public Response removeAdditionalIngredient(
             @PathParam("productId") Long productId,

@@ -1,5 +1,6 @@
 package dev.nipponten;
 
+import static dev.nipponten.TestAuth.asAdmin;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
 
@@ -39,7 +40,8 @@ class UserRulesTest {
     @Test
     void refusesToDeleteAnInternalUserThatIsStillActive() {
         long roleId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "name",
@@ -54,7 +56,8 @@ class UserRulesTest {
                         .getLong("id");
 
         long internalId =
-                given().contentType(ContentType.JSON)
+                asAdmin()
+                        .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
                                         "user",
@@ -67,6 +70,8 @@ class UserRulesTest {
                                         Map.of(
                                                 "internalRoleId",
                                                 roleId,
+                                                "userPermissions",
+                                                List.of("MANAGE_PRODUCTS"),
                                                 "name",
                                                 "Interno",
                                                 "lastName",
@@ -80,6 +85,54 @@ class UserRulesTest {
                         .jsonPath()
                         .getLong("id");
 
-        given().delete("/internal/{id}", internalId).then().statusCode(400);
+        asAdmin()
+                .get("/internal/{id}", internalId)
+                .then()
+                .statusCode(200)
+                .body("userPermissions", is(List.of("MANAGE_PRODUCTS")));
+
+        asAdmin().delete("/internal/{id}", internalId).then().statusCode(400);
+    }
+
+    @Test
+    void internalRoleIsCreatedActiveAndCanBeToggled() {
+        long roleId =
+                asAdmin()
+                        .contentType(ContentType.JSON)
+                        .body(
+                                Map.of(
+                                        "name",
+                                        "caixa-" + System.nanoTime(),
+                                        "permissions",
+                                        List.of("MANAGE_USERS")))
+                        .post("/internal-roles")
+                        .then()
+                        .statusCode(201)
+                        .body("active", is(true))
+                        .extract()
+                        .jsonPath()
+                        .getLong("id");
+
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .post("/internal-roles/{id}/deactivate", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(false));
+
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(Map.of("name", "caixa-" + System.nanoTime(), "permissions", List.of()))
+                .put("/internal-roles/{id}", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(false));
+
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .post("/internal-roles/{id}/activate", roleId)
+                .then()
+                .statusCode(200)
+                .body("active", is(true));
     }
 }
