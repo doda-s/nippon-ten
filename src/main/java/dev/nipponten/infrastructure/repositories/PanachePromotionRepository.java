@@ -1,10 +1,14 @@
 package dev.nipponten.infrastructure.repositories;
 
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.domain.repositories.PromotionRepository;
 import dev.nipponten.infrastructure.entities.PromotionEntity;
 import dev.nipponten.infrastructure.mappers.PromotionMapper;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -67,5 +71,28 @@ public class PanachePromotionRepository
     @Override
     public List<Promotion> getByPromotionType(Long promotionTypeId) {
         return list("promotionType.id", promotionTypeId).stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public PageResult<Promotion> getPage(int page, int size) {
+        PanacheQuery<PromotionEntity> query = findAll(Sort.by("id"));
+        long total = query.count();
+        List<Promotion> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
+    }
+
+    @Override
+    public PageResult<Promotion> getAvailablePage(LocalDateTime now, int page, int size) {
+        PanacheQuery<PromotionEntity> query =
+                find(
+                        "status = ?1 and startDate <= ?2 and endDate > ?2",
+                        Sort.by("id"),
+                        PromotionEntity.Status.ACTIVE,
+                        now);
+        long total = query.count();
+        List<Promotion> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
     }
 }

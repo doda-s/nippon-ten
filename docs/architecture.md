@@ -43,6 +43,14 @@ O `Resource` nunca constrói um domain model manualmente (`new Product(...)`); s
 
 ---
 
+## Paginação: todo GET de listagem de um resource top-level é paginado
+
+Todo `GET` que lista um agregado top-level (não os filhos aninhados sob um pai, como `/products/{id}/sizes`) aceita `page` (padrão `0`) e `size` (padrão `20`, teto `100`) como query param — normalizados por `PageParams.of` — e devolve um `PageResponse` (`application.responses`): `{content, page, size, totalElements, totalPages}`.
+
+No `domain.repositories`, o método é `PageResult<X> getPage(int page, int size)` (variantes filtradas, como disponibilidade de combo/promoção, ganham `getXxxPage`); o `Service` só repassa para o repositório. Na implementação Panache, a query usa sempre `Sort.by("id")` — sem isso a ordem entre páginas não é estável (o Postgres não garante ordem sem `ORDER BY`), e um registro pode nunca aparecer em nenhuma página ou aparecer duas vezes.
+
+---
+
 ## Agregados e seus filhos: sempre aninhado, sem repositório "solto"
 
 Quando uma entidade só faz sentido no contexto de outra (ex.: `ProductSize`, `ProductIngredient` e `AdditionalIngredient` dentro de `Product`; `ComboProduct` dentro de `Combo`), ela:
@@ -96,7 +104,7 @@ Quando um `Service` precisa orquestrar **mais de um agregado em sequência** den
 
 ## Validação: Bean Validation nos requests, exceção de domínio para o resto
 
-Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Positive`, `@Email` etc.) e todo método de `Resource` que recebe um request usa `@Valid`. A extensão `quarkus-hibernate-validator` intercepta antes do request chegar ao `Service` e devolve `400` automaticamente se alguma constraint falhar.
+Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Positive`, `@Email` etc.) e todo método de `Resource` que recebe um request usa `@Valid`. A extensão `quarkus-hibernate-validator` intercepta antes do request chegar ao `Service` e devolve `400` automaticamente se alguma constraint falhar. Esse `ConstraintViolationException` é mapeado por `ConstraintViolationExceptionMapper` (`resource.exception`) para o mesmo formato de erro do resto da API — `{"message": "Invalid request", "violations": [{"field": ..., "message": ...}]}` — em vez do payload padrão (mais verboso, com o caminho completo do método) do Hibernate Validator.
 
 `InvalidRequestException` (mapeada para `400` por `InvalidRequestExceptionMapper`) fica reservada para regras que Bean Validation não consegue expressar — invariantes que dependem de mais de um campo, de outra entidade ou de uma consulta (ex.: "um combo precisa ter no mínimo dois produtos"). Se a regra é sobre a forma de um campo isolado, ela é uma anotação no `Request`, não uma checagem manual no `Service`.
 

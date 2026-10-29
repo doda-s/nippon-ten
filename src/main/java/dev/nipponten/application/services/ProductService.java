@@ -4,6 +4,7 @@ import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.ProductNotFoundException;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Product;
 import dev.nipponten.domain.models.ProductIngredient;
 import dev.nipponten.domain.models.ProductSize;
@@ -50,9 +51,6 @@ public class ProductService {
     @Transactional
     public Product register(
             Product model, List<ProductIngredient> ingredients, List<ProductSize> sizes) {
-        if (sizes.isEmpty()) {
-            throw new InvalidRequestException("Product must have at least one size");
-        }
         requireNoDuplicates(ingredients, ProductIngredient::ingredientId, "ingredient");
         requireNoDuplicates(sizes, ProductSize::sizeId, "size");
         ingredients.forEach(ingredient -> ingredientService.getById(ingredient.ingredientId()));
@@ -84,6 +82,10 @@ public class ProductService {
 
     public List<Product> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<Product> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public Product update(Long id, Product model) {

@@ -68,13 +68,14 @@ class ProductRegistrationTest {
     }
 
     @Test
-    void rejectsProductWithoutSizes() {
+    void allowsProductWithoutSizes() {
         asAdmin()
                 .contentType(ContentType.JSON)
                 .body(TestFixtures.productRegistration("Sem preco", List.of(), List.of()))
                 .post("/products")
                 .then()
-                .statusCode(400);
+                .statusCode(201)
+                .body("sizes", hasSize(0));
     }
 
     @Test
@@ -131,7 +132,7 @@ class ProductRegistrationTest {
         asAdmin()
                 .get("/products")
                 .then()
-                .body("findAll { it.name == '%s' }".formatted(name), hasSize(0));
+                .body("content.findAll { it.name == '%s' }".formatted(name), hasSize(0));
         // O tamanho não ficou associado a nenhum produto, então pode ser removido.
         asAdmin().delete("/sizes/{id}", size).then().statusCode(204);
     }

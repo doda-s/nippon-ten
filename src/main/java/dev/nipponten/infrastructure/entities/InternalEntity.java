@@ -1,7 +1,5 @@
 package dev.nipponten.infrastructure.entities;
 
-import java.util.List;
-
 import dev.nipponten.domain.models.InternalPermission;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.List;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -33,15 +32,15 @@ public class InternalEntity {
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "user_permissions")
     private List<InternalPermission> userPermissions;
-    
+
     private String name;
-    
+
     private String lastName;
-    
+
     private String cpf;
 
     public InternalEntity() {}
-    
+
     public Long getId() {
         return id;
     }
@@ -61,7 +60,7 @@ public class InternalEntity {
     public void setInternalRole(InternalRoleEntity internalPermission) {
         this.internalRole = internalPermission;
     }
-    
+
     public List<InternalPermission> getUserPermissions() {
         return userPermissions;
     }

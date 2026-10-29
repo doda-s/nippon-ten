@@ -25,6 +25,7 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.Internal;
 import dev.nipponten.domain.models.InternalPermission;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.User;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserProfile;
@@ -108,6 +109,13 @@ public class UserService {
 
     public List<UserResponse> getAll() {
         return repository.getAll().stream().map(userMapper::toResponse).toList();
+    }
+
+    public PageResult<UserResponse> getPage(int page, int size) {
+        PageResult<User> result = repository.getPage(page, size);
+        return new PageResult<>(
+                result.content().stream().map(userMapper::toResponse).toList(),
+                result.totalElements());
     }
 
     public UserResponse update(Long id, UserRequest request) {

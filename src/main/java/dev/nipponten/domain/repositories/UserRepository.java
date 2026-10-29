@@ -1,5 +1,6 @@
 package dev.nipponten.domain.repositories;
 
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.User;
 import java.util.List;
 
@@ -13,4 +14,6 @@ public interface UserRepository {
     User getByEmail(String email);
 
     List<User> getAll();
+
+    PageResult<User> getPage(int page, int size);
 }

@@ -1,10 +1,14 @@
 package dev.nipponten.infrastructure.repositories;
 
 import dev.nipponten.domain.models.Ingredient;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.IngredientRepository;
 import dev.nipponten.infrastructure.entities.IngredientEntity;
 import dev.nipponten.infrastructure.mappers.IngredientMapper;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -45,5 +49,14 @@ public class PanacheIngredientRepository
     @Override
     public List<Ingredient> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public PageResult<Ingredient> getPage(int page, int size) {
+        PanacheQuery<IngredientEntity> query = findAll(Sort.by("id"));
+        long total = query.count();
+        List<Ingredient> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
     }
 }

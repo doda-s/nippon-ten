@@ -1,5 +1,6 @@
 package dev.nipponten.domain.repositories;
 
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.PromotionType;
 import java.util.List;
 
@@ -11,4 +12,6 @@ public interface PromotionTypeRepository {
     PromotionType getById(Long id);
 
     List<PromotionType> getAll();
+
+    PageResult<PromotionType> getPage(int page, int size);
 }

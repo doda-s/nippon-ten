@@ -1,10 +1,14 @@
 package dev.nipponten.infrastructure.repositories;
 
 import dev.nipponten.domain.models.InternalRole;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.InternalRoleRepository;
 import dev.nipponten.infrastructure.entities.InternalRoleEntity;
 import dev.nipponten.infrastructure.mappers.InternalRoleMapper;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -45,6 +49,15 @@ public class PanacheInternalRoleRepository
     @Override
     public List<InternalRole> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public PageResult<InternalRole> getPage(int page, int size) {
+        PanacheQuery<InternalRoleEntity> query = findAll(Sort.by("id"));
+        long total = query.count();
+        List<InternalRole> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
     }
 
     @Override

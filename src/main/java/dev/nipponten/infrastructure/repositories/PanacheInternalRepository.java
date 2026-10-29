@@ -1,10 +1,14 @@
 package dev.nipponten.infrastructure.repositories;
 
 import dev.nipponten.domain.models.Internal;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.InternalRepository;
 import dev.nipponten.infrastructure.entities.InternalEntity;
 import dev.nipponten.infrastructure.mappers.InternalMapper;
+import io.quarkus.hibernate.orm.panache.PanacheQuery;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -45,6 +49,15 @@ public class PanacheInternalRepository
     @Override
     public List<Internal> getAll() {
         return listAll().stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public PageResult<Internal> getPage(int page, int size) {
+        PanacheQuery<InternalEntity> query = findAll(Sort.by("id"));
+        long total = query.count();
+        List<Internal> content =
+                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
+        return new PageResult<>(content, total);
     }
 
     @Override

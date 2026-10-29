@@ -10,17 +10,17 @@ Um *Product* representa um item/serviço oferecido pelo cliente do sistema. O *P
 
 O produto pode ter seu status alterado caso um ingrediente se esgote. Essa propagação **não é automática**: ao marcar um ingrediente (ou produto) como esgotado, o usuário interno recebe a lista de produtos/combos/promoções que dependem dele e escolhe, manualmente, quais também devem ser marcados como esgotados naquele momento. O sistema nunca decide isso sozinho.
 
-A criação é feita em uma única chamada atômica: `POST /products` recebe o produto (`product`), a lista de ingredientes (`ingredients`, opcional) e a lista de tamanhos com preço (`sizes`, no mínimo um). Se algum ingrediente ou tamanho não existir, ou se houver repetidos na lista, nada é criado. Como o preço vive no tamanho, todo produto nasce com pelo menos um, e remover o último tamanho de um produto é recusado. Os endpoints aninhados (`/products/{id}/ingredients`, `/products/{id}/sizes`) continuam valendo para edições posteriores.
+A criação é feita em uma única chamada atômica: `POST /products` recebe o produto (`product`), a lista de ingredientes (`ingredients`, opcional) e a lista de tamanhos com preço (`sizes`, também opcional). Se algum ingrediente ou tamanho não existir, ou se houver repetidos na lista, nada é criado. Como o preço vive no tamanho, um produto pode nascer sem nenhum — e portanto sem preço — e recebê-lo depois pelos endpoints aninhados (`/products/{id}/ingredients`, `/products/{id}/sizes`); uma vez que o produto já tem ao menos um tamanho, remover o último é recusado, para não deixar um produto já precificado sem preço.
 
 Para a criação de um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products` para poder criar, editar, deletar e definir o status um produto.
 
 ### Product Ingredients
 
-*Product Ingredients* representa a relação entre os ingredientes cadastrados, e os ingredientes necessários para o produto. Essa relação é feita durante a criação de um produto. Nesse fluxo o usuário interno define quais são os ingredientes que o produto depende.
+*Product Ingredients* representa a relação entre os ingredientes cadastrados, e os ingredientes necessários para o produto. Essa relação é feita durante a criação de um produto, ou depois pelo endpoint aninhado `POST /products/{id}/ingredients`, que recebe uma lista e cria todos atomicamente (mesma regra da criação: 404 se algum ingrediente não existir, 400 se houver repetido na própria lista).
 
 ### Additional Ingredients
 
-*Additional Ingredients* representa um ingrediente **opcional** que o cliente pode adicionar ao pedido daquele produto (diferente de *Product Ingredient*, que é a composição obrigatória do produto). Cada *Additional Ingredient* define, para um produto e um ingrediente específicos, a quantidade máxima (`maximum_quantity`) que o cliente pode adicionar naquele item do pedido, e um status de disponibilidade (`ACTIVE`/`INACTIVE`). É essa configuração que permite ao sistema limitar a quantidade de adicionais no pedido (ver `requirements.md`).
+*Additional Ingredients* representa um ingrediente **opcional** que o cliente pode adicionar ao pedido daquele produto (diferente de *Product Ingredient*, que é a composição obrigatória do produto). Cada *Additional Ingredient* define, para um produto e um ingrediente específicos, a quantidade máxima (`maximum_quantity`) que o cliente pode adicionar naquele item do pedido, e um status de disponibilidade (`ACTIVE`/`INACTIVE`). É essa configuração que permite ao sistema limitar a quantidade de adicionais no pedido (ver `requirements.md`). Assim como os ingredientes do produto, `POST /products/{id}/additional-ingredients` recebe uma lista e cria todos atomicamente.
 
 ### Product Size
 

@@ -1,5 +1,6 @@
 package dev.nipponten.domain.repositories;
 
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Product;
 import java.util.List;
 
@@ -11,4 +12,6 @@ public interface ProductRepository {
     Product getById(Long id);
 
     List<Product> getAll();
+
+    PageResult<Product> getPage(int page, int size);
 }

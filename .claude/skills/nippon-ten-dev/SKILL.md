@@ -1,6 +1,6 @@
 ---
 name: nippon-ten-dev
-description: Padrões de desenvolvimento do backend nippon-ten (Quarkus 3 / Java 25, Marusan). Use sempre que for criar ou alterar qualquer coisa neste repositório — endpoint/resource, service, regra de negócio, entidade, migration Flyway, permissão/segurança, listagem, tratamento de erro, teste ou documentação em docs/ — mesmo que o usuário não peça explicitamente para "seguir os padrões". Também use ao revisar código ou planejar uma feature nova do nippon-ten (pedidos, cupons, pontos, etc.).
+description: Padrões de desenvolvimento do backend nippon-ten (Quarkus 3 / Java 25, Marusan). Use sempre que for criar ou alterar qualquer coisa neste repositório — endpoint/resource, service, regra de negócio, entidade, migration Flyway, permissão/segurança, listagem paginada, tratamento de erro, teste ou documentação em docs/ — mesmo que o usuário não peça explicitamente para "seguir os padrões". Também use ao revisar código ou planejar uma feature nova do nippon-ten (pedidos, cupons, pontos, etc.).
 ---
 
 # nippon-ten: como desenvolver neste projeto
@@ -67,12 +67,17 @@ Convenções que a revisão vai cobrar:
 
 ## 3. Padrões de listagem e de erro
 
-- Listagem devolve `List<XResponse>` simples, sem paginação; a porta tem `List<X> getAll()` e
-  variante filtrada vira método próprio (ex.: `getAvailable(now)`). Paginar muda o contrato com o
-  front: pergunte antes.
-- Erros dos mappers de `resource.exception` (400 de `InvalidRequestException`, 401, 403, 404, 429)
-  saem em `ErrorResponse{message}`. Falha de Bean Validation sai no 400 padrão do Quarkus, sem
-  mapper próprio.
+Descritos em *Paginação* e *Validação* de `architecture.md`:
+
+- Todo `GET` de listagem de agregado top-level devolve `PageResponse<XResponse>` com
+  `{content, page, size, totalElements, totalPages}`. Query params `page` (padrão 0) e `size`
+  (padrão 20, teto 100), normalizados por `PageParams.of`, sem erro para valor fora da faixa.
+- No domínio, a porta tem `PageResult<X> getPage(int page, int size)`; variante filtrada vira
+  `getXxxPage(...)` (ex.: `getAvailablePage`). Panache ordena por `Sort.by("id")`.
+- Filho aninhado (`/products/{id}/sizes`) continua lista simples.
+- Falha de Bean Validation sai em `ValidationErrorResponse`:
+  `{"message": "Invalid request", "violations": [{field, message}]}`. Os demais erros (400 de
+  `InvalidRequestException`, 401, 403, 404, 429) saem em `ErrorResponse{message}`.
 
 Detalhes e código de referência: **`references/listing-and-errors.md`**. Leia antes de criar ou
 alterar qualquer `GET` de listagem ou mapper de exceção.

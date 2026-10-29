@@ -4,6 +4,7 @@ import dev.nipponten.application.requests.InternalRoleRequest;
 import dev.nipponten.application.requests.InternalRoleRequestMapper;
 import dev.nipponten.application.responses.InternalRoleResponse;
 import dev.nipponten.application.responses.InternalRoleResponseMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.services.InternalRoleService;
 import dev.nipponten.domain.models.InternalRole;
 import dev.nipponten.resource.security.Permissions;
@@ -12,15 +13,16 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.util.List;
 
 @RolesAllowed(Permissions.MANAGE_ROLES)
 @Path("/internal-roles")
@@ -47,8 +49,15 @@ public class InternalRoleResource {
     }
 
     @GET
-    public List<InternalRoleResponse> getAll() {
-        return service.getAll().stream().map(mapper::toResponse).toList();
+    public PageResponse<InternalRoleResponse> getAll(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                service.getPage(params.page(), params.size()),
+                params.page(),
+                params.size(),
+                mapper::toResponse);
     }
 
     @PUT

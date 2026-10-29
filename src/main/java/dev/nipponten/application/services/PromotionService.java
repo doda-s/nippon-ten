@@ -2,6 +2,7 @@ package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.PromotionNotFoundException;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.Promotion;
 import dev.nipponten.domain.models.PromotionPrice;
 import dev.nipponten.domain.models.PromotionType;
@@ -44,6 +45,10 @@ public class PromotionService {
         return repository.getAll();
     }
 
+    public PageResult<Promotion> getPage(int page, int size) {
+        return repository.getPage(page, size);
+    }
+
     public Promotion update(Long id, Promotion model) {
         getById(id);
         requireReferences(model);
@@ -60,6 +65,10 @@ public class PromotionService {
     // Disponível no catálogo: ativa e dentro da janela.
     public List<Promotion> getAvailable(LocalDateTime now) {
         return repository.getAvailable(now);
+    }
+
+    public PageResult<Promotion> getAvailablePage(LocalDateTime now, int page, int size) {
+        return repository.getAvailablePage(now, page, size);
     }
 
     public List<Promotion> getByProduct(Long productId) {

@@ -12,6 +12,7 @@ import dev.nipponten.application.requests.ProductSizeRequestMapper;
 import dev.nipponten.application.responses.AdditionalIngredientResponse;
 import dev.nipponten.application.responses.AdditionalIngredientResponseMapper;
 import dev.nipponten.application.responses.ComboResponseMapper;
+import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.responses.ProductDependentsResponse;
 import dev.nipponten.application.responses.ProductDetailResponse;
 import dev.nipponten.application.responses.ProductIngredientResponse;
@@ -37,12 +38,14 @@ import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
@@ -89,13 +92,14 @@ public class ProductResource {
     public Response create(@Valid ProductRegistrationRequest request) {
         List<ProductIngredientRequest> ingredients =
                 request.ingredients() == null ? List.of() : request.ingredients();
+        List<ProductSizeRequest> sizes = request.sizes() == null ? List.of() : request.sizes();
         Product saved =
                 service.register(
                         productRequestMapper.toModel(null, request.product()),
                         ingredients.stream()
                                 .map(i -> productIngredientRequestMapper.toModel(null, null, i))
                                 .toList(),
-                        request.sizes().stream()
+                        sizes.stream()
                                 .map(s -> productSizeRequestMapper.toModel(null, null, s))
                                 .toList());
         return Response.status(Response.Status.CREATED)
@@ -121,8 +125,15 @@ public class ProductResource {
 
     @GET
     @PermitAll
-    public List<ProductResponse> getAll() {
-        return service.getAll().stream().map(productMapper::toResponse).toList();
+    public PageResponse<ProductResponse> getAll(
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                service.getPage(params.page(), params.size()),
+                params.page(),
+                params.size(),
+                productMapper::toResponse);
     }
 
     @PUT
@@ -169,13 +180,20 @@ public class ProductResource {
     @POST
     @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/ingredients")
-    public Response addIngredient(
-            @PathParam("productId") Long productId, @Valid ProductIngredientRequest request) {
-        ProductIngredient saved =
-                productIngredientService.create(
-                        productIngredientRequestMapper.toModel(null, productId, request));
+    public Response addIngredients(
+            @PathParam("productId") Long productId,
+            List<@Valid ProductIngredientRequest> requests) {
+        List<ProductIngredient> saved =
+                productIngredientService.createBatch(
+                        productId,
+                        requests.stream()
+                                .map(
+                                        request ->
+                                                productIngredientRequestMapper.toModel(
+                                                        null, productId, request))
+                                .toList());
         return Response.status(Response.Status.CREATED)
-                .entity(productIngredientMapper.toResponse(saved))
+                .entity(saved.stream().map(productIngredientMapper::toResponse).toList())
                 .build();
     }
 
@@ -248,13 +266,20 @@ public class ProductResource {
     @POST
     @RolesAllowed(Permissions.MANAGE_PRODUCTS)
     @Path("/{productId}/additional-ingredients")
-    public Response addAdditionalIngredient(
-            @PathParam("productId") Long productId, @Valid AdditionalIngredientRequest request) {
-        AdditionalIngredient saved =
-                additionalIngredientService.create(
-                        additionalIngredientRequestMapper.toModel(null, productId, request));
+    public Response addAdditionalIngredients(
+            @PathParam("productId") Long productId,
+            List<@Valid AdditionalIngredientRequest> requests) {
+        List<AdditionalIngredient> saved =
+                additionalIngredientService.createBatch(
+                        productId,
+                        requests.stream()
+                                .map(
+                                        request ->
+                                                additionalIngredientRequestMapper.toModel(
+                                                        null, productId, request))
+                                .toList());
         return Response.status(Response.Status.CREATED)
-                .entity(additionalIngredientMapper.toResponse(saved))
+                .entity(saved.stream().map(additionalIngredientMapper::toResponse).toList())
                 .build();
     }
 

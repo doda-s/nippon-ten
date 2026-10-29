@@ -1,6 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.InternalRole;
+import dev.nipponten.domain.models.PageResult;
 import java.util.List;
 
 public interface InternalRoleRepository {
@@ -11,6 +12,8 @@ public interface InternalRoleRepository {
     InternalRole getById(Long id);
 
     List<InternalRole> getAll();
+
+    PageResult<InternalRole> getPage(int page, int size);
 
     InternalRole getByName(String name);
 

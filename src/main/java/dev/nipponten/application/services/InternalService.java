@@ -7,6 +7,7 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Internal;
 import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.InternalRole;
+import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.repositories.ClientRepository;
 import dev.nipponten.domain.repositories.InternalRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -60,6 +61,10 @@ public class InternalService {
 
     public List<Internal> getAll() {
         return repository.getAll();
+    }
+
+    public PageResult<Internal> getPage(int page, int size) {
+        return repository.getPage(page, size);
     }
 
     public Internal update(Long id, Internal model) {
