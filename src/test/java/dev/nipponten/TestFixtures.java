@@ -25,6 +25,40 @@ final class TestFixtures {
                 .getLong("id");
     }
 
+    static long createProductWithoutSizes(String name) {
+        return asAdmin()
+                .contentType(ContentType.JSON)
+                .body(productRegistration(name, List.of(), List.of()))
+                .post("/products")
+                .then()
+                .statusCode(201)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+    }
+
+    // O id da combinação produto+tamanho (product_size) do primeiro tamanho do produto.
+    static long firstSizeOf(long productId) {
+        return asAdmin()
+                .get("/products/{id}/sizes", productId)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getLong("[0].id");
+    }
+
+    // Item de combo no primeiro tamanho do produto.
+    static Map<String, Object> comboItem(long productId, int quantity) {
+        return Map.of(
+                "productId",
+                productId,
+                "productSizeId",
+                firstSizeOf(productId),
+                "quantity",
+                quantity);
+    }
+
     static Map<String, Object> productRegistration(
             String name, List<Long> ingredientIds, List<Map<String, Object>> sizes) {
         return Map.of(

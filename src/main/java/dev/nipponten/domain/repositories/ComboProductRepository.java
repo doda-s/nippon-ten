@@ -15,4 +15,6 @@ public interface ComboProductRepository {
     java.util.List<ComboProduct> getByCombo(Long comboId);
 
     java.util.List<ComboProduct> getByProduct(Long productId);
+
+    java.util.List<ComboProduct> getByProductSize(Long productSizeId);
 }

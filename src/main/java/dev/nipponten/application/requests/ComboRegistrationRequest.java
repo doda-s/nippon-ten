@@ -1,11 +1,12 @@
 package dev.nipponten.application.requests;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import java.util.List;
 
-// Os produtos são informados na criação do combo: um combo precisa nascer com no mínimo dois.
+// Os produtos são informados na criação do combo. O mínimo de dois conta a soma das quantidades
+// (2x o mesmo pastel vale), por isso é conferido no service e não com @Size.
 public record ComboRegistrationRequest(
         @NotNull @Valid ComboRequest combo,
-        @NotNull @Size(min = 2) List<@Valid ComboProductRequest> products) {}
+        @NotEmpty List<@NotNull @Valid ComboProductRequest> products) {}

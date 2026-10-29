@@ -8,6 +8,10 @@ public class ComboProductResponseMapper {
 
     public ComboProductResponse toResponse(ComboProduct comboProduct) {
         return new ComboProductResponse(
-                comboProduct.id(), comboProduct.comboId(), comboProduct.productId());
+                comboProduct.id(),
+                comboProduct.comboId(),
+                comboProduct.productId(),
+                comboProduct.productSizeId(),
+                comboProduct.quantity());
     }
 }

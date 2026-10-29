@@ -3,6 +3,7 @@ package dev.nipponten.application.services;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.ProductSizeNotFoundException;
 import dev.nipponten.domain.models.ProductSize;
+import dev.nipponten.domain.repositories.ComboProductRepository;
 import dev.nipponten.domain.repositories.ProductSizeRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -17,6 +18,9 @@ public class ProductSizeService {
     @Inject ProductService productService;
 
     @Inject SizeService sizeService;
+
+    // Repositório, e não o service, para não criar ciclo ProductSizeService <-> ComboService.
+    @Inject ComboProductRepository comboProductRepository;
 
     public ProductSize create(ProductSize model) {
         productService.getById(model.productId());
@@ -48,6 +52,11 @@ public class ProductSizeService {
         if (repository.getByProduct(productId).size() <= 1) {
             throw new InvalidRequestException(
                     "Product " + productId + " must keep at least one size");
+        }
+        int combos = comboProductRepository.getByProductSize(id).size();
+        if (combos > 0) {
+            throw new InvalidRequestException(
+                    "Product size " + id + " cannot be deleted: used by " + combos + " combo(s)");
         }
         repository.remove(model);
     }

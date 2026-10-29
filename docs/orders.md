@@ -202,7 +202,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 Cada fase é uma branch própria, a partir de `main`:
 
-1. `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
+1. ✅ `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
 2. `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
 3. `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.

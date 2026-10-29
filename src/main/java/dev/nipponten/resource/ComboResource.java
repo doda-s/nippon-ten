@@ -61,7 +61,12 @@ public class ComboResource {
         Combo saved =
                 service.register(
                         requestMapper.toModel(null, request.combo()),
-                        request.products().stream().map(ComboProductRequest::productId).toList());
+                        request.products().stream()
+                                .map(
+                                        product ->
+                                                comboProductRequestMapper.toModel(
+                                                        null, null, product))
+                                .toList());
         return Response.status(Response.Status.CREATED).entity(mapper.toResponse(saved)).build();
     }
 
