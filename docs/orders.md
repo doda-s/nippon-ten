@@ -1,4 +1,4 @@
-> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação, a criação, a consulta, o histórico do cliente, a listagem do dashboard, a mudança de status, o pagamento, o cancelamento e a edição de itens. SSE e feedback ainda não existem no código.
+> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação, a criação, a consulta, o histórico do cliente, a listagem do dashboard, a mudança de status, o pagamento, o cancelamento, a edição de itens e as notificações por SSE. O feedback ainda não existe no código.
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -157,7 +157,7 @@ As mudanças chegam em tempo real por *Server-Sent Events* (req. 49–51):
 | `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` | Mudanças daquele pedido |
 | `GET /orders/events` | `manage_orders` | Feed do dashboard: pedido novo, mudança de status, pagamento, cancelamento, edição |
 
-Cada evento traz o tipo (`CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED`, `ITEMS_UPDATED`), o id e o código do pedido, o status atual e o instante. Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás.
+Cada evento é um JSON `{type, orderId, code, status, paid, occurredAt}`, com `type` entre `CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED` e `ITEMS_UPDATED`. Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás: o `OrderService` dispara um evento CDI e o `OrderEventBus` o recebe na fase `AFTER_SUCCESS` da transação. O acesso a `GET /orders/{id}/events` é conferido antes de abrir o stream, então quem não pode recebe `401`/`403` normais.
 
 O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busca `GET /orders/{id}` (ou a listagem, no dashboard) para recuperar o que perdeu. Os limites da implementação em memória estão em [[architecture#Autenticação: implantação e riscos conhecidos|architecture.md]], e o jeito de consumir o SSE com autenticação, em [`api-client.md`](api-client.md).
 
@@ -215,5 +215,5 @@ Cada fase é uma branch própria, a partir de `main`:
 2. ✅ `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
 3. ✅ `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
-5. `feat/order-events`: SSE do pedido e do dashboard.
+5. ✅ `feat/order-events`: SSE do pedido e do dashboard.
 6. `feat/order-feedback`.

@@ -8,6 +8,7 @@ import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
+import dev.nipponten.domain.models.OrderEvent;
 import dev.nipponten.domain.models.OrderItem;
 import dev.nipponten.domain.models.OrderQuote;
 import dev.nipponten.domain.models.OrderStatusChange;
@@ -17,6 +18,7 @@ import dev.nipponten.domain.models.UserType;
 import dev.nipponten.domain.repositories.OrderRepository;
 import dev.nipponten.domain.repositories.OrderStatusHistoryRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +54,9 @@ public class OrderService {
     @Inject CurrentUser currentUser;
 
     @Inject Clock clock;
+
+    // Entregues ao OrderEventBus só depois do commit.
+    @Inject Event<OrderEvent> events;
 
     /** trackingToken é nulo quando o pedido é de um cliente com conta. */
     public record PlacedOrder(OrderDetails details, String trackingToken) {}
@@ -109,6 +114,7 @@ public class OrderService {
                                 Order.Status.PENDING,
                                 now,
                                 user.map(AuthenticatedUser::userId).orElse(null)));
+        events.fire(OrderEvent.of(OrderEvent.Type.CREATED, saved));
         return new PlacedOrder(new OrderDetails(saved, List.of(created)), trackingToken);
     }
 
@@ -177,6 +183,7 @@ public class OrderService {
                 repository.save(
                         rebuild(order, target, order.paid(), order.paidAt(), null, null, now));
         recordStatus(saved, now);
+        events.fire(OrderEvent.of(OrderEvent.Type.STATUS_CHANGED, saved));
         return details(saved);
     }
 
@@ -191,7 +198,9 @@ public class OrderService {
             throw new InvalidRequestException("Order " + id + " is cancelled");
         }
         Instant now = Instant.now(clock);
-        return details(repository.save(rebuild(order, order.status(), true, now, null, null, now)));
+        Order saved = repository.save(rebuild(order, order.status(), true, now, null, null, now));
+        events.fire(OrderEvent.of(OrderEvent.Type.PAID, saved));
+        return details(saved);
     }
 
     /**
@@ -229,6 +238,7 @@ public class OrderService {
                                 null,
                                 now));
         recordStatus(saved, now);
+        events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
         return details(saved);
     }
 
@@ -243,7 +253,7 @@ public class OrderService {
         }
         OrderQuote quote = quoteService.quote(items);
         Instant now = Instant.now(clock);
-        return details(
+        Order saved =
                 repository.save(
                         rebuild(
                                 order,
@@ -252,7 +262,9 @@ public class OrderService {
                                 order.paidAt(),
                                 null,
                                 quote,
-                                now)));
+                                now));
+        events.fire(OrderEvent.of(OrderEvent.Type.ITEMS_UPDATED, saved));
+        return details(saved);
     }
 
     private static Optional<Order.Status> nextStatus(Order order) {
