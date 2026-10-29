@@ -62,7 +62,7 @@ pedidos no local
 49. O sistema deve informar ao usuário quando o pagamento é realizado
 50. O sistema deve informar ao usuário quando o pedido sai para a entrega
 51. O sistema deve informar ao usuário quando um pedido é cancelado
-52. O cliente deve conseguir pagar pelo produto diretamente pelo sistema
+52. O cliente deve conseguir pagar pelo produto diretamente pelo sistema (na primeira versão dos pedidos, só a forma de pagamento é registrada e o funcionário marca como pago; o gateway fica para uma fase 2 — ver `orders.md#Pagamento`)
 53. O sistema deve limitar a quantidade de adicionais que o cliente pode colocar no pedido
 54. Produtos que dependem de um ingrediente marcado como esgotados, devem ficar indisponíveis
 55. O sistema deve conter funcionalidade de feature flags para controle de novas funcionalidades

@@ -77,3 +77,12 @@ Todas usam o corpo `{ "message": "..." }`.
 | `429` | Muitas tentativas de login erradas (5 por e-mail ou 20 por IP em 15 min) | Mostra a espera; o header `Retry-After` traz os segundos |
 
 O login devolve sempre a mesma mensagem (`Invalid email or password`) para senha errada, e-mail inexistente ou usuário desativado.
+
+## Pedidos (planejado)
+
+As regras estão em [`orders.md`](orders.md). O que muda para o front:
+
+- **O carrinho é do front.** Guarde os itens localmente e chame `POST /orders/quote` sempre que o carrinho mudar, para mostrar preços, promoções e totais. Nunca calcule nem envie preço: a API recalcula tudo na cotação e no checkout.
+- **Itens indisponíveis** voltam como `400`, listando todos os itens com problema de uma vez, para o cliente ajustar o carrinho.
+- **Visitante:** a resposta de `POST /orders` traz `code` e `trackingToken` uma única vez. Guarde o token (ex.: `localStorage`, por pedido) e envie no header `X-Order-Token` nas chamadas daquele pedido.
+- **Tempo real:** `GET /orders/{id}/events` (cliente) e `GET /orders/events` (dashboard) são *Server-Sent Events*. O `EventSource` nativo do navegador não envia headers, então não carrega o `Authorization` nem o `X-Order-Token`. Use um cliente SSE sobre `fetch`, como `@microsoft/fetch-event-source`, com os mesmos headers das outras chamadas. Ao reconectar, recarregue o pedido (`GET /orders/{id}`) ou a listagem: o SSE é só um aviso, e eventos perdidos durante a queda não são reenviados.
