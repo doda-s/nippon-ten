@@ -27,9 +27,12 @@ public record OrderResponse(
         BigDecimal total,
         Instant createdAt,
         Instant updatedAt,
-        List<StatusChange> statusHistory) {
+        List<StatusChange> statusHistory,
+        Feedback feedback) {
 
     public record Address(String streetAddress, String number, String cep, String complement) {}
 
     public record StatusChange(Order.Status status, Instant changedAt) {}
+
+    public record Feedback(int rating, String comment, Instant createdAt) {}
 }

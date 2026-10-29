@@ -1,17 +1,19 @@
 package dev.nipponten.application.responses;
 
 import dev.nipponten.domain.models.Order;
-import dev.nipponten.domain.models.OrderStatusChange;
+import dev.nipponten.domain.models.OrderDetails;
+import dev.nipponten.domain.models.OrderFeedback;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.List;
 
 @ApplicationScoped
 public class OrderResponseMapper {
 
     @Inject OrderQuoteResponseMapper itemMapper;
 
-    public OrderResponse toResponse(Order order, List<OrderStatusChange> history) {
+    public OrderResponse toResponse(OrderDetails details) {
+        Order order = details.order();
+        OrderFeedback feedback = details.feedback();
         OrderResponse.Address address =
                 order.streetAddress() == null
                         ? null
@@ -41,11 +43,15 @@ public class OrderResponseMapper {
                 order.total(),
                 order.createdAt(),
                 order.updatedAt(),
-                history.stream()
+                details.statusHistory().stream()
                         .map(
                                 change ->
                                         new OrderResponse.StatusChange(
                                                 change.status(), change.changedAt()))
-                        .toList());
+                        .toList(),
+                feedback == null
+                        ? null
+                        : new OrderResponse.Feedback(
+                                feedback.rating(), feedback.comment(), feedback.createdAt()));
     }
 }

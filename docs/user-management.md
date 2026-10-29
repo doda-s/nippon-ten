@@ -154,7 +154,7 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `GET /orders/{id}` | dono, token de acompanhamento (`X-Order-Token`) ou `manage_orders` | — |
 | `GET /orders/{id}/events` (SSE) | dono, token de acompanhamento ou `manage_orders` | — |
 | `POST /orders/{id}/cancel` | — | dono ou token (só em `PENDING`), ou `manage_orders` |
-| `POST /orders/{id}/feedback` *(planejado)* | — | dono ou token |
+| `POST /orders/{id}/feedback` | — | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
 | `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
 
