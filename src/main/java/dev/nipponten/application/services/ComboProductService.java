@@ -7,21 +7,19 @@ import dev.nipponten.domain.repositories.ComboProductRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Objects;
 
 @ApplicationScoped
 public class ComboProductService {
-
-    private static final int MINIMUM_PRODUCTS = 2;
 
     @Inject ComboProductRepository repository;
 
     @Inject ComboService comboService;
 
-    @Inject ProductService productService;
-
     public ComboProduct create(ComboProduct model) {
         comboService.getById(model.comboId());
-        productService.getById(model.productId());
+        comboService.requireValidProduct(model);
+        requireNotInCombo(model, null);
         return repository.save(model);
     }
 
@@ -36,18 +34,17 @@ public class ComboProductService {
     }
 
     public ComboProduct update(Long comboId, Long id, ComboProduct model) {
-        requireByCombo(comboId, id);
-        productService.getById(model.productId());
+        ComboProduct current = requireByCombo(comboId, id);
+        comboService.requireValidProduct(model);
+        requireNotInCombo(model, id);
+        comboService.requireMinimumProducts(
+                totalQuantity(comboId) - current.quantity() + model.quantity());
         return repository.save(model);
     }
 
     public void delete(Long comboId, Long id) {
         ComboProduct model = requireByCombo(comboId, id);
-        int remaining = repository.getByCombo(comboId).size() - 1;
-        if (remaining < MINIMUM_PRODUCTS) {
-            throw new InvalidRequestException(
-                    "Combo " + comboId + " must keep at least " + MINIMUM_PRODUCTS + " products");
-        }
+        comboService.requireMinimumProducts(totalQuantity(comboId) - model.quantity());
         repository.remove(model);
     }
 
@@ -67,5 +64,29 @@ public class ComboProductService {
             throw new ComboProductNotFoundException(id);
         }
         return model;
+    }
+
+    private int totalQuantity(Long comboId) {
+        return repository.getByCombo(comboId).stream().mapToInt(ComboProduct::quantity).sum();
+    }
+
+    // A mesma combinação produto+tamanho aparece uma vez por combo; a repetição é a quantidade.
+    private void requireNotInCombo(ComboProduct model, Long comboProductId) {
+        repository.getByCombo(model.comboId()).stream()
+                .filter(existing -> existing.productId().equals(model.productId()))
+                .filter(existing -> Objects.equals(existing.productSizeId(), model.productSizeId()))
+                .filter(existing -> !Objects.equals(existing.id(), comboProductId))
+                .findFirst()
+                .ifPresent(
+                        existing -> {
+                            throw new InvalidRequestException(
+                                    "Combo "
+                                            + model.comboId()
+                                            + " already has product "
+                                            + model.productId()
+                                            + " with size "
+                                            + model.productSizeId()
+                                            + ": change its quantity instead");
+                        });
     }
 }

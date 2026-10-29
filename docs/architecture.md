@@ -90,7 +90,7 @@ Todo id que chega no **corpo** do request e aponta para outro agregado (`ingredi
 Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dependentes (não os services, que já injetam o service do pai e criariam ciclo):
 
 - **filhos do próprio agregado são removidos em cascata**: `Product` → `ProductSize`, `ProductIngredient`, `AdditionalIngredient`; `Combo` → `ComboProduct`; `User` → `UserAddress`, `Client`, `Internal`, `RefreshToken`;
-- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
+- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `ProductSize` usado por combo; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
 
 ---
 

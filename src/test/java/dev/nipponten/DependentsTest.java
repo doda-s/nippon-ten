@@ -66,8 +66,8 @@ class DependentsTest {
                                                 "ACTIVE"),
                                         "products",
                                         java.util.List.of(
-                                                Map.of("productId", first),
-                                                Map.of("productId", second))))
+                                                TestFixtures.comboItem(first, 1),
+                                                TestFixtures.comboItem(second, 1))))
                         .post("/combos")
                         .then()
                         .statusCode(201)

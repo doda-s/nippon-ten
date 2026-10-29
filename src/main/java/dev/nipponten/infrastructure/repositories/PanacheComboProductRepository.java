@@ -56,4 +56,9 @@ public class PanacheComboProductRepository
     public List<ComboProduct> getByProduct(Long productId) {
         return list("product.id", productId).stream().map(mapper::toModel).toList();
     }
+
+    @Override
+    public List<ComboProduct> getByProductSize(Long productSizeId) {
+        return list("productSize.id", productSizeId).stream().map(mapper::toModel).toList();
+    }
 }
