@@ -1,4 +1,4 @@
-> **Status:** especificação aprovada, ainda não implementada. A implementação segue as fases da seção [[#Roadmap de implementação|Roadmap]]. Enquanto uma fase não for entregue, o código não tem o comportamento descrito aqui.
+> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existe a cotação (`POST /orders/quote`): preço, promoção, combo e disponibilidade. O resto (gravar o pedido, status, SSE, feedback) ainda não existe no código.
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -39,8 +39,10 @@ O cliente informa:
 
 - `productSizeId`: o produto já no tamanho escolhido (a combinação de `product_size`, onde mora o preço);
 - `quantity` (≥ 1) e `notes` (observação do item, req. 44);
-- `additionals`: lista de `{ingredientId, quantity}`. Cada adicional precisa estar configurado como *Additional Ingredient* `ACTIVE` daquele produto, e a quantidade não pode passar do `maximumQuantity` (req. 53). O acréscimo é `ingredient.price × quantity`;
-- `removedIngredients`: lista de `ingredientId` da composição do produto (*Product Ingredient*) que o cliente quer tirar (req. 45). Remover não muda o preço.
+- `additionals`: lista de `{ingredientId, quantity}`. Cada adicional precisa estar configurado como *Additional Ingredient* `ACTIVE` daquele produto, e a quantidade não pode passar do `maximumQuantity` (req. 53). A quantidade é **por unidade do item** ("2 de queijo extra" em cada pastel), e o acréscimo por unidade é `ingredient.price × quantity`. O mesmo ingrediente não se repete na lista: a repetição é a quantidade;
+- `removedIngredientIds`: lista de `ingredientId` da composição do produto (*Product Ingredient*) que o cliente quer tirar (req. 45). Remover não muda o preço.
+
+**Total do item:** `(preço unitário + acréscimo dos adicionais) × quantity`, arredondado para 2 casas.
 
 **Preço unitário:** o preço do `product_size`. Se existir uma promoção `ACTIVE` para o produto, dentro da janela de datas no horário do restaurante (`BusinessTime.now()`), o preço é o promocional, calculado pela mesma regra de *Promotion Type* que já existe (ver [[products-and-promotions#Promotions|products-and-promotions.md]]). A promoção é aplicada **automaticamente**: o cliente não escolhe a promoção, ele pede o produto. O item guarda o `promotion_id` e o preço original para referência.
 
@@ -50,13 +52,15 @@ O cliente informa `comboId`, `quantity` e `notes`. O combo tem **precificação 
 
 ### Disponibilidade
 
-A cotação, o checkout e a edição recusam com `400` e listam **todos** os itens com problema de uma vez, para o front mostrar ao cliente o que ajustar (req. 54). Contam como problema:
+A cotação, o checkout e a edição recusam com `400` e listam **todos** os itens com problema de uma vez, para o front mostrar ao cliente o que ajustar (req. 54). A resposta usa o mesmo formato da falha de validação, com `message` = `Some items are unavailable` e uma entrada em `violations` por problema, cujo `field` aponta o item (`items[1]`, `items[1].additionals[0]`, `items[2].removedIngredientIds[0]`). Contam como problema:
 
 - produto `INACTIVE`, combinação de tamanho `INACTIVE` ou combo `INACTIVE`;
 - combo fora da janela de datas;
 - adicional `INACTIVE` ou não configurado para o produto, ou acima do `maximumQuantity`;
-- ingrediente (adicional ou da composição) `OUT_OF_STOCK`;
-- ingrediente removido que não faz parte da composição do produto.
+- adicional `OUT_OF_STOCK`;
+- ingrediente da composição `OUT_OF_STOCK`, **a menos que o cliente o tenha removido** do item: um pastel de palmito sem palmito pode ser vendido com o palmito esgotado;
+- ingrediente removido que não faz parte da composição do produto, ou repetido na lista;
+- item `PRODUCT` sem `productSizeId` (ou com `comboId`), e item `COMBO` sem `comboId` (ou com `productSizeId`, adicionais ou ingredientes removidos).
 
 A propagação de "esgotado" entre ingrediente, produto e combo continua manual (ver [[products-and-promotions#Product|products-and-promotions.md]]). O pedido só respeita o status que cada item tem no momento.
 
@@ -203,7 +207,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 Cada fase é uma branch própria, a partir de `main`:
 
 1. ✅ `refactor/combo-product-size`: `combo_product` ganha o tamanho (`product_size_id`, obrigatório quando o produto tem tamanhos) e `quantity` (ver [[products-and-promotions#Combo Product|products-and-promotions.md]]).
-2. `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
+2. ✅ `feat/order-quote`: modelos, cálculo de preço e `POST /orders/quote`.
 3. `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. `feat/order-events`: SSE do pedido e do dashboard.

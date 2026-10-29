@@ -100,6 +100,13 @@ public class ComboService {
         return repository.getAll();
     }
 
+    // Mesma regra de getAvailable, para um combo só: ativo e dentro da janela, se houver.
+    public boolean isAvailable(Combo combo, LocalDateTime now) {
+        return combo.status() == Combo.Status.ACTIVE
+                && (combo.startDate() == null || !combo.startDate().isAfter(now))
+                && (combo.endDate() == null || combo.endDate().isAfter(now));
+    }
+
     public PageResult<Combo> getPage(int page, int size) {
         return repository.getPage(page, size);
     }
