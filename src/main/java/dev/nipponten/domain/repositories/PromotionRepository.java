@@ -16,9 +16,16 @@ public interface PromotionRepository {
 
     List<Promotion> getAvailable(LocalDateTime now);
 
-    java.util.List<Promotion> getByProduct(Long productId);
+    List<Promotion> getByProduct(Long productId);
 
-    java.util.List<Promotion> getByPromotionType(Long promotionTypeId);
+    List<Promotion> getByCombo(Long comboId);
+
+    // Promoções do item cuja janela cruza [start, end), em qualquer status.
+    List<Promotion> getOverlappingByProduct(Long productId, LocalDateTime start, LocalDateTime end);
+
+    List<Promotion> getOverlappingByCombo(Long comboId, LocalDateTime start, LocalDateTime end);
+
+    List<Promotion> getByPromotionType(Long promotionTypeId);
 
     PageResult<Promotion> getPage(int page, int size);
 

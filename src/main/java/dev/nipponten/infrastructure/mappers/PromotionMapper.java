@@ -1,6 +1,7 @@
 package dev.nipponten.infrastructure.mappers;
 
 import dev.nipponten.domain.models.Promotion;
+import dev.nipponten.infrastructure.entities.ComboEntity;
 import dev.nipponten.infrastructure.entities.ProductEntity;
 import dev.nipponten.infrastructure.entities.PromotionEntity;
 import dev.nipponten.infrastructure.entities.PromotionTypeEntity;
@@ -30,7 +31,19 @@ public class PromotionMapper {
         entity.setStatus(PromotionEntity.Status.valueOf(model.status().name()));
         entity.setPromotionType(
                 entityManager.getReference(PromotionTypeEntity.class, model.promotionTypeId()));
-        entity.setProduct(entityManager.getReference(ProductEntity.class, model.productId()));
+        // As listas chegam sempre completas: substituem as anteriores.
+        entity.getProducts().clear();
+        model.productIds()
+                .forEach(
+                        id ->
+                                entity.getProducts()
+                                        .add(entityManager.getReference(ProductEntity.class, id)));
+        entity.getCombos().clear();
+        model.comboIds()
+                .forEach(
+                        id ->
+                                entity.getCombos()
+                                        .add(entityManager.getReference(ComboEntity.class, id)));
         entity.setStartDate(model.startDate());
         entity.setEndDate(model.endDate());
         entity.setEnablePromotionPoints(model.enablePromotionPoints());
@@ -44,7 +57,8 @@ public class PromotionMapper {
                 entity.getDescription(),
                 Promotion.Status.valueOf(entity.getStatus().name()),
                 entity.getPromotionType().getId(),
-                entity.getProduct().getId(),
+                entity.getProducts().stream().map(ProductEntity::getId).sorted().toList(),
+                entity.getCombos().stream().map(ComboEntity::getId).sorted().toList(),
                 entity.getStartDate(),
                 entity.getEndDate(),
                 entity.isEnablePromotionPoints());

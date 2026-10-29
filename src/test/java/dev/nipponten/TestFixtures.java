@@ -64,6 +64,26 @@ final class TestFixtures {
                 .getLong("id");
     }
 
+    // Combo de dois produtos novos, a 30.00.
+    static long createCombo(String name) {
+        long first = createProduct(name + " A");
+        long second = createProduct(name + " B");
+        return asAdmin()
+                .contentType(ContentType.JSON)
+                .body(
+                        Map.of(
+                                "combo",
+                                Map.of("name", name, "price", 30.0, "status", "ACTIVE"),
+                                "products",
+                                List.of(Map.of("productId", first), Map.of("productId", second))))
+                .post("/combos")
+                .then()
+                .statusCode(201)
+                .extract()
+                .jsonPath()
+                .getLong("id");
+    }
+
     static long createPromotionType(String name) {
         return asAdmin()
                 .contentType(ContentType.JSON)

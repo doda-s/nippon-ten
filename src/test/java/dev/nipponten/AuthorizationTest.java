@@ -47,6 +47,7 @@ class AuthorizationTest {
                             "/ingredients/999999/dependents",
                             Permissions.MANAGE_INGREDIENTS),
                     new Route("POST", "/combos", Permissions.MANAGE_PROMOTIONS),
+                    new Route("GET", "/combos/999999/dependents", Permissions.MANAGE_PROMOTIONS),
                     new Route("POST", "/promotions", Permissions.MANAGE_PROMOTIONS),
                     new Route("POST", "/promotion-types", Permissions.MANAGE_PROMOTIONS),
                     new Route("GET", "/internal-roles", Permissions.MANAGE_ROLES),

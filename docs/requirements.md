@@ -34,7 +34,7 @@ pedidos no local
 21. O sistema deve permitir os usuários internos deletarem os ingredientes
 22. O sistema deve permitir listar os ingredientes
 23. O sistema deve permitir os usuários internos definirem ingredientes como esgotados
-24. O sistema deve permitir os usuários internos criarem promoções para produtos (uma promoção por produto — ver `products-and-promotions.md#Promotions`)
+24. O sistema deve permitir os usuários internos criarem promoções aplicadas a um ou mais produtos e/ou combos (ver `products-and-promotions.md#Promotions`)
 25. O sistema deve permitir os usuários internos editarem as promoções criadas
 26. O sistema deve permitir os usuários internos deletarem as promoções criadas
 27. O sistema deve permitir os usuários internos definirem o tempo que uma promoção fica disponível

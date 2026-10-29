@@ -2,6 +2,7 @@ package dev.nipponten.application.requests;
 
 import dev.nipponten.domain.models.Promotion;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.List;
 
 @ApplicationScoped
 public class PromotionRequestMapper {
@@ -14,7 +15,8 @@ public class PromotionRequestMapper {
                 request.description(),
                 request.status(),
                 request.promotionTypeId(),
-                request.productId(),
+                request.productIds() == null ? List.of() : request.productIds(),
+                request.comboIds() == null ? List.of() : request.comboIds(),
                 request.startDate(),
                 request.endDate(),
                 request.enablePromotionPoints());

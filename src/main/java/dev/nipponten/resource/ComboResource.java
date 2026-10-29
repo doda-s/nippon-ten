@@ -5,14 +5,17 @@ import dev.nipponten.application.requests.ComboProductRequestMapper;
 import dev.nipponten.application.requests.ComboRegistrationRequest;
 import dev.nipponten.application.requests.ComboRequest;
 import dev.nipponten.application.requests.ComboRequestMapper;
+import dev.nipponten.application.responses.ComboDependentsResponse;
 import dev.nipponten.application.responses.ComboProductResponse;
 import dev.nipponten.application.responses.ComboProductResponseMapper;
 import dev.nipponten.application.responses.ComboResponse;
 import dev.nipponten.application.responses.ComboResponseMapper;
 import dev.nipponten.application.responses.PageResponse;
+import dev.nipponten.application.responses.PromotionResponseMapper;
 import dev.nipponten.application.services.BusinessTime;
 import dev.nipponten.application.services.ComboProductService;
 import dev.nipponten.application.services.ComboService;
+import dev.nipponten.application.services.PromotionService;
 import dev.nipponten.domain.models.Combo;
 import dev.nipponten.domain.models.ComboProduct;
 import dev.nipponten.resource.security.Permissions;
@@ -55,6 +58,10 @@ public class ComboResource {
 
     @Inject ComboProductRequestMapper comboProductRequestMapper;
 
+    @Inject PromotionService promotionService;
+
+    @Inject PromotionResponseMapper promotionMapper;
+
     @POST
     @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
     public Response create(@Valid ComboRegistrationRequest request) {
@@ -92,6 +99,21 @@ public class ComboResource {
     public ComboResponse update(@PathParam("id") Long id, @Valid ComboRequest request) {
         Combo updated = service.update(id, requestMapper.toModel(id, request));
         return mapper.toResponse(updated);
+    }
+
+    // Lista quem depende do combo, para o usuário interno decidir manualmente o que também deve
+    // ser marcado como esgotado.
+    @GET
+    @RolesAllowed(Permissions.MANAGE_PROMOTIONS)
+    @Path("/{id}/dependents")
+    public ComboDependentsResponse getDependents(@PathParam("id") Long id) {
+        return new ComboDependentsResponse(
+                service.getDependentPromotions(id).stream()
+                        .map(
+                                promotion ->
+                                        promotionMapper.toResponse(
+                                                promotion, promotionService.getPrices(promotion)))
+                        .toList());
     }
 
     @DELETE

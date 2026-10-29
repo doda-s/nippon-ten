@@ -1,6 +1,7 @@
 package dev.nipponten.domain.models;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record Promotion(
         Long id,
@@ -9,7 +10,8 @@ public record Promotion(
         String description,
         Status status,
         Long promotionTypeId,
-        Long productId,
+        List<Long> productIds,
+        List<Long> comboIds,
         LocalDateTime startDate,
         LocalDateTime endDate,
         boolean enablePromotionPoints) {

@@ -65,7 +65,46 @@ public class PanachePromotionRepository
 
     @Override
     public List<Promotion> getByProduct(Long productId) {
-        return list("product.id", productId).stream().map(mapper::toModel).toList();
+        return list("select p from PromotionEntity p join p.products i where i.id = ?1", productId)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
+    public List<Promotion> getByCombo(Long comboId) {
+        return list("select p from PromotionEntity p join p.combos i where i.id = ?1", comboId)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
+    public List<Promotion> getOverlappingByProduct(
+            Long productId, LocalDateTime start, LocalDateTime end) {
+        return list(
+                        "select p from PromotionEntity p join p.products i"
+                                + " where i.id = ?1 and p.startDate < ?3 and p.endDate > ?2",
+                        productId,
+                        start,
+                        end)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
+    public List<Promotion> getOverlappingByCombo(
+            Long comboId, LocalDateTime start, LocalDateTime end) {
+        return list(
+                        "select p from PromotionEntity p join p.combos i"
+                                + " where i.id = ?1 and p.startDate < ?3 and p.endDate > ?2",
+                        comboId,
+                        start,
+                        end)
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 
     @Override

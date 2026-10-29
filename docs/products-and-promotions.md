@@ -66,23 +66,32 @@ Para um combo ser criado, editado, deletado ou ter o status alterado, o usuário
 
 Assim como em Product/Ingredient, quando um produto que compõe o combo fica esgotado, a propagação para o status do combo **não é automática** — o usuário interno decide manualmente se o combo também deve ser marcado como esgotado.
 
+Um combo também pode ser alvo de promoções. `GET /combos/{id}/dependents` lista as promoções que o incluem, para a mesma decisão manual de "esgotado", e um combo usado por alguma promoção não pode ser deletado.
+
 ---
 ## Promotions
 
 As *Promotions* sobrescrevem o custo de um produto, por um tempo limitado. Os dados necessários para criar uma promoção são:
 
 - Title: Titulo de exibição para a promoção;
-- Price: Não é informado na criação. Como o preço do produto varia por tamanho, o preço promocional é calculado **para cada tamanho** do produto a partir do *Promotion Type* (ver abaixo) e devolvido como lista (`productSizeId`, preço original, preço promocional);
+- Price: Não é informado na criação. É calculado a partir do *Promotion Type* (ver abaixo) para cada item da promoção: em produtos, **para cada tamanho** (o preço do produto vive no tamanho), devolvido em `products[].prices` (`productSizeId`, preço original, preço promocional); em combos, sobre o preço do combo, devolvido em `combos[]` (`comboId`, preço original, preço promocional);
 - Image URL: URL da imagem que ilustra a promoção;
 - Description: Uma descrição que detalha a promoção;
 - Status: A disponibilidade da promoção: `ACTIVE` ou `INACTIVE`;
 - Promotion Type: Define o método para o calculo ou processamento do custo da promoção;
-- Product: O produto ao qual essa promoção se aplica;
+- Products: Os produtos aos quais a promoção se aplica (`productIds`);
+- Combos: Os combos aos quais a promoção se aplica (`comboIds`);
 - Start Date: Define o momento em que a promoção inicia;
 - End Date: Define o momento em que a promoção encerra;
 - Enable Promotion Points: Define se o consumidor pode utilizar dos pontos para consumir a promoção.
 
-Cada promoção se aplica a um único produto — para promover vários produtos ao mesmo tempo, o usuário interno cria uma promoção por produto (diferente de Combo, que é uma relação N:N com produtos).
+Uma promoção se aplica a um ou mais produtos e/ou combos, informados todos de uma vez na criação: `productIds` e `comboIds` são opcionais individualmente, mas a promoção precisa de ao menos um item no total, e nenhum id pode se repetir na mesma lista (`400`). Id inexistente é `404`. No `PUT /promotions/{id}`, as duas listas enviadas **substituem** as anteriores por inteiro — não há endpoints aninhados para itens de promoção.
+
+Um mesmo produto ou combo não pode estar em duas promoções com **períodos sobrepostos** (o preço final seria ambíguo), independente do status delas. Promoções em sequência são permitidas: a janela é meio-aberta (`[startDate, endDate)`), então uma promoção pode começar exatamente quando a anterior termina.
+
+Um produto ou combo usado por alguma promoção não pode ser deletado; é preciso removê-lo da promoção (ou deletá-la) antes.
+
+> Modelo de dados: `promotion_product(promotion_id, product_id)` e `promotion_combo(promotion_id, combo_id)` (migration `V5`) substituem a antiga coluna `promotion.product_id`. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda não mostra essas tabelas — precisa ser atualizado manualmente.
 
 Para uma promoção ser criada, editada, deletada ou ter o status alterado, o usuário interno precisa conter a permissão `manage_promotions`.
 

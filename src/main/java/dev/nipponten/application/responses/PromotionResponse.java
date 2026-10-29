@@ -7,12 +7,12 @@ import java.util.List;
 public record PromotionResponse(
         Long id,
         String title,
-        List<PromotionPriceResponse> prices,
+        List<PromotionProductResponse> products,
+        List<PromotionComboResponse> combos,
         String imageUrl,
         String description,
         Promotion.Status status,
         Long promotionTypeId,
-        Long productId,
         LocalDateTime startDate,
         LocalDateTime endDate,
         boolean enablePromotionPoints) {}

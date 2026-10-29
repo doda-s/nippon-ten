@@ -85,12 +85,12 @@ public X requireByParent(Long parentId, Long id) {
 
 ### Referências e exclusão
 
-Todo id que chega no **corpo** do request e aponta para outro agregado (`ingredientId`, `productId`, `promotionTypeId`, `internalRoleId`) é validado no `Service` via `getById` do service dono antes de salvar — id inexistente é `404`, nunca erro de FK.
+Todo id que chega no **corpo** do request e aponta para outro agregado (`ingredientId`, `productId`, `productIds`, `comboIds`, `promotionTypeId`, `internalRoleId`) é validado no `Service` via `getById` do service dono antes de salvar — id inexistente é `404`, nunca erro de FK.
 
 Na exclusão de um pai, o `Service` do pai consulta os **repositórios** dos dependentes (não os services, que já injetam o service do pai e criariam ciclo):
 
 - **filhos do próprio agregado são removidos em cascata**: `Product` → `ProductSize`, `ProductIngredient`, `AdditionalIngredient`; `Combo` → `ComboProduct`; `User` → `UserAddress`, `Client`, `Internal`, `RefreshToken`;
-- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
+- **referências vindas de outro agregado bloqueiam a exclusão** com `InvalidRequestException` (`400`): `Product` usado por combo ou promoção; `Combo` usado por promoção; `Ingredient` usado por produto ou adicional; `PromotionType` usado por promoção; `InternalRole` atribuída a usuário interno.
 
 ---
 
@@ -186,6 +186,6 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
 
-Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
+Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a proibição de promoções com períodos sobrepostos para o mesmo produto ou combo e a validação das janelas de disponibilidade.
 
-A propagação de status "esgotado" entre ingrediente → produto → combo/promoção continua sendo **manual por decisão de produto**, não uma lacuna: `GET /ingredients/{id}/dependents` e `GET /products/{id}/dependents` devolvem quem depende do item para o usuário interno decidir, e o sistema nunca altera esses status sozinho.
+A propagação de status "esgotado" entre ingrediente → produto → combo/promoção continua sendo **manual por decisão de produto**, não uma lacuna: `GET /ingredients/{id}/dependents`, `GET /products/{id}/dependents` e `GET /combos/{id}/dependents` devolvem quem depende do item para o usuário interno decidir, e o sistema nunca altera esses status sozinho.

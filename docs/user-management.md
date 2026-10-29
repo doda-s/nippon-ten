@@ -138,6 +138,7 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `/combos/**`, `/promotions/**`, `/promotion-types/**` | pública | `manage_promotions` |
 | `GET /products/{id}/dependents` | `manage_products` | — |
 | `GET /ingredients/{id}/dependents` | `manage_ingredients` | — |
+| `GET /combos/{id}/dependents` | `manage_promotions` | — |
 | `/internal-roles/**` | `manage_roles` | `manage_roles` |
 | `/internal/**` | `manage_users` | `manage_users` |
 | `DELETE /internal/{id}` | — | `super_admin` |
