@@ -9,12 +9,14 @@ import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
 import dev.nipponten.domain.models.OrderEvent;
+import dev.nipponten.domain.models.OrderFeedback;
 import dev.nipponten.domain.models.OrderItem;
 import dev.nipponten.domain.models.OrderQuote;
 import dev.nipponten.domain.models.OrderStatusChange;
 import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserType;
+import dev.nipponten.domain.repositories.OrderFeedbackRepository;
 import dev.nipponten.domain.repositories.OrderRepository;
 import dev.nipponten.domain.repositories.OrderStatusHistoryRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -42,6 +44,8 @@ public class OrderService {
     @Inject OrderRepository repository;
 
     @Inject OrderStatusHistoryRepository historyRepository;
+
+    @Inject OrderFeedbackRepository feedbackRepository;
 
     @Inject OrderQuoteService quoteService;
 
@@ -115,7 +119,7 @@ public class OrderService {
                                 now,
                                 user.map(AuthenticatedUser::userId).orElse(null)));
         events.fire(OrderEvent.of(OrderEvent.Type.CREATED, saved));
-        return new PlacedOrder(new OrderDetails(saved, List.of(created)), trackingToken);
+        return new PlacedOrder(new OrderDetails(saved, List.of(created), null), trackingToken);
     }
 
     /**
@@ -267,6 +271,26 @@ public class OrderService {
         return details(saved);
     }
 
+    /**
+     * Só quem fez o pedido avalia (cliente dono ou visitante com o token), uma vez e depois de
+     * COMPLETED (req. 48). O funcionário vê o pedido, mas não avalia por ele.
+     */
+    public OrderDetails giveFeedback(Long id, String trackingToken, int rating, String comment) {
+        Order order = requireViewer(id, trackingToken);
+        if (!holdsToken(order, trackingToken) && !isOwner(order, currentUser.find())) {
+            throw new ForbiddenException("Only the customer can give feedback on order " + id);
+        }
+        if (order.status() != Order.Status.COMPLETED) {
+            throw new InvalidRequestException(
+                    "Order " + id + " is " + order.status() + ": feedback only after COMPLETED");
+        }
+        if (feedbackRepository.getByOrder(id) != null) {
+            throw new InvalidRequestException("Order " + id + " already has feedback");
+        }
+        feedbackRepository.save(new OrderFeedback(null, id, rating, comment, Instant.now(clock)));
+        return details(order);
+    }
+
     private static Optional<Order.Status> nextStatus(Order order) {
         return switch (order.status()) {
             case PENDING -> Optional.of(Order.Status.IN_PREPARATION);
@@ -329,7 +353,10 @@ public class OrderService {
     }
 
     private OrderDetails details(Order order) {
-        return new OrderDetails(order, historyRepository.getByOrder(order.id()));
+        return new OrderDetails(
+                order,
+                historyRepository.getByOrder(order.id()),
+                feedbackRepository.getByOrder(order.id()));
     }
 
     private Customer resolveCustomer(

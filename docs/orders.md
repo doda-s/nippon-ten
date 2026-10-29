@@ -1,4 +1,4 @@
-> **Status:** implementação em andamento, pelas fases da seção [[#Roadmap de implementação|Roadmap]]. Já existem a cotação, a criação, a consulta, o histórico do cliente, a listagem do dashboard, a mudança de status, o pagamento, o cancelamento, a edição de itens e as notificações por SSE. O feedback ainda não existe no código.
+> **Status:** a v1 descrita aqui está implementada (todas as fases do [[#Roadmap de implementação|Roadmap]]). O que ficou fora da v1 está em [[#Fora da v1|Fora da v1]].
 
 Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
 
@@ -146,7 +146,7 @@ O funcionário pode trocar os itens de um pedido em `PENDING` ou `IN_PREPARATION
 
 ### Feedback
 
-Com o pedido em `COMPLETED`, o dono (cliente ou visitante com o token) pode enviar um feedback, `POST /orders/{id}/feedback`, com nota de 1 a 5 e comentário opcional. É um feedback por pedido; um segundo envio é `400`. O evento SSE de `COMPLETED` é o sinal para o front pedir a avaliação (req. 48).
+Com o pedido em `COMPLETED`, o dono (cliente ou visitante com o token) pode enviar um feedback, `POST /orders/{id}/feedback`, com `{rating, comment}`: nota de 1 a 5 e comentário opcional de até 1000 caracteres. É um feedback por pedido; um segundo envio, ou um envio antes de `COMPLETED`, é `400`. O funcionário vê o pedido, mas não avalia por ele (`403`). A resposta (`201`) é o pedido, e o feedback aparece no campo `feedback` de `GET /orders/{id}` (nulo enquanto não houver). O evento SSE de `COMPLETED` é o sinal para o front pedir a avaliação (req. 48).
 
 ## Notificações (SSE)
 
@@ -216,4 +216,4 @@ Cada fase é uma branch própria, a partir de `main`:
 3. ✅ `feat/order-checkout`: persistência, `POST /orders`, visitante e token de acompanhamento, `GET /orders/{id}`, histórico do usuário, permissão `MANAGE_ORDERS`.
 4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. ✅ `feat/order-events`: SSE do pedido e do dashboard.
-6. `feat/order-feedback`.
+6. ✅ `feat/order-feedback`.

@@ -1,6 +1,7 @@
 package dev.nipponten.resource;
 
 import dev.nipponten.application.requests.OrderCancelRequest;
+import dev.nipponten.application.requests.OrderFeedbackRequest;
 import dev.nipponten.application.requests.OrderItemRequestMapper;
 import dev.nipponten.application.requests.OrderItemsRequest;
 import dev.nipponten.application.requests.OrderQuoteRequest;
@@ -163,6 +164,22 @@ public class OrderResource {
                 service.cancel(id, trackingToken, request == null ? null : request.reason()));
     }
 
+    // Pública: quem avalia é o cliente dono ou o visitante pelo token; a regra fica no service.
+    @POST
+    @PermitAll
+    @Path("/{id}/feedback")
+    public Response giveFeedback(
+            @PathParam("id") Long id,
+            @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken,
+            @Valid OrderFeedbackRequest request) {
+        return Response.status(Response.Status.CREATED)
+                .entity(
+                        toResponse(
+                                service.giveFeedback(
+                                        id, trackingToken, request.rating(), request.comment())))
+                .build();
+    }
+
     @PUT
     @RolesAllowed(Permissions.MANAGE_ORDERS)
     @Path("/{id}/items")
@@ -171,6 +188,6 @@ public class OrderResource {
     }
 
     private OrderResponse toResponse(OrderDetails details) {
-        return mapper.toResponse(details.order(), details.statusHistory());
+        return mapper.toResponse(details);
     }
 }
