@@ -4,6 +4,7 @@ import dev.nipponten.domain.models.Order;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -17,6 +18,8 @@ import java.util.List;
  *   <li>funcionário: {@code clientId} ou {@code guestName}, e {@code addressId} (do cliente) ou
  *       {@code address} na entrega.
  * </ul>
+ *
+ * <p>{@code pointsToRedeem} só vale para pedido de cliente com conta.
  */
 public record OrderRequest(
         @NotEmpty List<@NotNull @Valid OrderItemRequest> items,
@@ -27,4 +30,5 @@ public record OrderRequest(
         @Valid OrderAddressRequest address,
         @Size(max = 120) String guestName,
         @Size(max = 30) String guestPhone,
-        Long clientId) {}
+        Long clientId,
+        @PositiveOrZero Integer pointsToRedeem) {}

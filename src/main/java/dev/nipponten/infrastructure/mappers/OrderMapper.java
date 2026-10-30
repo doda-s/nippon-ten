@@ -45,6 +45,10 @@ public class OrderMapper {
         entity.setDiscount(model.discount());
         entity.setDeliveryFee(model.deliveryFee());
         entity.setTotal(model.total());
+        entity.setPointsRedeemed(model.pointsRedeemed());
+        entity.setPointValue(model.pointValue());
+        entity.setEarnRate(model.earnRate());
+        entity.setPointsEarned(model.pointsEarned());
         entity.setCreatedAt(model.createdAt());
         entity.setUpdatedAt(model.updatedAt());
         // Item sem id veio de uma criação ou edição; itens já gravados não mudam.
@@ -67,6 +71,7 @@ public class OrderMapper {
         entity.setOriginalUnitPrice(model.originalUnitPrice());
         entity.setUnitPrice(model.unitPrice());
         entity.setTotal(model.total());
+        entity.setPointsEligible(model.pointsEligible());
         entity.setNotes(model.notes());
         for (OrderItemAdditional additional : model.additionals()) {
             OrderItemAdditionalEntity child = new OrderItemAdditionalEntity();
@@ -121,6 +126,10 @@ public class OrderMapper {
                 entity.getDiscount(),
                 entity.getDeliveryFee(),
                 entity.getTotal(),
+                entity.getPointsRedeemed(),
+                entity.getPointValue(),
+                entity.getEarnRate(),
+                entity.getPointsEarned(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
                 entity.getItems().stream().map(this::toModel).toList());
@@ -140,6 +149,7 @@ public class OrderMapper {
                 entity.getOriginalUnitPrice(),
                 entity.getUnitPrice(),
                 entity.getTotal(),
+                entity.isPointsEligible(),
                 entity.getNotes(),
                 entity.getAdditionals().stream()
                         .map(

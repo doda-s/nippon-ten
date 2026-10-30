@@ -112,6 +112,8 @@ Quando um `Service` precisa orquestrar **mais de um agregado em sequência** den
 
 Nos pedidos (ver [`orders.md`](orders.md)), `OrderService.place` (lê produto, tamanho, combo, promoção, cliente e endereço e grava `Order` + itens + adicionais + removidos + componentes + a primeira linha de `order_status_history`) também leva `@Transactional`, assim como `OrderService.updateItems` (substitui os itens e reprecifica), `changeStatus` e `cancel` (alteram o pedido e gravam `order_status_history` juntos) e `markPaid`. Os eventos SSE dessas operações só são publicados depois do commit.
 
+Nos pontos (ver [`points.md`](points.md)), todo movimento grava o extrato (`points_transaction`) e o saldo em cache do `Client` juntos, com a linha do cliente travada (`ClientRepository.lockById`). Por isso os métodos que mexem no saldo levam `@Transactional`: `PointsService.redeem`, `refund`, `earn`, `adjust`, e as leituras `getBalanceByUser` e `getPageByUser`, que gravam as expirações vencidas antes de responder. `OrderService.place`, `changeStatus` e `cancel` chamam o `PointsService` dentro da própria transação, então o pedido e os pontos são gravados ou desfeitos juntos.
+
 ---
 
 ## Validação: Bean Validation nos requests, exceção de domínio para o resto
@@ -202,7 +204,7 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
 
-Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`) e o feedback. Continuam fora, por decisão, cupons, pontos, taxa de entrega e gateway de pagamento. O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
+Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`) e o feedback. Continuam fora, por decisão, cupons, taxa de entrega e gateway de pagamento. Os pontos vieram depois, em [`points.md`](points.md) (`PointsService` e `PointsSettingsService`). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

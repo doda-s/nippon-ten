@@ -10,6 +10,9 @@ public interface ClientRepository {
 
     Client getById(Long id);
 
+    // Trava a linha até o fim da transação: dois checkouts simultâneos não gastam o mesmo ponto.
+    Client lockById(Long id);
+
     List<Client> getAll();
 
     java.util.List<Client> getByUser(Long userId);

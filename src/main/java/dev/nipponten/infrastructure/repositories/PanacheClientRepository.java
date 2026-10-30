@@ -7,6 +7,7 @@ import dev.nipponten.infrastructure.mappers.ClientMapper;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
 import java.util.List;
 
@@ -38,6 +39,12 @@ public class PanacheClientRepository implements ClientRepository, PanacheReposit
     @Override
     public Client getById(Long id) {
         ClientEntity entity = findById(id);
+        return entity == null ? null : mapper.toModel(entity);
+    }
+
+    @Override
+    public Client lockById(Long id) {
+        ClientEntity entity = findById(id, LockModeType.PESSIMISTIC_WRITE);
         return entity == null ? null : mapper.toModel(entity);
     }
 

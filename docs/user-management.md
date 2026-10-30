@@ -112,6 +112,7 @@ Quem gerencia roles só cria, edita ou reativa uma role com permissões que ele 
 | manage_ingredients | Permissão para gerenciar os ingredientes cadastrados no sistema. Possibilita cadastrar, editar, deletar e alterar o status de um ingrediente.                              |
 | manage_promotions  | Permissão para gerenciar os combos e promotions existentes. Possibilita criar, editar, deletar e alterar o status de um combo/promotion.                                   |
 | manage_orders      | Permissão para operar pedidos (ver [[orders]]). Possibilita lançar pedidos no balcão, listar e acompanhar todos os pedidos, avançar status, marcar como pago, editar itens e cancelar. |
+| manage_points      | Permissão para administrar o programa de pontos (ver [[points]]). Possibilita alterar a conversão de dinheiro em pontos, simular o impacto de uma configuração e ajustar o saldo de um cliente. |
 
 ## Bootstrap
 
@@ -157,6 +158,10 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `POST /orders/{id}/feedback` | — | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
 | `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
+| `GET /points/settings` | pública | — |
+| `PUT /points/settings`, `POST /points/settings/simulation` | — | `manage_points` |
+| `GET /users/{id}/points`, `GET /users/{id}/points/transactions` | o próprio usuário ou `manage_users` | — |
+| `POST /users/{id}/points/adjustments` | — | `manage_points` |
 
 `POST /auth/login`, `/auth/refresh` e `/auth/logout` são públicas. O Swagger (`/api`) e o schema (`/q/openapi`) também.
 

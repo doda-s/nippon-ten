@@ -14,6 +14,7 @@ import dev.nipponten.domain.models.OrderItem;
 import dev.nipponten.domain.models.OrderQuote;
 import dev.nipponten.domain.models.OrderStatusChange;
 import dev.nipponten.domain.models.PageResult;
+import dev.nipponten.domain.models.PointsSettings;
 import dev.nipponten.domain.models.UserAddress;
 import dev.nipponten.domain.models.UserType;
 import dev.nipponten.domain.repositories.OrderFeedbackRepository;
@@ -23,6 +24,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -55,6 +57,10 @@ public class OrderService {
 
     @Inject InternalService internalService;
 
+    @Inject PointsService pointsService;
+
+    @Inject PointsSettingsService pointsSettingsService;
+
     @Inject CurrentUser currentUser;
 
     @Inject Clock clock;
@@ -72,13 +78,43 @@ public class OrderService {
         static final Address NONE = new Address(null, null, null, null);
     }
 
-    // Cria o pedido, os itens e a primeira linha do histórico juntos.
+    /**
+     * Cotação pública. Pontos só com login de cliente, porque a cotação confere o saldo dele; o
+     * visitante vê quantos pontos o pedido renderia se tivesse conta.
+     */
+    public OrderQuote quote(List<OrderItem> items, int pointsToRedeem) {
+        PointsSettings settings = pointsSettingsService.get();
+        if (pointsToRedeem > 0) {
+            AuthenticatedUser user =
+                    currentUser
+                            .find()
+                            .filter(caller -> caller.type() == UserType.CLIENT)
+                            .orElseThrow(
+                                    () ->
+                                            new InvalidRequestException(
+                                                    "pointsToRedeem requires a client login"));
+            pointsService.requireAvailable(
+                    clientService.getByUser(user.userId()).id(), pointsToRedeem);
+        }
+        return quoteService.quote(
+                items, pointsToRedeem, settings.pointValue(), settings.earnRate());
+    }
+
+    // Cria o pedido, os itens, a primeira linha do histórico e o resgate de pontos juntos.
     @Transactional
     public PlacedOrder place(Order draft, Long addressId) {
         Optional<AuthenticatedUser> user = currentUser.find();
         Customer customer = resolveCustomer(draft, addressId, user);
         Address address = resolveAddress(draft, addressId, customer);
-        OrderQuote quote = quoteService.quote(draft.items());
+        int pointsToRedeem = draft.pointsRedeemed();
+        if (pointsToRedeem > 0 && customer.clientId() == null) {
+            throw new InvalidRequestException("pointsToRedeem is only accepted for client orders");
+        }
+        // Visitante não acumula nem resgata: o pedido não guarda taxa de pontos.
+        PointsSettings settings = customer.clientId() == null ? null : pointsSettingsService.get();
+        BigDecimal pointValue = settings == null ? null : settings.pointValue();
+        BigDecimal earnRate = settings == null ? null : settings.earnRate();
+        OrderQuote quote = quoteService.quote(draft.items(), pointsToRedeem, pointValue, earnRate);
 
         String trackingToken = customer.clientId() == null ? OpaqueTokens.generate() : null;
         Instant now = Instant.now(clock);
@@ -107,9 +143,16 @@ public class OrderService {
                                 quote.discount(),
                                 quote.deliveryFee(),
                                 quote.total(),
+                                pointsToRedeem,
+                                pointValue,
+                                earnRate,
+                                0,
                                 now,
                                 now,
                                 quote.items()));
+        if (pointsToRedeem > 0) {
+            pointsService.redeem(customer.clientId(), saved.id(), pointsToRedeem);
+        }
         OrderStatusChange created =
                 historyRepository.save(
                         new OrderStatusChange(
@@ -182,10 +225,20 @@ public class OrderService {
                             + target
                             + next.map(expected -> " (next is " + expected + ")").orElse(""));
         }
+        // Os pontos entram na conclusão: um pedido cancelado nunca rende pontos.
+        Integer earned = target == Order.Status.COMPLETED ? pointsService.earn(order) : null;
         Instant now = Instant.now(clock);
         Order saved =
                 repository.save(
-                        rebuild(order, target, order.paid(), order.paidAt(), null, null, now));
+                        rebuild(
+                                order,
+                                target,
+                                order.paid(),
+                                order.paidAt(),
+                                null,
+                                null,
+                                earned,
+                                now));
         recordStatus(saved, now);
         events.fire(OrderEvent.of(OrderEvent.Type.STATUS_CHANGED, saved));
         return details(saved);
@@ -202,7 +255,8 @@ public class OrderService {
             throw new InvalidRequestException("Order " + id + " is cancelled");
         }
         Instant now = Instant.now(clock);
-        Order saved = repository.save(rebuild(order, order.status(), true, now, null, null, now));
+        Order saved =
+                repository.save(rebuild(order, order.status(), true, now, null, null, null, now));
         events.fire(OrderEvent.of(OrderEvent.Type.PAID, saved));
         return details(saved);
     }
@@ -240,13 +294,19 @@ public class OrderService {
                                 order.paidAt(),
                                 reason,
                                 null,
+                                null,
                                 now));
+        // O cliente pode ter sido excluído; aí os lotes já foram junto.
+        if (order.pointsRedeemed() > 0 && order.clientId() != null) {
+            pointsService.refund(order.clientId(), order.id());
+        }
         recordStatus(saved, now);
         events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
         return details(saved);
     }
 
-    // Os itens novos substituem os antigos e são precificados com o catálogo de agora.
+    // Os itens novos substituem os antigos e são precificados com o catálogo de agora. Os pontos
+    // já resgatados e as taxas do checkout se mantêm.
     @Transactional
     public OrderDetails updateItems(Long id, List<OrderItem> items) {
         Order order = getById(id);
@@ -255,7 +315,9 @@ public class OrderService {
             throw new InvalidRequestException(
                     "Order " + id + " is " + order.status() + " and its items cannot change");
         }
-        OrderQuote quote = quoteService.quote(items);
+        OrderQuote quote =
+                quoteService.quote(
+                        items, order.pointsRedeemed(), order.pointValue(), order.earnRate());
         Instant now = Instant.now(clock);
         Order saved =
                 repository.save(
@@ -266,6 +328,7 @@ public class OrderService {
                                 order.paidAt(),
                                 null,
                                 quote,
+                                null,
                                 now));
         events.fire(OrderEvent.of(OrderEvent.Type.ITEMS_UPDATED, saved));
         return details(saved);
@@ -315,7 +378,8 @@ public class OrderService {
                         currentUser.find().map(AuthenticatedUser::userId).orElse(null)));
     }
 
-    // Cópia do pedido com o que muda; quote nulo mantém itens e totais.
+    // Cópia do pedido com o que muda; quote nulo mantém itens e totais, pointsEarned nulo mantém
+    // os pontos creditados.
     private static Order rebuild(
             Order order,
             Order.Status status,
@@ -323,6 +387,7 @@ public class OrderService {
             Instant paidAt,
             String cancelReason,
             OrderQuote quote,
+            Integer pointsEarned,
             Instant now) {
         return new Order(
                 order.id(),
@@ -347,6 +412,10 @@ public class OrderService {
                 quote == null ? order.discount() : quote.discount(),
                 quote == null ? order.deliveryFee() : quote.deliveryFee(),
                 quote == null ? order.total() : quote.total(),
+                order.pointsRedeemed(),
+                order.pointValue(),
+                order.earnRate(),
+                pointsEarned == null ? order.pointsEarned() : pointsEarned,
                 order.createdAt(),
                 now,
                 quote == null ? order.items() : quote.items());

@@ -17,7 +17,6 @@ import dev.nipponten.application.responses.OrderResponseMapper;
 import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.services.OrderEventBus;
-import dev.nipponten.application.services.OrderQuoteService;
 import dev.nipponten.application.services.OrderService;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
@@ -51,8 +50,6 @@ public class OrderResource {
 
     static final String TRACKING_TOKEN_HEADER = "X-Order-Token";
 
-    @Inject OrderQuoteService quoteService;
-
     @Inject OrderService service;
 
     @Inject OrderItemRequestMapper itemRequestMapper;
@@ -65,13 +62,13 @@ public class OrderResource {
 
     @Inject OrderEventBus eventBus;
 
-    // Pública: o visitante também monta carrinho. Não grava nada.
+    // Pública: o visitante também monta carrinho. Não grava nada; usar pontos exige login.
     @POST
     @PermitAll
     @Path("/quote")
     public OrderQuoteResponse quote(@Valid OrderQuoteRequest request) {
         return quoteMapper.toResponse(
-                quoteService.quote(itemRequestMapper.toModels(request.items())));
+                service.quote(itemRequestMapper.toModels(request.items()), request.points()));
     }
 
     @POST

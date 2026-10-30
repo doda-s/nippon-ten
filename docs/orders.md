@@ -23,11 +23,20 @@ F -->|COMPLETED| G[Feedback]
 
 1. **Carrinho.** O carrinho vive no front (navegador ou app), não no banco. Assim ele funciona igual para cliente logado e visitante, e não sobram carrinhos abandonados para limpar.
 2. **Cotação.** `POST /orders/quote` recebe os itens do carrinho e devolve cada item com preço unitário, preço original (quando há promoção), subtotal e total. Ele confere a disponibilidade e **não grava nada**. É assim que o front mostra o carrinho com o preço correto (req. 46).
-3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma de pagamento e as observações. O pedido nasce em `PENDING`.
+3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma de pagamento, as observações e, para cliente com conta, os pontos a usar (`pointsToRedeem`). O pedido nasce em `PENDING`.
 4. **Acompanhamento.** O cliente e o dashboard recebem as mudanças em tempo real (ver [[#Notificações (SSE)|Notificações]]).
 5. **Feedback.** Depois de `COMPLETED`, o cliente pode avaliar o pedido (req. 48).
 
 **O backend sempre recalcula os preços**, tanto na cotação quanto no checkout e na edição. O front nunca envia preço, e qualquer valor que ele mande é ignorado.
+
+### Pontos
+
+Os pontos do cliente entram no pedido em dois momentos (regras completas em [`points.md`](points.md)):
+
+- **Resgate no checkout.** `pointsToRedeem` vira desconto (`discount = pointsToRedeem × pointValue`), limitado à soma dos itens elegíveis. Um item com promoção que não aceita pontos fica fora dessa soma (`pointsEligible = false` no item). O visitante não usa pontos (`400`). Na cotação, o campo exige login de cliente.
+- **Crédito na conclusão.** Ao ir para `COMPLETED`, o pedido de cliente rende `piso((total − deliveryFee) × earnRate)` pontos, gravados em `pointsEarned`.
+
+O pedido guarda a cópia de `earnRate` e `pointValue` do checkout. O cancelamento devolve os pontos resgatados; a edição pelo funcionário mantém o resgate e recusa (`400`) uma lista de itens cuja base elegível fique menor que o desconto.
 
 ## Itens do pedido
 
@@ -125,7 +134,8 @@ CANCELLED --> [*]
 - Só o funcionário (`manage_orders`) avança o status, sempre um passo por vez, pelo caminho do diagrama. `OUT_FOR_DELIVERY` só existe para `DELIVERY`; `PICKUP` e `DINE_IN` vão de `READY` direto para `COMPLETED`. Uma transição fora do caminho é `400`.
 - **Cancelamento** (req. 41):
   - o cliente ou o visitante cancela só em `PENDING`, ou seja, antes de a cozinha começar;
-  - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`).
+  - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`);
+  - os pontos resgatados no pedido voltam para o cliente.
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
 - `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
@@ -142,7 +152,7 @@ A integração com um gateway (Pix dinâmico, cartão online) fica para uma fase
 
 ### Edição pelo funcionário
 
-O funcionário pode trocar os itens de um pedido em `PENDING` ou `IN_PREPARATION` (req. 43), com `PUT /orders/{id}/items`. A lista enviada substitui a anterior e passa pelas mesmas regras de disponibilidade e preço da criação, **com os preços do momento da edição**. O cliente não edita o pedido: se quiser mudar algo, cancela (enquanto `PENDING`) e faz outro.
+O funcionário pode trocar os itens de um pedido em `PENDING` ou `IN_PREPARATION` (req. 43), com `PUT /orders/{id}/items`. A lista enviada substitui a anterior e passa pelas mesmas regras de disponibilidade e preço da criação, **com os preços do momento da edição**. Os pontos resgatados e as taxas de pontos do checkout se mantêm (ver [[#Pontos|Pontos]]). O cliente não edita o pedido: se quiser mudar algo, cancela (enquanto `PENDING`) e faz outro.
 
 ### Feedback
 
@@ -185,9 +195,10 @@ A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `Ord
 orders(id, code UNIQUE, client_id NULL, created_by_internal_id NULL, tracking_token_hash NULL,
        guest_name, guest_phone, fulfillment_type, status, payment_method, paid, paid_at,
        street_address, number, cep, complement, notes, cancel_reason,
-       subtotal, discount, delivery_fee, total, created_at, updated_at)
+       subtotal, discount, delivery_fee, total, points_redeemed, point_value NULL, earn_rate NULL,
+       points_earned, created_at, updated_at)
 order_item(id, order_id, item_type, product_size_id NULL, combo_id NULL, promotion_id NULL,
-           name, size_name, quantity, original_unit_price, unit_price, notes)
+           name, size_name, quantity, original_unit_price, unit_price, points_eligible, notes)
 order_item_additional(id, order_item_id, ingredient_id NULL, name, quantity, unit_price)
 order_item_removed_ingredient(id, order_item_id, ingredient_id NULL, name)
 order_item_combo_component(id, order_item_id, product_id NULL, product_size_id NULL, name, size_name NULL, quantity)
@@ -197,13 +208,13 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 - A tabela se chama `orders` porque `order` é palavra reservada no SQL.
 - `created_at`, `updated_at`, `paid_at`, `changed_at` são instantes técnicos (`Instant` / `timestamptz`). A janela de promoção e de combo continua em horário de negócio (`BusinessTime`).
-- Valores em `numeric(38, 2)`, como os preços do catálogo. `discount` fica reservado para cupons e pontos (fora da v1) e vale `0`.
+- Valores em `numeric(38, 2)`, como os preços do catálogo. `discount` é o desconto dos pontos resgatados; cupons (fora da v1) também vão usá-lo.
 - Os itens, adicionais, removidos, componentes, histórico e feedback são **filhos do agregado** `Order`: não têm endpoint próprio e só são lidos e gravados pelo pedido.
 - As FKs para `client`, `internal`, `user`, `product`, `product_size`, `combo`, `promotion` e `ingredient` são `on delete set null` (ver [[#Snapshot de preço e nome|Snapshot]]).
 
 ## Fora da v1
 
-- Cupons (req. 34–35) e pontos (escopo 8, req. 36–37): `discount` reservado.
+- Cupons (req. 34–35). Os pontos (escopo 8, req. 36–37) foram implementados depois da v1, em [`points.md`](points.md).
 - Taxa de entrega: `delivery_fee` reservado.
 - Gateway de pagamento (req. 52 completo).
 

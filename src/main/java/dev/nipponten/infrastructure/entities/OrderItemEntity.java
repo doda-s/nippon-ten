@@ -58,6 +58,9 @@ public class OrderItemEntity {
     @Column(nullable = false)
     private BigDecimal total;
 
+    @Column(nullable = false)
+    private boolean pointsEligible;
+
     private String notes;
 
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -164,6 +167,14 @@ public class OrderItemEntity {
 
     public void setTotal(BigDecimal total) {
         this.total = total;
+    }
+
+    public boolean isPointsEligible() {
+        return pointsEligible;
+    }
+
+    public void setPointsEligible(boolean pointsEligible) {
+        this.pointsEligible = pointsEligible;
     }
 
     public String getNotes() {

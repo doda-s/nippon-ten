@@ -12,6 +12,8 @@ import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 @ApplicationScoped
@@ -72,6 +74,36 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
                 find("status", Sort.by("id"), OrderEntity.Status.valueOf(status.name())),
                 page,
                 size);
+    }
+
+    @Override
+    public List<BigDecimal> getCompletedClientAmountsBetween(Instant from, Instant to) {
+        return getEntityManager()
+                .createQuery(
+                        "select o.total - o.deliveryFee from OrderEntity o"
+                                + " where o.clientId is not null and o.status = :status"
+                                + " and o.createdAt >= :from and o.createdAt < :to",
+                        BigDecimal.class)
+                .setParameter("status", OrderEntity.Status.COMPLETED)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+    }
+
+    @Override
+    public long sumPointsRedeemedBetween(Instant from, Instant to) {
+        Long sum =
+                getEntityManager()
+                        .createQuery(
+                                "select sum(o.pointsRedeemed) from OrderEntity o"
+                                        + " where o.status <> :cancelled"
+                                        + " and o.createdAt >= :from and o.createdAt < :to",
+                                Long.class)
+                        .setParameter("cancelled", OrderEntity.Status.CANCELLED)
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .getSingleResult();
+        return sum == null ? 0 : sum;
     }
 
     private PageResult<Order> toPage(PanacheQuery<OrderEntity> query, int page, int size) {

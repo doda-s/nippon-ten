@@ -25,6 +25,8 @@ public record OrderResponse(
         BigDecimal discount,
         BigDecimal deliveryFee,
         BigDecimal total,
+        int pointsRedeemed,
+        int pointsEarned,
         Instant createdAt,
         Instant updatedAt,
         List<StatusChange> statusHistory,
