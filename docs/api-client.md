@@ -2,15 +2,23 @@ O client Node da API é gerado a partir do schema OpenAPI (`target/openapi/opena
 
 ## Instalação
 
-O client é publicado como versão *snapshot* (ex.: `0.1.0-SNAPSHOT.202610011825`), na tag `snapshot` do npm. Para instalar:
+A versão do client vem de `nippon.client.version` em `src/main/resources/application.properties`, que também vira a versão do schema OpenAPI. Há dois canais no npm:
 
-```shell
-npm install nippon-ten@snapshot
-```
+| Tag npm | Versão | Instalação |
+| --- | --- | --- |
+| `latest` | Exata (ex.: `0.1.0`) | `npm install nippon-ten` |
+| `snapshot` | Com timestamp (ex.: `0.1.0-SNAPSHOT.202610011825`) | `npm install nippon-ten@snapshot` |
 
 ## Publicação
 
-Os scripts `scripts/build-client.sh` (Linux/macOS) e `scripts/build-client.bat` (Windows) geram o client com o OpenAPI Generator (`typescript-axios`) em `target/openapi-clients/node-client`, instalam as dependências e publicam o pacote com `npm publish --access public --tag snapshot`.
+A pipe `.github/workflows/client.yml` gera o schema (`./mvnw package -DskipTests`) e chama `scripts/build-client.sh`, que gera o client com o OpenAPI Generator (`typescript-axios`) em `target/openapi-clients/node-client`, compila e publica:
+
+- **Ao criar uma tag** no GitHub, publica a versão exata na tag `latest`. Suba `nippon.client.version` antes de criar a tag: o npm recusa republicar uma versão que já existe.
+- **Manualmente** (Actions > *Client npm* > *Run workflow*), publica um snapshot; marcando *release*, publica a versão exata na tag `latest`.
+
+A publicação usa o secret `NIPPON_TEN_NPM_KEY` do repositório (Settings > Secrets and variables > Actions), um token de automação do npm com permissão de publicar o pacote `nippon-ten`. Sem o secret, a pipe só gera o client e o anexa como artefato da execução, com um aviso.
+
+Para publicar localmente, rode `./mvnw package -DskipTests` e depois `scripts/build-client.sh` (Linux/macOS) ou `scripts/build-client.bat` (Windows, só snapshot), com o npm autenticado. O script aceita `CLIENT_SNAPSHOT=false` (versão exata), `CLIENT_PUBLISH=false` (só gera) e `NPM_DIST_TAG` (outra tag npm).
 
 ## Autenticação
 
