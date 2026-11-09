@@ -52,11 +52,18 @@ public class PointsSettingsService {
     }
 
     /**
-     * Compara a configuração atual com uma proposta sobre os pedidos concluídos de clientes criados
-     * entre from e to (dias de negócio, inclusivos). Não grava nada (req. 37).
+     * Compara a configuração atual com uma proposta sobre os pedidos concluídos de clientes,
+     * criados entre from e to (dias de negócio, inclusivos). Com amount e points, cada cenário
+     * também mostra os pontos que essa compra renderia e quanto esses pontos valem. Não grava nada
+     * (req. 37).
      */
     public PointsImpact simulate(
-            BigDecimal earnRate, BigDecimal pointValue, LocalDate from, LocalDate to) {
+            BigDecimal earnRate,
+            BigDecimal pointValue,
+            LocalDate from,
+            LocalDate to,
+            BigDecimal amount,
+            Integer points) {
         if (to.isBefore(from)) {
             throw new InvalidRequestException("to must not be before from");
         }
@@ -72,10 +79,19 @@ public class PointsSettingsService {
                 to,
                 amounts.size(),
                 revenue,
-                scenario(current.earnRate(), current.pointValue(), amounts, revenue, outstanding),
-                scenario(earnRate, pointValue, amounts, revenue, outstanding),
+                scenario(
+                        current.earnRate(),
+                        current.pointValue(),
+                        amounts,
+                        revenue,
+                        outstanding,
+                        amount,
+                        points),
+                scenario(earnRate, pointValue, amounts, revenue, outstanding, amount, points),
                 orderRepository.sumPointsRedeemedBetween(start, end),
-                outstanding);
+                outstanding,
+                amount,
+                points);
     }
 
     // Os pontos são arredondados por pedido, como no crédito de verdade.
@@ -84,11 +100,11 @@ public class PointsSettingsService {
             BigDecimal pointValue,
             List<BigDecimal> amounts,
             BigDecimal revenue,
-            long outstanding) {
+            long outstanding,
+            BigDecimal amount,
+            Integer samplePoints) {
         long points =
-                amounts.stream()
-                        .mapToLong(amount -> PointsService.pointsFor(amount, earnRate))
-                        .sum();
+                amounts.stream().mapToLong(paid -> PointsService.pointsFor(paid, earnRate)).sum();
         BigDecimal cost = money(pointValue.multiply(BigDecimal.valueOf(points)));
         BigDecimal share =
                 revenue.signum() == 0
@@ -100,7 +116,11 @@ public class PointsSettingsService {
                 points,
                 cost,
                 share,
-                money(pointValue.multiply(BigDecimal.valueOf(outstanding))));
+                money(pointValue.multiply(BigDecimal.valueOf(outstanding))),
+                amount == null ? null : PointsService.pointsFor(amount, earnRate),
+                samplePoints == null
+                        ? null
+                        : money(pointValue.multiply(BigDecimal.valueOf(samplePoints))));
     }
 
     private static BigDecimal money(BigDecimal value) {

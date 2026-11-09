@@ -12,7 +12,9 @@ public record PointsImpactResponse(
         Scenario current,
         Scenario proposed,
         long pointsRedeemed,
-        long outstandingPoints) {
+        long outstandingPoints,
+        BigDecimal amount,
+        Integer points) {
 
     public record Scenario(
             BigDecimal earnRate,
@@ -20,7 +22,9 @@ public record PointsImpactResponse(
             long pointsEarned,
             BigDecimal cost,
             BigDecimal costShareOfRevenue,
-            BigDecimal outstandingLiability) {
+            BigDecimal outstandingLiability,
+            Integer pointsForAmount,
+            BigDecimal pointsWorth) {
 
         static Scenario of(PointsImpact.Scenario scenario) {
             return new Scenario(
@@ -29,7 +33,9 @@ public record PointsImpactResponse(
                     scenario.pointsEarned(),
                     scenario.cost(),
                     scenario.costShareOfRevenue(),
-                    scenario.outstandingLiability());
+                    scenario.outstandingLiability(),
+                    scenario.pointsForAmount(),
+                    scenario.pointsWorth());
         }
     }
 
@@ -42,6 +48,8 @@ public record PointsImpactResponse(
                 Scenario.of(impact.current()),
                 Scenario.of(impact.proposed()),
                 impact.pointsRedeemed(),
-                impact.outstandingPoints());
+                impact.outstandingPoints(),
+                impact.amount(),
+                impact.points());
     }
 }

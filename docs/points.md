@@ -82,9 +82,9 @@ O acesso segue a regra de `/users/{id}/**`: o próprio usuário ou `manage_users
 
 ## Simulação de impacto
 
-`POST /points/settings/simulation` (req. 37) recebe `{earnRate, pointValue, from, to}` e não grava nada. `from` e `to` são dias de negócio, inclusivos, no fuso do restaurante (`BusinessTime`). `to` antes de `from` é `400`.
+`POST /points/settings/simulation` (req. 37) recebe `{earnRate, pointValue, from, to, amount?, points?}` e não grava nada. `from` e `to` são dias de negócio, inclusivos, no fuso do restaurante (`BusinessTime`). `to` antes de `from` é `400`.
 
-A simulação considera os pedidos `COMPLETED` de clientes criados no período e compara a configuração atual (`current`) com a proposta (`proposed`):
+A simulação considera os pedidos `COMPLETED` de clientes, criados no período, e compara a configuração atual (`current`) com a proposta (`proposed`):
 
 | Campo | Significado |
 | --- | --- |
@@ -95,6 +95,11 @@ A simulação considera os pedidos `COMPLETED` de clientes criados no período e
 | `outstandingLiability` | Saldo em aberto de todos os clientes hoje × `pointValue` |
 | `pointsRedeemed` | Pontos usados em pedidos não cancelados do período |
 | `outstandingPoints` | Saldo em aberto (não vencido) de todos os clientes hoje |
+| `amount`, `points` | Ecoam a compra e os pontos de exemplo enviados (`null` se ausentes) |
+| `pointsForAmount` | Pontos que uma compra de `amount` renderia com o `earnRate` do cenário, arredondados para baixo como no crédito real (`null` sem `amount`) |
+| `pointsWorth` | `points × pointValue`: quanto `points` pontos valem em desconto no cenário (`null` sem `points`) |
+
+`amount` e `points` são opcionais e independentes do período: servem para testar a conversão dinheiro → pontos e pontos → dinheiro das duas configurações lado a lado. `amount` é o valor pago sem taxa de entrega, a mesma base do crédito.
 
 ## Acesso à API
 

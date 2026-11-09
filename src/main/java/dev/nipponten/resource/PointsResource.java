@@ -49,6 +49,11 @@ public class PointsResource {
     public PointsImpactResponse simulate(@Valid PointsSimulationRequest request) {
         return PointsImpactResponse.of(
                 service.simulate(
-                        request.earnRate(), request.pointValue(), request.from(), request.to()));
+                        request.earnRate(),
+                        request.pointValue(),
+                        request.from(),
+                        request.to(),
+                        request.amount(),
+                        request.points()));
     }
 }

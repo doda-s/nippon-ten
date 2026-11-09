@@ -9,6 +9,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -442,6 +443,39 @@ class PointsTest {
                 .statusCode(400);
     }
 
+    @Test
+    void simulatesASamplePurchaseAndPoints() {
+        String today = LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).toString();
+        JsonPath result =
+                simulate(
+                        Map.of(
+                                "earnRate",
+                                1.5,
+                                "pointValue",
+                                0.20,
+                                "from",
+                                today,
+                                "to",
+                                today,
+                                "amount",
+                                10.99,
+                                "points",
+                                30));
+
+        assertMoney("10.99", result, "amount");
+        assertEquals(30, result.getInt("points"));
+        // Atual: 1 ponto por R$1 e R$0,05 por ponto.
+        assertEquals(10, result.getInt("current.pointsForAmount"));
+        assertMoney("1.50", result, "current.pointsWorth");
+        assertEquals(16, result.getInt("proposed.pointsForAmount"));
+        assertMoney("6.00", result, "proposed.pointsWorth");
+
+        JsonPath withoutSample =
+                simulate(Map.of("earnRate", 2, "pointValue", 0.10, "from", today, "to", today));
+        assertNull(withoutSample.get("proposed.pointsForAmount"));
+        assertNull(withoutSample.get("proposed.pointsWorth"));
+    }
+
     private static JsonPath simulate(Map<String, Object> body) {
         return asAdmin()
                 .contentType(ContentType.JSON)
@@ -451,6 +485,11 @@ class PointsTest {
                 .statusCode(200)
                 .extract()
                 .jsonPath();
+    }
+
+    private static void assertMoney(String expected, JsonPath json, String path) {
+        assertEquals(
+                0, new BigDecimal(expected).compareTo(new BigDecimal(json.getString(path))), path);
     }
 
     private static void assertDelta(JsonPath before, JsonPath after, String path, String delta) {
