@@ -129,7 +129,10 @@ CANCELLED --> [*]
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
 - `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
-- A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
+- A listagem do dashboard, `GET /orders`, devolve resumos do mais antigo para o mais novo (a fila da cozinha). Os filtros são opcionais e se combinam:
+  - `status`, que pode se repetir (`?status=PENDING&status=IN_PREPARATION`); sem ele, traz todos;
+  - `active=true`, atalho para os pedidos ativos (ver abaixo). Usar junto com `status` é `400`;
+  - `code`, o código que o cliente dita no balcão. Espaços e caixa são ignorados, e a página volta com um pedido ou vazia.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
 "Pedidos ativos" (req. 42) são os que não estão em `COMPLETED` nem em `CANCELLED`.
@@ -167,17 +170,17 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | --- | --- |
 | `POST /orders/quote` | pública |
 | `POST /orders` | pública (visitante), cliente autenticado ou `manage_orders` |
-| `GET /orders?status=` (paginado) | `manage_orders` |
+| `GET /orders?status=&active=&code=` (paginado) | `manage_orders` |
 | `GET /orders/events` | `manage_orders` |
 | `GET /orders/{id}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
 | `POST /orders/{id}/cancel` | dono ou token (só em `PENDING`), ou `manage_orders` |
 | `POST /orders/{id}/feedback` | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | `manage_orders` |
-| `GET /users/{id}/orders` (paginado, histórico) | o próprio usuário ou `manage_users` |
+| `GET /users/{id}/orders?status=&active=` (paginado, histórico) | o próprio usuário ou `manage_users` |
 
 A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `OrderService`, via `CurrentUser` (mesmo padrão do `requireSelfOr`). Um pedido inexistente devolve `403` para quem não pode acessá-lo, sem revelar se ele existe; só quem tem `manage_orders` recebe `404`. Sem login e sem `X-Order-Token`, a resposta é `401`.
 
-`GET /users/{id}/orders` devolve uma página de resumos (código, status, atendimento, pagamento, quantidade de itens, total e data), do mais recente para o mais antigo. Um usuário interno não tem pedidos próprios e recebe uma página vazia. O detalhe com itens e histórico de status fica em `GET /orders/{id}`. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
+`GET /users/{id}/orders` devolve uma página de resumos (código, status, atendimento, pagamento, quantidade de itens, total e data), do mais recente para o mais antigo. Aceita os mesmos `status` e `active` do dashboard: `active=true` mostra os pedidos ativos do cliente (req. 42). Um usuário interno não tem pedidos próprios e recebe uma página vazia. O detalhe com itens e histórico de status fica em `GET /orders/{id}`. A permissão `manage_orders` está descrita em [[user-management#Permissions|user-management.md]].
 
 ## Modelo de dados
 

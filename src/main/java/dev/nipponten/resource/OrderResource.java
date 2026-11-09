@@ -40,6 +40,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.Set;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 // As rotas públicas mudam com quem chama (visitante, cliente ou funcionário); essa regra depende
@@ -123,12 +124,14 @@ public class OrderResource {
     @GET
     @RolesAllowed(Permissions.MANAGE_ORDERS)
     public PageResponse<OrderSummaryResponse> getAll(
-            @QueryParam("status") Order.Status status,
+            @QueryParam("status") Set<Order.Status> statuses,
+            @QueryParam("active") boolean active,
+            @QueryParam("code") String code,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size) {
         PageParams params = PageParams.of(page, size);
         return PageResponse.of(
-                service.getPage(status, params.page(), params.size()),
+                service.getPage(statuses, active, code, params.page(), params.size()),
                 params.page(),
                 params.size(),
                 OrderSummaryResponse::of);

@@ -28,13 +28,20 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 @ApplicationScoped
 public class OrderService {
 
     // Sem 0/O, 1/I/L: o código é lido em voz alta no balcão.
+    // "Pedidos ativos" (req. 42): os que ainda não terminaram.
+    private static final Set<Order.Status> ACTIVE_STATUSES =
+            EnumSet.complementOf(EnumSet.of(Order.Status.COMPLETED, Order.Status.CANCELLED));
+
     private static final String CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
     private static final int CODE_LENGTH = 6;
@@ -151,20 +158,35 @@ public class OrderService {
         return model;
     }
 
-    // Histórico de compras do cliente (req. 14). Um interno não tem pedidos próprios.
-    public PageResult<Order> getPageByUser(Long userId, int page, int size) {
+    // Histórico de compras do cliente (req. 14); com active, só os pedidos ativos (req. 42). Um
+    // interno não tem pedidos próprios.
+    public PageResult<Order> getPageByUser(
+            Long userId, Set<Order.Status> statuses, boolean active, int page, int size) {
         currentUser.requireSelfOr(InternalPermission.MANAGE_USERS, userId);
+        Set<Order.Status> filter = statusFilter(statuses, active);
         return clientService
                 .findByUser(userId)
-                .map(client -> repository.getPageByClient(client.id(), page, size))
+                .map(client -> repository.getPageByClient(client.id(), filter, page, size))
                 .orElse(new PageResult<>(List.of(), 0));
     }
 
-    // Fila do dashboard; sem status, todos os pedidos.
-    public PageResult<Order> getPage(Order.Status status, int page, int size) {
-        return status == null
-                ? repository.getPage(page, size)
-                : repository.getPageByStatus(status, page, size);
+    // Fila do dashboard; sem filtro, todos os pedidos. O código é o que o cliente diz no balcão.
+    public PageResult<Order> getPage(
+            Set<Order.Status> statuses, boolean active, String code, int page, int size) {
+        String normalizedCode =
+                code == null || code.isBlank() ? null : code.strip().toUpperCase(Locale.ROOT);
+        return repository.getPage(statusFilter(statuses, active), normalizedCode, page, size);
+    }
+
+    // active é um atalho para os status ativos; junto com status seria ambíguo.
+    private static Set<Order.Status> statusFilter(Set<Order.Status> statuses, boolean active) {
+        if (!active) {
+            return statuses;
+        }
+        if (!statuses.isEmpty()) {
+            throw new InvalidRequestException("Use either status or active, not both");
+        }
+        return ACTIVE_STATUSES;
     }
 
     // Um passo por vez, pelo caminho do atendimento. Cancelar tem rota própria.

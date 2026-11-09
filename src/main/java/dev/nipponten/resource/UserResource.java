@@ -12,6 +12,7 @@ import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.services.OrderService;
 import dev.nipponten.application.services.UserService;
+import dev.nipponten.domain.models.Order;
 import dev.nipponten.resource.security.Permissions;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
@@ -31,6 +32,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 // "O próprio usuário ou MANAGE_USERS" depende do {id}: as rotas com @Authenticated fazem essa
@@ -76,11 +78,13 @@ public class UserResource {
     @Path("/{userId}/orders")
     public PageResponse<OrderSummaryResponse> getOrders(
             @PathParam("userId") Long userId,
+            @QueryParam("status") Set<Order.Status> statuses,
+            @QueryParam("active") boolean active,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size) {
         PageParams params = PageParams.of(page, size);
         return PageResponse.of(
-                orderService.getPageByUser(userId, params.page(), params.size()),
+                orderService.getPageByUser(userId, statuses, active, params.page(), params.size()),
                 params.page(),
                 params.size(),
                 OrderSummaryResponse::of);
