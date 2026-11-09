@@ -13,7 +13,10 @@ public class OrderQuoteResponseMapper {
                 quote.subtotal(),
                 quote.discount(),
                 quote.deliveryFee(),
-                quote.total());
+                quote.total(),
+                quote.pointsRedeemed(),
+                quote.pointsEligibleSubtotal(),
+                quote.pointsToEarn());
     }
 
     public OrderItemResponse toResponse(OrderItem item) {
@@ -28,6 +31,7 @@ public class OrderQuoteResponseMapper {
                 item.originalUnitPrice(),
                 item.unitPrice(),
                 item.total(),
+                item.pointsEligible(),
                 item.notes(),
                 item.additionals().stream()
                         .map(

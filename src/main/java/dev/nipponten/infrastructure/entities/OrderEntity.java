@@ -100,6 +100,16 @@ public class OrderEntity {
     private BigDecimal total;
 
     @Column(nullable = false)
+    private int pointsRedeemed;
+
+    private BigDecimal pointValue;
+
+    private BigDecimal earnRate;
+
+    @Column(nullable = false)
+    private int pointsEarned;
+
+    @Column(nullable = false)
     private Instant createdAt;
 
     @Column(nullable = false)
@@ -281,6 +291,38 @@ public class OrderEntity {
 
     public void setTotal(BigDecimal total) {
         this.total = total;
+    }
+
+    public int getPointsRedeemed() {
+        return pointsRedeemed;
+    }
+
+    public void setPointsRedeemed(int pointsRedeemed) {
+        this.pointsRedeemed = pointsRedeemed;
+    }
+
+    public BigDecimal getPointValue() {
+        return pointValue;
+    }
+
+    public void setPointValue(BigDecimal pointValue) {
+        this.pointValue = pointValue;
+    }
+
+    public BigDecimal getEarnRate() {
+        return earnRate;
+    }
+
+    public void setEarnRate(BigDecimal earnRate) {
+        this.earnRate = earnRate;
+    }
+
+    public int getPointsEarned() {
+        return pointsEarned;
+    }
+
+    public void setPointsEarned(int pointsEarned) {
+        this.pointsEarned = pointsEarned;
     }
 
     public Instant getCreatedAt() {

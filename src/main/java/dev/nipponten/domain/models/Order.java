@@ -5,7 +5,8 @@ import java.time.Instant;
 import java.util.List;
 
 // O endereço é cópia do momento do pedido. clientId é nulo para visitante, que é identificado por
-// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado).
+// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado). pointValue e
+// earnRate são cópias da configuração de pontos no checkout; nulos para visitante.
 public record Order(
         Long id,
         String code,
@@ -29,6 +30,10 @@ public record Order(
         BigDecimal discount,
         BigDecimal deliveryFee,
         BigDecimal total,
+        int pointsRedeemed,
+        BigDecimal pointValue,
+        BigDecimal earnRate,
+        int pointsEarned,
         Instant createdAt,
         Instant updatedAt,
         List<OrderItem> items) {

@@ -93,7 +93,7 @@ As *Promotions* sobrescrevem o custo de um produto, por um tempo limitado. Os da
 - Product: O produto ao qual essa promoção se aplica;
 - Start Date: Define o momento em que a promoção inicia;
 - End Date: Define o momento em que a promoção encerra;
-- Enable Promotion Points: Define se o consumidor pode utilizar dos pontos para consumir a promoção.
+- Enable Promotion Points: Define se o consumidor pode utilizar dos pontos para consumir a promoção. Com `false`, o item do pedido que recebe essa promoção fica fora da base do desconto de pontos (ver [[points#Resgate|points.md]]).
 
 Cada promoção se aplica a um único produto — para promover vários produtos ao mesmo tempo, o usuário interno cria uma promoção por produto (diferente de Combo, que é uma relação N:N com produtos).
 

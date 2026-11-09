@@ -17,7 +17,6 @@ import dev.nipponten.application.responses.OrderResponseMapper;
 import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
 import dev.nipponten.application.services.OrderEventBus;
-import dev.nipponten.application.services.OrderQuoteService;
 import dev.nipponten.application.services.OrderService;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
@@ -40,6 +39,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.Set;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 // As rotas públicas mudam com quem chama (visitante, cliente ou funcionário); essa regra depende
@@ -50,8 +50,6 @@ import org.jboss.resteasy.reactive.RestStreamElementType;
 public class OrderResource {
 
     static final String TRACKING_TOKEN_HEADER = "X-Order-Token";
-
-    @Inject OrderQuoteService quoteService;
 
     @Inject OrderService service;
 
@@ -65,13 +63,13 @@ public class OrderResource {
 
     @Inject OrderEventBus eventBus;
 
-    // Pública: o visitante também monta carrinho. Não grava nada.
+    // Pública: o visitante também monta carrinho. Não grava nada; usar pontos exige login.
     @POST
     @PermitAll
     @Path("/quote")
     public OrderQuoteResponse quote(@Valid OrderQuoteRequest request) {
         return quoteMapper.toResponse(
-                quoteService.quote(itemRequestMapper.toModels(request.items())));
+                service.quote(itemRequestMapper.toModels(request.items()), request.points()));
     }
 
     @POST
@@ -123,12 +121,14 @@ public class OrderResource {
     @GET
     @RolesAllowed(Permissions.MANAGE_ORDERS)
     public PageResponse<OrderSummaryResponse> getAll(
-            @QueryParam("status") Order.Status status,
+            @QueryParam("status") Set<Order.Status> statuses,
+            @QueryParam("active") boolean active,
+            @QueryParam("code") String code,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size) {
         PageParams params = PageParams.of(page, size);
         return PageResponse.of(
-                service.getPage(status, params.page(), params.size()),
+                service.getPage(statuses, active, code, params.page(), params.size()),
                 params.page(),
                 params.size(),
                 OrderSummaryResponse::of);

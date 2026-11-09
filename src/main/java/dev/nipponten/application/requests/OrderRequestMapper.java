@@ -5,7 +5,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
 // Monta o rascunho do pedido: preços, código, status e datas são preenchidos pelo service.
-// addressId não faz parte do modelo (o pedido guarda a cópia do endereço) e vai à parte.
+// O pedido de pontos vai em pointsRedeemed. addressId não faz parte do modelo (o pedido guarda a
+// cópia do endereço) e vai à parte.
 @ApplicationScoped
 public class OrderRequestMapper {
 
@@ -36,6 +37,10 @@ public class OrderRequestMapper {
                 null,
                 null,
                 null,
+                request.pointsToRedeem() == null ? 0 : request.pointsToRedeem(),
+                null,
+                null,
+                0,
                 null,
                 null,
                 itemMapper.toModels(request.items()));

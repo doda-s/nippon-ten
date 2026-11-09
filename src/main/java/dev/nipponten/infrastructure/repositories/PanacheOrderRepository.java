@@ -12,7 +12,13 @@ import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @ApplicationScoped
 public class PanacheOrderRepository implements OrderRepository, PanacheRepository<OrderEntity> {
@@ -49,29 +55,78 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
     // Mais recentes primeiro: é o histórico do cliente. O id desempata e mantém as páginas
     // estáveis.
     @Override
-    public PageResult<Order> getPageByClient(Long clientId, int page, int size) {
-        PanacheQuery<OrderEntity> query =
-                find(
-                        "clientId",
-                        Sort.by("createdAt").descending().and("id").descending(),
-                        clientId);
-        long total = query.count();
-        List<Order> content =
-                query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
-        return new PageResult<>(content, total);
-    }
-
-    @Override
-    public PageResult<Order> getPage(int page, int size) {
-        return toPage(findAll(Sort.by("id")), page, size);
-    }
-
-    @Override
-    public PageResult<Order> getPageByStatus(Order.Status status, int page, int size) {
+    public PageResult<Order> getPageByClient(
+            Long clientId, Set<Order.Status> statuses, int page, int size) {
+        List<String> where = new ArrayList<>(List.of("clientId = :clientId"));
+        Map<String, Object> params = new HashMap<>(Map.of("clientId", clientId));
+        addStatuses(where, params, statuses);
         return toPage(
-                find("status", Sort.by("id"), OrderEntity.Status.valueOf(status.name())),
+                find(
+                        String.join(" and ", where),
+                        Sort.by("createdAt").descending().and("id").descending(),
+                        params),
                 page,
                 size);
+    }
+
+    @Override
+    public List<BigDecimal> getCompletedClientAmountsBetween(Instant from, Instant to) {
+        return getEntityManager()
+                .createQuery(
+                        "select o.total - o.deliveryFee from OrderEntity o"
+                                + " where o.clientId is not null and o.status = :status"
+                                + " and o.createdAt >= :from and o.createdAt < :to",
+                        BigDecimal.class)
+                .setParameter("status", OrderEntity.Status.COMPLETED)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+    }
+
+    @Override
+    public long sumPointsRedeemedBetween(Instant from, Instant to) {
+        Long sum =
+                getEntityManager()
+                        .createQuery(
+                                "select sum(o.pointsRedeemed) from OrderEntity o"
+                                        + " where o.status <> :cancelled"
+                                        + " and o.createdAt >= :from and o.createdAt < :to",
+                                Long.class)
+                        .setParameter("cancelled", OrderEntity.Status.CANCELLED)
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .getSingleResult();
+        return sum == null ? 0 : sum;
+    }
+
+    @Override
+    public PageResult<Order> getPage(Set<Order.Status> statuses, String code, int page, int size) {
+        List<String> where = new ArrayList<>();
+        Map<String, Object> params = new HashMap<>();
+        addStatuses(where, params, statuses);
+        if (code != null) {
+            where.add("code = :code");
+            params.put("code", code);
+        }
+        return toPage(
+                where.isEmpty()
+                        ? findAll(Sort.by("id"))
+                        : find(String.join(" and ", where), Sort.by("id"), params),
+                page,
+                size);
+    }
+
+    private static void addStatuses(
+            List<String> where, Map<String, Object> params, Set<Order.Status> statuses) {
+        if (statuses.isEmpty()) {
+            return;
+        }
+        where.add("status in :statuses");
+        params.put(
+                "statuses",
+                statuses.stream()
+                        .map(status -> OrderEntity.Status.valueOf(status.name()))
+                        .toList());
     }
 
     private PageResult<Order> toPage(PanacheQuery<OrderEntity> query, int page, int size) {

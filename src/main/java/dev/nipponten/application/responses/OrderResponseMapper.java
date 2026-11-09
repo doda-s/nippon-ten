@@ -41,6 +41,8 @@ public class OrderResponseMapper {
                 order.discount(),
                 order.deliveryFee(),
                 order.total(),
+                order.pointsRedeemed(),
+                order.pointsEarned(),
                 order.createdAt(),
                 order.updatedAt(),
                 details.statusHistory().stream()
