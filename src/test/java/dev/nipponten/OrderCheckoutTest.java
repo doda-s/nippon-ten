@@ -289,6 +289,38 @@ class OrderCheckoutTest {
     }
 
     @Test
+    void clientFiltersTheHistoryByActiveOrders() {
+        Client client = newClient();
+        long active = place(as(client.token()), order("PICKUP")).getLong("order.id");
+        long cancelled = place(as(client.token()), order("PICKUP")).getLong("order.id");
+        as(client.token())
+                .contentType(ContentType.JSON)
+                .post("/orders/{id}/cancel", cancelled)
+                .then()
+                .statusCode(200);
+
+        as(client.token())
+                .queryParam("active", true)
+                .get("/users/{id}/orders", client.userId())
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(1))
+                .body("content[0].id", is((int) active));
+        as(client.token())
+                .queryParam("status", "CANCELLED")
+                .get("/users/{id}/orders", client.userId())
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(1))
+                .body("content[0].id", is((int) cancelled));
+        as(client.token())
+                .get("/users/{id}/orders", client.userId())
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(2));
+    }
+
+    @Test
     void anInternalUserHasAnEmptyOrderHistory() {
         long adminId =
                 asAdmin()

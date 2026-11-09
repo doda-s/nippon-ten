@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class OrderLifecycleTest {
 
-    private record Placed(long id, String token, long productSizeId) {}
+    private record Placed(long id, String token, long productSizeId, String code) {}
 
     private static Map<String, Object> item(long productSizeId, int quantity) {
         return Map.of("type", "PRODUCT", "productSizeId", productSizeId, "quantity", quantity);
@@ -48,7 +48,11 @@ class OrderLifecycleTest {
                         .statusCode(201)
                         .extract()
                         .jsonPath();
-        return new Placed(created.getLong("order.id"), created.getString("trackingToken"), size);
+        return new Placed(
+                created.getLong("order.id"),
+                created.getString("trackingToken"),
+                size,
+                created.getString("order.code"));
     }
 
     private static ValidatableResponse moveTo(long id, String status) {
@@ -222,5 +226,62 @@ class OrderLifecycleTest {
                 .then()
                 .statusCode(200)
                 .body("content.id", not(hasItem((int) cancelled.id())));
+    }
+
+    @Test
+    void findsAnOrderByItsCodeForTheCounter() {
+        Placed order = placeGuestOrder("PICKUP");
+
+        // O cliente dita o código; caixa e espaços não importam.
+        asAdmin()
+                .queryParam("code", " " + order.code().toLowerCase() + " ")
+                .get("/orders")
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(1))
+                .body("content[0].id", is((int) order.id()));
+        asAdmin()
+                .queryParam("code", "ZZZZZZZ")
+                .get("/orders")
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(0));
+    }
+
+    @Test
+    void filtersTheDashboardByManyStatusesOrByActive() {
+        Placed preparing = placeGuestOrder("PICKUP");
+        moveTo(preparing.id(), "IN_PREPARATION").statusCode(200);
+        Placed cancelled = placeGuestOrder("PICKUP");
+        cancelAsGuest(cancelled).statusCode(200);
+
+        // O código isola o pedido do teste no banco compartilhado.
+        asAdmin()
+                .queryParam("code", preparing.code())
+                .queryParam("status", "PENDING", "IN_PREPARATION")
+                .get("/orders")
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(1));
+        asAdmin()
+                .queryParam("code", preparing.code())
+                .queryParam("active", true)
+                .get("/orders")
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(1));
+        asAdmin()
+                .queryParam("code", cancelled.code())
+                .queryParam("active", true)
+                .get("/orders")
+                .then()
+                .statusCode(200)
+                .body("totalElements", is(0));
+        asAdmin()
+                .queryParam("status", "PENDING")
+                .queryParam("active", true)
+                .get("/orders")
+                .then()
+                .statusCode(400);
     }
 }
