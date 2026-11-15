@@ -82,24 +82,17 @@ O acesso segue a regra de `/users/{id}/**`: o próprio usuário ou `manage_users
 
 ## Simulação de impacto
 
-`POST /points/settings/simulation` (req. 37) recebe `{earnRate, pointValue, from, to, amount?, points?}` e não grava nada. `from` e `to` são dias de negócio, inclusivos, no fuso do restaurante (`BusinessTime`). `to` antes de `from` é `400`.
+`POST /points/settings/simulation` (req. 37) recebe `{earnRate, pointValue, amount}` e não grava nada. Serve para o administrador ver, antes de mudar a configuração, quanto um cliente ganharia gastando `amount` no site. `amount` é o valor pago em dinheiro sem a taxa de entrega, a mesma base do crédito, e é obrigatório (`≥ 0`). `earnRate` e `pointValue` seguem as regras da configuração.
 
-A simulação considera os pedidos `COMPLETED` de clientes, criados no período, e compara a configuração atual (`current`) com a proposta (`proposed`):
+A resposta devolve `amount` e dois cenários lado a lado: `current` (a configuração atual) e `proposed` (a enviada).
 
 | Campo | Significado |
 | --- | --- |
-| `orders`, `revenue` | Quantidade de pedidos e o valor pago em dinheiro (sem taxa de entrega) |
-| `pointsEarned` | Pontos que a taxa geraria, arredondados por pedido, como no crédito real |
-| `cost` | `pointsEarned × pointValue`: quanto esses pontos valem em desconto |
-| `costShareOfRevenue` | `cost` como percentual de `revenue` |
-| `outstandingLiability` | Saldo em aberto de todos os clientes hoje × `pointValue` |
-| `pointsRedeemed` | Pontos usados em pedidos não cancelados do período |
-| `outstandingPoints` | Saldo em aberto (não vencido) de todos os clientes hoje |
-| `amount`, `points` | Ecoam a compra e os pontos de exemplo enviados (`null` se ausentes) |
-| `pointsForAmount` | Pontos que uma compra de `amount` renderia com o `earnRate` do cenário, arredondados para baixo como no crédito real (`null` sem `amount`) |
-| `pointsWorth` | `points × pointValue`: quanto `points` pontos valem em desconto no cenário (`null` sem `points`) |
+| `earnRate`, `pointValue` | A configuração do cenário |
+| `pointsEarned` | Pontos que a compra renderia, arredondados para baixo como no crédito real |
+| `pointsWorth` | `pointsEarned × pointValue`: quanto esses pontos valem em desconto num pedido futuro |
 
-`amount` e `points` são opcionais e independentes do período: servem para testar a conversão dinheiro → pontos e pontos → dinheiro das duas configurações lado a lado. `amount` é o valor pago sem taxa de entrega, a mesma base do crédito.
+Exemplo: com a configuração padrão, `amount = 10.99` rende 10 pontos, que valem R$0,50. Com `earnRate = 1.5` e `pointValue = 0.20`, a mesma compra rende 16 pontos, que valem R$3,20.
 
 ## Acesso à API
 

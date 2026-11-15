@@ -98,18 +98,4 @@ public class PanachePointsTransactionRepository
                 query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
         return new PageResult<>(content, total);
     }
-
-    @Override
-    public long sumOpen(Instant now) {
-        Long sum =
-                getEntityManager()
-                        .createQuery(
-                                "select sum(t.remaining) from PointsTransactionEntity t"
-                                        + " where t.remaining > 0"
-                                        + " and (t.expiresAt is null or t.expiresAt > :now)",
-                                Long.class)
-                        .setParameter("now", now)
-                        .getSingleResult();
-        return sum == null ? 0 : sum;
-    }
 }

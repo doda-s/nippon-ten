@@ -9,7 +9,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -18,8 +17,6 @@ import io.restassured.response.ValidatableResponse;
 import jakarta.inject.Inject;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -416,64 +413,37 @@ class PointsTest {
     }
 
     @Test
-    void simulatesTheImpactOfANewRate() {
-        String today = LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).toString();
-        Map<String, Object> proposal =
-                Map.of("earnRate", 2, "pointValue", 0.10, "from", today, "to", today);
-        // O banco é compartilhado: compara o antes e o depois de um pedido de R$10,00.
-        JsonPath before = simulate(proposal);
-        complete(placeOk(newClient(), order(List.of(pastel(1)), null)));
-        JsonPath after = simulate(proposal);
+    void simulatesWhatAPurchaseEarns() {
+        JsonPath result = simulate(Map.of("earnRate", 1.5, "pointValue", 0.20, "amount", 10.99));
 
-        assertEquals(before.getLong("orders") + 1, after.getLong("orders"));
-        assertDelta(before, after, "revenue", "10.00");
-        assertEquals(
-                before.getLong("current.pointsEarned") + 10, after.getLong("current.pointsEarned"));
-        assertEquals(
-                before.getLong("proposed.pointsEarned") + 20,
-                after.getLong("proposed.pointsEarned"));
-        assertDelta(before, after, "current.cost", "0.50");
-        assertDelta(before, after, "proposed.cost", "2.00");
+        assertMoney("10.99", result, "amount");
+        // Atual: 1 ponto por R$1 e R$0,05 por ponto.
+        assertMoney("1", result, "current.earnRate");
+        assertEquals(10, result.getInt("current.pointsEarned"));
+        assertMoney("0.50", result, "current.pointsWorth");
+        // Proposta: 10,99 × 1,5 = 16,485, arredondado para baixo como no crédito.
+        assertEquals(16, result.getInt("proposed.pointsEarned"));
+        assertMoney("3.20", result, "proposed.pointsWorth");
 
-        asAdmin()
-                .contentType(ContentType.JSON)
-                .body(Map.of("earnRate", 2, "pointValue", 0.10, "from", today, "to", "2000-01-01"))
-                .post("/points/settings/simulation")
-                .then()
-                .statusCode(400);
+        JsonPath free = simulate(Map.of("earnRate", 0, "pointValue", 0.05, "amount", 50));
+        assertEquals(0, free.getInt("proposed.pointsEarned"));
+        assertMoney("0.00", free, "proposed.pointsWorth");
     }
 
     @Test
-    void simulatesASamplePurchaseAndPoints() {
-        String today = LocalDate.now(clock.withZone(ZoneId.of("America/Sao_Paulo"))).toString();
-        JsonPath result =
-                simulate(
-                        Map.of(
-                                "earnRate",
-                                1.5,
-                                "pointValue",
-                                0.20,
-                                "from",
-                                today,
-                                "to",
-                                today,
-                                "amount",
-                                10.99,
-                                "points",
-                                30));
-
-        assertMoney("10.99", result, "amount");
-        assertEquals(30, result.getInt("points"));
-        // Atual: 1 ponto por R$1 e R$0,05 por ponto.
-        assertEquals(10, result.getInt("current.pointsForAmount"));
-        assertMoney("1.50", result, "current.pointsWorth");
-        assertEquals(16, result.getInt("proposed.pointsForAmount"));
-        assertMoney("6.00", result, "proposed.pointsWorth");
-
-        JsonPath withoutSample =
-                simulate(Map.of("earnRate", 2, "pointValue", 0.10, "from", today, "to", today));
-        assertNull(withoutSample.get("proposed.pointsForAmount"));
-        assertNull(withoutSample.get("proposed.pointsWorth"));
+    void rejectsAnInvalidSimulation() {
+        for (Map<String, Object> body :
+                List.<Map<String, Object>>of(
+                        Map.of("earnRate", 1, "pointValue", 0.05),
+                        Map.of("earnRate", 1, "pointValue", 0.05, "amount", -1),
+                        Map.of("earnRate", 1, "pointValue", 0, "amount", 10))) {
+            asAdmin()
+                    .contentType(ContentType.JSON)
+                    .body(body)
+                    .post("/points/settings/simulation")
+                    .then()
+                    .statusCode(400);
+        }
     }
 
     private static JsonPath simulate(Map<String, Object> body) {
@@ -490,14 +460,5 @@ class PointsTest {
     private static void assertMoney(String expected, JsonPath json, String path) {
         assertEquals(
                 0, new BigDecimal(expected).compareTo(new BigDecimal(json.getString(path))), path);
-    }
-
-    private static void assertDelta(JsonPath before, JsonPath after, String path, String delta) {
-        assertEquals(
-                0,
-                new BigDecimal(before.getString(path))
-                        .add(new BigDecimal(delta))
-                        .compareTo(new BigDecimal(after.getString(path))),
-                path);
     }
 }
