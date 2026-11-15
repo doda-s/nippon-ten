@@ -19,7 +19,4 @@ public interface PointsTransactionRepository {
     List<PointsTransaction> getByOrder(Long orderId, PointsTransaction.Type type);
 
     PageResult<PointsTransaction> getPageByClient(Long clientId, int page, int size);
-
-    // Soma do saldo ainda válido de todos os clientes.
-    long sumOpen(Instant now);
 }

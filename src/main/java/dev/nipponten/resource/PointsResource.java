@@ -42,18 +42,13 @@ public class PointsResource {
         return PointsSettingsResponse.of(service.update(requestMapper.toModel(request)));
     }
 
-    // Não grava nada: compara a configuração atual com a proposta (req. 37).
+    // Não grava nada: compara os pontos de uma compra na configuração atual e na proposta (req.
+    // 37).
     @POST
     @RolesAllowed(Permissions.MANAGE_POINTS)
     @Path("/simulation")
     public PointsImpactResponse simulate(@Valid PointsSimulationRequest request) {
         return PointsImpactResponse.of(
-                service.simulate(
-                        request.earnRate(),
-                        request.pointValue(),
-                        request.from(),
-                        request.to(),
-                        request.amount(),
-                        request.points()));
+                service.simulate(request.earnRate(), request.pointValue(), request.amount()));
     }
 }
