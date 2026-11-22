@@ -21,6 +21,7 @@ public class OrderRequestMapper {
                 null,
                 request.guestName(),
                 request.guestPhone(),
+                request.guestEmail(),
                 request.fulfillmentType(),
                 null,
                 request.paymentMethod(),

@@ -30,9 +30,7 @@ class PaymentPixTest {
 
     private static final String SECRET = "test-webhook-secret";
 
-    // O visitante sempre informa o e-mail no Pix.
-    private static final Map<String, Object> PIX =
-            Map.of("method", "PIX", "payerEmail", "ana@example.com");
+    private static final Map<String, Object> PIX = Map.of("method", "PIX");
 
     private record Placed(long id, String code, String token) {}
 
@@ -45,6 +43,7 @@ class PaymentPixTest {
         if (channel != null) body.put("paymentChannel", channel);
         body.put("guestName", "Ana");
         body.put("guestPhone", "11988887777");
+        body.put("guestEmail", "ana@example.com");
         return body;
     }
 
@@ -161,7 +160,7 @@ class PaymentPixTest {
                         .jsonPath();
         String externalId = externalIdOf(payment.getString("pixQrCode"));
 
-        // O pagador é o visitante; o valor é o total do pedido.
+        // O pagador é o e-mail que o visitante informou no pedido; o valor é o total do pedido.
         Map<String, Object> sent = MercadoPagoStub.requestOf(externalId);
         assertEquals("ana@example.com", ((Map<?, ?>) sent.get("payer")).get("email"));
         assertEquals("Ana", ((Map<?, ?>) sent.get("payer")).get("first_name"));
@@ -195,19 +194,6 @@ class PaymentPixTest {
     }
 
     @Test
-    void guestMustInformTheEmail() {
-        Placed order = placeGuest("PIX", "ONLINE");
-
-        pay(order, Map.of("method", "PIX")).statusCode(400);
-        String qr = pay(order, PIX).statusCode(201).extract().jsonPath().getString("pixQrCode");
-
-        assertEquals(
-                "ana@example.com",
-                ((Map<?, ?>) MercadoPagoStub.requestOf(externalIdOf(qr)).get("payer"))
-                        .get("email"));
-    }
-
-    @Test
     void clientPaysWithTheAccountEmail() {
         String email = "cliente.pix." + System.nanoTime() + "@example.com";
         given().contentType(ContentType.JSON)
@@ -222,6 +208,7 @@ class PaymentPixTest {
         Map<String, Object> body = orderBody("PIX", "ONLINE");
         body.remove("guestName");
         body.remove("guestPhone");
+        body.remove("guestEmail");
         long orderId =
                 as(token)
                         .contentType(ContentType.JSON)
@@ -236,7 +223,7 @@ class PaymentPixTest {
         String qr =
                 as(token)
                         .contentType(ContentType.JSON)
-                        .body(Map.of("method", "PIX", "payerEmail", "outro@example.com"))
+                        .body(PIX)
                         .post("/orders/{id}/payments", orderId)
                         .then()
                         .statusCode(201)
@@ -297,7 +284,6 @@ class PaymentPixTest {
         pay(card, PIX).statusCode(400);
         // Cartão chega na próxima fase.
         pay(card, Map.of("method", "CARD")).statusCode(400);
-        pay(card, Map.of("method", "PIX", "payerEmail", "nao-e-email")).statusCode(400);
     }
 
     @Test

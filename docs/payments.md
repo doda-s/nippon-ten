@@ -104,7 +104,7 @@ Por isso:
 | Quem | Pix | Cartão |
 | --- | --- | --- |
 | Cliente logado | E-mail da conta. | E-mail vindo do Brick. |
-| Visitante | `payerEmail` **obrigatório** no corpo. Sem ele, `400`. | E-mail vindo do Brick, no mesmo formulário dos dados do cartão. |
+| Visitante | O `guestEmail` do pedido, obrigatório no checkout do visitante (ver [[orders#Quem faz o pedido|orders.md]]). | E-mail vindo do Brick, no mesmo formulário dos dados do cartão. |
 
 O e-mail do pagador precisa ser diferente do e-mail da conta Mercado Pago do restaurante, porque o Mercado Pago recusa pagador igual ao vendedor.
 

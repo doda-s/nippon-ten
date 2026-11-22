@@ -46,6 +46,18 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
         return count("code", code) > 0;
     }
 
+    @Override
+    public Order getByCode(String code) {
+        OrderEntity entity = find("code", code).firstResult();
+        return entity == null ? null : mapper.toModel(entity);
+    }
+
+    @Override
+    @Transactional
+    public void updateTrackingTokenHash(Long id, String trackingTokenHash) {
+        update("trackingTokenHash = ?1 where id = ?2", trackingTokenHash, id);
+    }
+
     // Mais recentes primeiro: é o histórico do cliente. O id desempata e mantém as páginas
     // estáveis.
     @Override

@@ -64,6 +64,8 @@ public class OrderEntity {
 
     private String guestPhone;
 
+    private String guestEmail;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private FulfillmentType fulfillmentType;
@@ -171,6 +173,14 @@ public class OrderEntity {
 
     public void setGuestPhone(String guestPhone) {
         this.guestPhone = guestPhone;
+    }
+
+    public String getGuestEmail() {
+        return guestEmail;
+    }
+
+    public void setGuestEmail(String guestEmail) {
+        this.guestEmail = guestEmail;
     }
 
     public FulfillmentType getFulfillmentType() {

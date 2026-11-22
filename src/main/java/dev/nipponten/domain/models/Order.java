@@ -5,7 +5,8 @@ import java.time.Instant;
 import java.util.List;
 
 // O endereço é cópia do momento do pedido. clientId é nulo para visitante, que é identificado por
-// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado).
+// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado). guestEmail recebe
+// o link de acompanhamento; só é nulo no pedido que o funcionário lança sem ele.
 public record Order(
         Long id,
         String code,
@@ -14,6 +15,7 @@ public record Order(
         String trackingTokenHash,
         String guestName,
         String guestPhone,
+        String guestEmail,
         FulfillmentType fulfillmentType,
         Status status,
         PaymentMethod paymentMethod,

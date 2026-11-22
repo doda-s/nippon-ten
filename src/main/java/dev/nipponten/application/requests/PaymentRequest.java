@@ -1,14 +1,10 @@
 package dev.nipponten.application.requests;
 
 import dev.nipponten.domain.models.Payment;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 /**
- * Nova tentativa de pagamento online. O valor nunca vem do front: é o total do pedido. {@code
- * payerEmail} só vale para o visitante, que recebe o comprovante do provedor nele; o cliente logado
- * paga com o e-mail da conta.
+ * Nova tentativa de pagamento online. O valor nunca vem do front: é o total do pedido, e o e-mail
+ * do pagador é o do pedido (visitante) ou o da conta (cliente).
  */
-public record PaymentRequest(
-        @NotNull Payment.Method method, @Email @Size(max = 255) String payerEmail) {}
+public record PaymentRequest(@NotNull Payment.Method method) {}

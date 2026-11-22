@@ -45,8 +45,7 @@ public class PaymentService {
      * Uma tentativa aberta por vez. Se a anterior ficou sem id externo (o provedor falhou ou não
      * respondeu), ela é repetida com a mesma chave de idempotência, sem cobrar duas vezes.
      */
-    public Payment create(
-            Long orderId, String trackingToken, Payment.Method method, String payerEmail) {
+    public Payment create(Long orderId, String trackingToken, Payment.Method method) {
         Order order = orderService.requireCustomer(orderId, trackingToken, "pay");
         if (order.paymentChannel() != Order.PaymentChannel.ONLINE) {
             throw new InvalidRequestException("Order " + orderId + " is paid IN_PERSON");
@@ -74,7 +73,7 @@ public class PaymentService {
         if (open.isPresent() && open.get().externalId() != null) {
             throw new InvalidRequestException("Order " + orderId + " already has an open payment");
         }
-        Payment attempt = open.orElseGet(() -> repository.save(newPix(order, payerEmail)));
+        Payment attempt = open.orElseGet(() -> repository.save(newPix(order)));
         PaymentGateway.Charge charge =
                 gateway.createPix(
                         new PaymentGateway.PixCharge(
@@ -157,7 +156,7 @@ public class PaymentService {
                         });
     }
 
-    private Payment newPix(Order order, String payerEmail) {
+    private Payment newPix(Order order) {
         Instant now = Instant.now(clock);
         return new Payment(
                 null,
@@ -169,7 +168,7 @@ public class PaymentService {
                 Payment.Status.PENDING,
                 null,
                 order.total(),
-                payerEmail(order, payerEmail),
+                payerEmail(order),
                 null,
                 null,
                 now.plus(pixExpiration),
@@ -180,15 +179,16 @@ public class PaymentService {
 
     /**
      * O provedor exige e-mail em toda cobrança. No Pix ele só serve para o comprovante: o cliente
-     * usa o da conta e o visitante informa um, que é obrigatório para ele.
+     * usa o da conta e o visitante, o que informou no pedido. Pedido sem e-mail é o que o
+     * funcionário lança, e esse nunca é online.
      */
-    private String payerEmail(Order order, String payerEmail) {
+    private String payerEmail(Order order) {
         if (order.clientId() != null) {
             return currentUser.get().email();
         }
-        if (payerEmail == null || payerEmail.isBlank()) {
-            throw new InvalidRequestException("payerEmail is required");
+        if (order.guestEmail() == null) {
+            throw new InvalidRequestException("Order " + order.id() + " has no payer email");
         }
-        return payerEmail;
+        return order.guestEmail();
     }
 }

@@ -9,6 +9,7 @@ import dev.nipponten.application.requests.OrderRequest;
 import dev.nipponten.application.requests.OrderRequestMapper;
 import dev.nipponten.application.requests.OrderStatusRequest;
 import dev.nipponten.application.requests.PaymentRequest;
+import dev.nipponten.application.requests.TrackingLinkRequest;
 import dev.nipponten.application.responses.OrderCreatedResponse;
 import dev.nipponten.application.responses.OrderEventResponse;
 import dev.nipponten.application.responses.OrderQuoteResponse;
@@ -27,6 +28,7 @@ import dev.nipponten.domain.models.OrderDetails;
 import dev.nipponten.resource.security.Permissions;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -42,6 +44,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
@@ -99,6 +102,32 @@ public class OrderResource {
     public OrderResponse getById(
             @PathParam("id") Long id, @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken) {
         return toResponse(service.getForViewer(id, trackingToken));
+    }
+
+    // O link do e-mail leva o código, não o id. Depois daqui o front usa o id do pedido nas outras
+    // rotas, como o SSE.
+    @GET
+    @PermitAll
+    @Path("/by-code/{code}")
+    public OrderResponse getByCode(
+            @PathParam("code") String code,
+            @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken) {
+        return toResponse(service.getForViewerByCode(code, trackingToken));
+    }
+
+    // Sempre 202, acerte ou não o e-mail: a resposta não revela quais pedidos existem.
+    @POST
+    @PermitAll
+    @Path("/tracking-link")
+    public Response resendTrackingLink(
+            @Valid @NotNull TrackingLinkRequest request, @Context HttpServerRequest httpRequest) {
+        // Atrás de proxy, o IP real só aparece aqui com quarkus.http.proxy.* configurado.
+        String clientIp =
+                httpRequest.remoteAddress() == null
+                        ? null
+                        : httpRequest.remoteAddress().hostAddress();
+        service.resendTrackingLink(request.code(), request.email(), clientIp);
+        return Response.accepted().build();
     }
 
     // O acesso é conferido antes de abrir o stream (401/403 normais); @Blocking porque a
@@ -205,8 +234,7 @@ public class OrderResource {
         return Response.status(Response.Status.CREATED)
                 .entity(
                         PaymentResponse.of(
-                                paymentService.create(
-                                        id, trackingToken, request.method(), request.payerEmail())))
+                                paymentService.create(id, trackingToken, request.method())))
                 .build();
     }
 

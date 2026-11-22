@@ -112,9 +112,30 @@ Quando um `Service` precisa orquestrar **mais de um agregado em sequência** den
 
 Nos pedidos (ver [`orders.md`](orders.md)), `OrderService.place` (lê produto, tamanho, combo, promoção, cliente e endereço e grava `Order` + itens + adicionais + removidos + componentes + a primeira linha de `order_status_history`) também leva `@Transactional`, assim como `OrderService.updateItems` (substitui os itens e reprecifica), `changeStatus` e `cancel` (alteram o pedido e gravam `order_status_history` juntos) e `markPaid`. Os eventos SSE dessas operações só são publicados depois do commit.
 
+O reenvio do link de acompanhamento, `OrderService.resendTrackingLink`, também leva `@Transactional`: ele troca o hash do token e dispara o e-mail, que só sai depois do commit.
+
 No pagamento online (ver [`payments.md`](payments.md)), o `PaymentService` grava o resultado do gateway no `Payment` e, na aprovação, chama `OrderService.confirmOnlinePayment` (pedido + `order_status_history`) na mesma transação, aberta com `QuarkusTransaction.joiningExisting()`. A chamada de rede ao gateway fica fora dela, para não segurar conexão de banco.
 
 ---
+
+## E-mail: porta no domínio, envio depois do commit
+
+O envio de e-mail é a porta `MailSender` (`domain.gateways`), implementada por `QuarkusMailSender` com o `quarkus-mailer` reativo: a request não espera o SMTP, e uma falha de entrega fica só no log. Quem monta a mensagem é o `OrderConfirmationMailer`, que observa o evento `OrderConfirmation` na fase `AFTER_SUCCESS`, como o `OrderEventBus`: ninguém recebe e-mail de um pedido que voltou atrás. O evento é separado do `OrderEvent` porque leva o token de acompanhamento em claro, que nunca pode ir para o SSE.
+
+```properties
+quarkus.mailer.from=${MAILER_FROM:}
+quarkus.mailer.host=${MAILER_HOST:smtp.gmail.com}
+quarkus.mailer.port=${MAILER_PORT:587}
+quarkus.mailer.start-tls=REQUIRED
+quarkus.mailer.username=${MAILER_USERNAME:}
+quarkus.mailer.password=${MAILER_PASSWORD:}
+%dev.quarkus.mailer.mock=${MAILER_MOCK:true}
+nippon.front.base-url=${FRONT_BASE_URL:http://localhost:5173}
+```
+
+- **Dev:** o mailer fica em modo mock e só loga a mensagem. Para enviar de verdade, `MAILER_MOCK=false` e as credenciais SMTP. Com Gmail, a senha é uma *senha de app* (exige verificação em duas etapas), nunca a senha da conta, e o limite é de cerca de 500 e-mails por dia.
+- **Teste:** sempre mock. Os testes leem as mensagens na `MockMailbox`.
+- **Produção:** um serviço de e-mail transacional (Resend, Brevo, Amazon SES ou similar) com domínio próprio e SPF/DKIM configurados. Um Gmail pessoal cai em spam e não serve para e-mail transacional. Todos falam SMTP, então trocar de serviço é só configuração.
 
 ## Validação: Bean Validation nos requests, exceção de domínio para o resto
 
@@ -182,14 +203,15 @@ Sem `trusted-proxies`, qualquer cliente pode mandar `X-Forwarded-For` com um IP 
 
 ### Mais de uma instância da API
 
-Dois componentes guardam estado na memória de cada instância:
+Três componentes guardam estado na memória de cada instância:
 
 | Componente | O que guarda | Efeito com várias instâncias |
 |---|---|---|
 | `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
 | `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
+| `TrackingLinkLimiter` | Pedidos de reenvio do link de acompanhamento, por código e por IP, em janelas de 15 min | Mesmo efeito: até N vezes mais reenvios. |
 
-Um terceiro componente também vive em memória: o `OrderEventBus`, que repassa os eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]). Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
+Outro componente também vive em memória: o `OrderEventBus`, que repassa os eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]). Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
 
 O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
 
@@ -202,9 +224,9 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 ## O que ainda não existe (fora do escopo desta documentação)
 
-A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12), que depende de envio de e-mail.
+A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12). O envio de e-mail já existe (ver [[#E-mail: porta no domínio, envio depois do commit|E-mail]]), então ela pode usar a mesma porta.
 
-Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`) e o feedback. Continuam fora, por decisão, cupons, pontos e taxa de entrega. O pagamento online está em implementação (ver [`payments.md`](payments.md)). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
+Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`), o feedback e o e-mail de confirmação com o link de acompanhamento. Continuam fora, por decisão, cupons, pontos e taxa de entrega. O pagamento online está em implementação (ver [`payments.md`](payments.md)). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

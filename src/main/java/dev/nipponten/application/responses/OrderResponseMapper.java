@@ -28,6 +28,7 @@ public class OrderResponseMapper {
                 order.clientId(),
                 order.guestName(),
                 order.guestPhone(),
+                order.guestEmail(),
                 order.fulfillmentType(),
                 order.status(),
                 order.paymentMethod(),

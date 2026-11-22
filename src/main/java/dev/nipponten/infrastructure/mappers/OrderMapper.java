@@ -29,6 +29,7 @@ public class OrderMapper {
         entity.setTrackingTokenHash(model.trackingTokenHash());
         entity.setGuestName(model.guestName());
         entity.setGuestPhone(model.guestPhone());
+        entity.setGuestEmail(model.guestEmail());
         entity.setFulfillmentType(
                 OrderEntity.FulfillmentType.valueOf(model.fulfillmentType().name()));
         entity.setStatus(OrderEntity.Status.valueOf(model.status().name()));
@@ -107,6 +108,7 @@ public class OrderMapper {
                 entity.getTrackingTokenHash(),
                 entity.getGuestName(),
                 entity.getGuestPhone(),
+                entity.getGuestEmail(),
                 Order.FulfillmentType.valueOf(entity.getFulfillmentType().name()),
                 Order.Status.valueOf(entity.getStatus().name()),
                 Order.PaymentMethod.valueOf(entity.getPaymentMethod().name()),

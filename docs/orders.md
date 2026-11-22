@@ -88,9 +88,9 @@ A taxa de entrega fica fora da v1: `delivery_fee` existe e vale `0`.
 
 | Quem | Como | Dados |
 | --- | --- | --- |
-| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone` nem `address` (`400`). |
-| *Guest User* (visitante) | Sem token (escopo 2) | `guestName` e `guestPhone` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
-| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão), e na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
+| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone`, `guestEmail` nem `address` (`400`). |
+| *Guest User* (visitante) | Sem token (escopo 2) | `guestName`, `guestPhone` e `guestEmail` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
+| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão); `guestEmail` é opcional, e sem ele não sai e-mail de confirmação. Na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
 
 Um *Internal User* sem `manage_orders` não cria pedidos: ele não é cliente (um `User` é cliente **ou** interno).
 
@@ -101,7 +101,33 @@ A resposta de `POST /orders` é `{order, trackingToken}`. Todo pedido sem client
 - `code`: código de 6 caracteres, sem os que se confundem lidos em voz alta (0/O, 1/I/L), mostrado ao cliente e usado no balcão;
 - `trackingToken`: segredo aleatório que o front guarda e envia no header `X-Order-Token`.
 
-O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
+O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `AWAITING_PAYMENT` ou `PENDING`), pagar online e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
+
+### E-mail de confirmação
+
+Logo depois do commit do pedido, sai um e-mail com o código, o total e o link de acompanhamento. É o único e-mail do pedido: as mudanças de status chegam pelo SSE, na página que o link abre.
+
+| Pedido | Para quem | Link |
+| --- | --- | --- |
+| Do visitante, ou do funcionário para um visitante com `guestEmail` | `guestEmail` | `<front>/pedido/<code>#t=<trackingToken>` |
+| Do cliente, feito por ele ou pelo funcionário | E-mail da conta | `<front>/pedido/<code>`, aberto com login |
+| Do funcionário para um visitante sem `guestEmail` | Ninguém | — |
+
+- `<front>` vem de `nippon.front.base-url`. O token vai no fragmento (`#`), que o navegador não manda ao servidor: não aparece em log de acesso nem no `Referer`.
+- No pedido online, o texto avisa que o pedido vai para a cozinha quando o pagamento for confirmado.
+- O envio é assíncrono. Uma falha do SMTP fica no log e não desfaz o pedido, que já foi gravado.
+- O e-mail sai por SMTP (`quarkus-mailer`). Em dev, o mailer fica em modo mock (só loga a mensagem) até `MAILER_MOCK=false`; em teste é sempre mock. A configuração está em [[architecture#E-mail: porta no domínio, envio depois do commit|architecture.md]].
+
+### Página de acompanhamento
+
+O front lê o código e o token do link e chama `GET /orders/by-code/{code}` com `X-Order-Token` (ou logado, no caso do cliente). A resposta é o mesmo `OrderResponse` de `GET /orders/{id}`, e daí em diante o front usa o `id` nas outras rotas: `GET /orders/{id}/events` para o status em tempo real, cancelamento, pagamento e feedback. O código não diferencia maiúsculas. As regras de acesso são as de `GET /orders/{id}`: código inexistente é `403` para quem não tem `manage_orders`, sem revelar se ele existe.
+
+### Reenvio do link
+
+Quem perdeu o e-mail pede outro com `POST /orders/tracking-link` e `{code, email}`. Se o pedido for de visitante e o e-mail for o do pedido (sem diferenciar maiúsculas), o backend gera um **token novo**, grava o hash e manda o link. Como o banco guarda só o hash, o token antigo não pode ser recuperado, e o link anterior deixa de funcionar.
+
+- A resposta é sempre `202`, acerte ou não, para não revelar quais pedidos existem. Pedido de cliente com conta é ignorado: ele acompanha logado.
+- O limite é de 3 pedidos por código e 10 por IP a cada 15 minutos (`nippon.orders.tracking-link.*`); passou disso, `429`. Todo pedido conta, acerte ou não. O contador fica em memória, com os mesmos limites do limite de login (ver [[architecture#Autenticação: implantação e riscos conhecidos|architecture.md]]).
 
 ## Status
 
@@ -169,7 +195,8 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | `POST /orders` | pública (visitante), cliente autenticado ou `manage_orders` |
 | `GET /orders?status=` (paginado) | `manage_orders` |
 | `GET /orders/events` | `manage_orders` |
-| `GET /orders/{id}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
+| `GET /orders/{id}`, `GET /orders/by-code/{code}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
+| `POST /orders/tracking-link` | pública (com limite por código e por IP) |
 | `POST /orders/{id}/cancel` | dono ou token (só em `AWAITING_PAYMENT` ou `PENDING`), ou `manage_orders` |
 | `POST /orders/{id}/payments` | dono ou token (ver [`payments.md`](payments.md)) |
 | `GET /orders/{id}/payments` | dono, token de acompanhamento ou `manage_orders` |
@@ -185,7 +212,8 @@ A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `Ord
 
 ```
 orders(id, code UNIQUE, client_id NULL, created_by_internal_id NULL, tracking_token_hash NULL,
-       guest_name, guest_phone, fulfillment_type, status, payment_method, paid, paid_at,
+       guest_name, guest_phone, guest_email NULL, fulfillment_type, status, payment_method,
+       payment_channel, paid, paid_at,
        street_address, number, cep, complement, notes, cancel_reason,
        subtotal, discount, delivery_fee, total, created_at, updated_at)
 order_item(id, order_id, item_type, product_size_id NULL, combo_id NULL, promotion_id NULL,
@@ -219,3 +247,4 @@ Cada fase é uma branch própria, a partir de `main`:
 4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. ✅ `feat/order-events`: SSE do pedido e do dashboard.
 6. ✅ `feat/order-feedback`.
+7. ✅ `feat/order-email-tracking`: e-mail do visitante, e-mail de confirmação com o link, `GET /orders/by-code/{code}` e reenvio do link.

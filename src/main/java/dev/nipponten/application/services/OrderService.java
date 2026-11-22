@@ -5,6 +5,7 @@ import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.OrderNotFoundException;
 import dev.nipponten.application.exceptions.UnauthorizedException;
 import dev.nipponten.domain.models.AuthenticatedUser;
+import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
@@ -19,6 +20,7 @@ import dev.nipponten.domain.models.UserType;
 import dev.nipponten.domain.repositories.OrderFeedbackRepository;
 import dev.nipponten.domain.repositories.OrderRepository;
 import dev.nipponten.domain.repositories.OrderStatusHistoryRepository;
+import dev.nipponten.domain.repositories.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -29,7 +31,9 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 @ApplicationScoped
 public class OrderService {
@@ -62,11 +66,23 @@ public class OrderService {
     // Entregues ao OrderEventBus só depois do commit.
     @Inject Event<OrderEvent> events;
 
+    // Entregues ao OrderConfirmationMailer só depois do commit.
+    @Inject Event<OrderConfirmation> confirmations;
+
+    // Só para ler o e-mail da conta do cliente, que recebe a confirmação.
+    @Inject UserRepository userRepository;
+
+    @Inject TrackingLinkLimiter trackingLinkLimiter;
+
     /** trackingToken é nulo quando o pedido é de um cliente com conta. */
     public record PlacedOrder(OrderDetails details, String trackingToken) {}
 
     private record Customer(
-            Long clientId, Long createdByInternalId, String guestName, String guestPhone) {}
+            Long clientId,
+            Long createdByInternalId,
+            String guestName,
+            String guestPhone,
+            String guestEmail) {}
 
     private record Address(String streetAddress, String number, String cep, String complement) {
         static final Address NONE = new Address(null, null, null, null);
@@ -93,6 +109,7 @@ public class OrderService {
                                 trackingToken == null ? null : OpaqueTokens.hash(trackingToken),
                                 customer.guestName(),
                                 customer.guestPhone(),
+                                customer.guestEmail(),
                                 draft.fulfillmentType(),
                                 initial,
                                 draft.paymentMethod(),
@@ -121,7 +138,44 @@ public class OrderService {
                                 now,
                                 user.map(AuthenticatedUser::userId).orElse(null)));
         events.fire(OrderEvent.of(OrderEvent.Type.CREATED, saved));
+        confirm(saved, trackingToken);
         return new PlacedOrder(new OrderDetails(saved, List.of(created), null), trackingToken);
+    }
+
+    /**
+     * O pedido pelo código, que é o que vai no link do e-mail. Mesmo acesso de {@link
+     * #getForViewer}.
+     */
+    public OrderDetails getForViewerByCode(String code, String trackingToken) {
+        String normalized = normalizeCode(code);
+        return details(
+                authorizeViewer(
+                        repository.getByCode(normalized),
+                        normalized,
+                        trackingToken,
+                        () -> new OrderNotFoundException(normalized)));
+    }
+
+    /**
+     * Reenvia o link de acompanhamento para o e-mail do visitante, com um token novo: o banco só
+     * guarda o hash, então o antigo não pode ser recuperado, e trocar invalida o link anterior. Não
+     * responde se o código e o e-mail batem, para não revelar quais pedidos existem; um código de
+     * cliente com conta é ignorado, porque ele acompanha o pedido logado.
+     */
+    @Transactional
+    public void resendTrackingLink(String code, String email, String clientIp) {
+        trackingLinkLimiter.acquire(code, clientIp);
+        Order order = repository.getByCode(normalizeCode(code));
+        if (order == null
+                || order.clientId() != null
+                || order.guestEmail() == null
+                || !order.guestEmail().equalsIgnoreCase(email.trim())) {
+            return;
+        }
+        String trackingToken = OpaqueTokens.generate();
+        repository.updateTrackingTokenHash(order.id(), OpaqueTokens.hash(trackingToken));
+        confirmations.fire(
+                confirmation(order, order.guestEmail(), order.guestName(), trackingToken, true));
     }
 
     /**
@@ -133,18 +187,31 @@ public class OrderService {
     }
 
     public Order requireViewer(Long id, String trackingToken) {
+        return authorizeViewer(
+                repository.getById(id),
+                String.valueOf(id),
+                trackingToken,
+                () -> new OrderNotFoundException(id));
+    }
+
+    // order nulo quando não existe: 404 só para quem tem manage_orders.
+    private Order authorizeViewer(
+            Order order,
+            String reference,
+            String trackingToken,
+            Supplier<OrderNotFoundException> notFound) {
         Optional<AuthenticatedUser> user = currentUser.find();
         if (user.isPresent() && user.get().has(InternalPermission.MANAGE_ORDERS)) {
-            return getById(id);
+            if (order == null) throw notFound.get();
+            return order;
         }
-        Order order = repository.getById(id);
         if (order != null && (holdsToken(order, trackingToken) || isOwner(order, user))) {
             return order;
         }
         if (user.isEmpty() && (trackingToken == null || trackingToken.isBlank())) {
             throw new UnauthorizedException("Authentication required");
         }
-        throw new ForbiddenException("Not allowed to access order " + id);
+        throw new ForbiddenException("Not allowed to access order " + reference);
     }
 
     /**
@@ -384,6 +451,7 @@ public class OrderService {
                 order.trackingTokenHash(),
                 order.guestName(),
                 order.guestPhone(),
+                order.guestEmail(),
                 order.fulfillmentType(),
                 status,
                 order.paymentMethod(),
@@ -419,15 +487,19 @@ public class OrderService {
             requireAbsent(addressId, "addressId", "a guest");
             requirePresent(draft.guestName(), "guestName", "a guest");
             requirePresent(draft.guestPhone(), "guestPhone", "a guest");
-            return new Customer(null, null, draft.guestName(), draft.guestPhone());
+            requirePresent(draft.guestEmail(), "guestEmail", "a guest");
+            return new Customer(
+                    null, null, draft.guestName(), draft.guestPhone(), draft.guestEmail().trim());
         }
         AuthenticatedUser caller = user.get();
         if (caller.type() == UserType.CLIENT) {
             requireAbsent(draft.clientId(), "clientId", "a client");
             requireAbsent(draft.guestName(), "guestName", "a client");
             requireAbsent(draft.guestPhone(), "guestPhone", "a client");
+            requireAbsent(draft.guestEmail(), "guestEmail", "a client");
             requireAbsent(draft.streetAddress(), "address", "a client (use addressId)");
-            return new Customer(clientService.getByUser(caller.userId()).id(), null, null, null);
+            return new Customer(
+                    clientService.getByUser(caller.userId()).id(), null, null, null, null);
         }
         if (!caller.has(InternalPermission.MANAGE_ORDERS)) {
             throw new ForbiddenException(
@@ -438,11 +510,17 @@ public class OrderService {
             clientService.getById(draft.clientId());
             requireAbsent(draft.guestName(), "guestName", "an order for a client");
             requireAbsent(draft.guestPhone(), "guestPhone", "an order for a client");
-            return new Customer(draft.clientId(), internalId, null, null);
+            requireAbsent(draft.guestEmail(), "guestEmail", "an order for a client");
+            return new Customer(draft.clientId(), internalId, null, null, null);
         }
         requireAbsent(addressId, "addressId", "a guest");
         requirePresent(draft.guestName(), "guestName", "a guest");
-        return new Customer(null, internalId, draft.guestName(), draft.guestPhone());
+        // Pedido por telefone ou no balcão: o e-mail é opcional, e sem ele não há confirmação.
+        String guestEmail =
+                draft.guestEmail() == null || draft.guestEmail().isBlank()
+                        ? null
+                        : draft.guestEmail().trim();
+        return new Customer(null, internalId, draft.guestName(), draft.guestPhone(), guestEmail);
     }
 
     // Pagamento online: o pedido espera o gateway antes de ir para a cozinha. Dinheiro não passa
@@ -493,6 +571,35 @@ public class OrderService {
             code = builder.toString();
         } while (repository.existsByCode(code));
         return code;
+    }
+
+    // O cliente com conta recebe na conta e acompanha logado; o visitante recebe o token no link.
+    private void confirm(Order order, String trackingToken) {
+        if (order.clientId() != null) {
+            Client client = clientService.getById(order.clientId());
+            String email = userRepository.getById(client.userId()).email();
+            confirmations.fire(confirmation(order, email, client.name(), null, false));
+        } else if (order.guestEmail() != null) {
+            confirmations.fire(
+                    confirmation(
+                            order, order.guestEmail(), order.guestName(), trackingToken, false));
+        }
+    }
+
+    private static OrderConfirmation confirmation(
+            Order order, String email, String name, String trackingToken, boolean resent) {
+        return new OrderConfirmation(
+                email,
+                name,
+                order.code(),
+                order.total(),
+                order.status() == Order.Status.AWAITING_PAYMENT,
+                trackingToken,
+                resent);
+    }
+
+    private static String normalizeCode(String code) {
+        return code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
     }
 
     // Comparação em tempo constante, para o tempo de resposta não vazar o hash.

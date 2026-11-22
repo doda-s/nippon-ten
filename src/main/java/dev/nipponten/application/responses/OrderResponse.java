@@ -12,6 +12,7 @@ public record OrderResponse(
         Long clientId,
         String guestName,
         String guestPhone,
+        String guestEmail,
         Order.FulfillmentType fulfillmentType,
         Order.Status status,
         Order.PaymentMethod paymentMethod,

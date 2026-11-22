@@ -2,6 +2,7 @@ package dev.nipponten.application.requests;
 
 import dev.nipponten.domain.models.Order;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -13,9 +14,10 @@ import java.util.List;
  *
  * <ul>
  *   <li>cliente logado: {@code addressId} de um endereço seu, na entrega;
- *   <li>visitante: {@code guestName}, {@code guestPhone} e, na entrega, {@code address};
- *   <li>funcionário: {@code clientId} ou {@code guestName}, e {@code addressId} (do cliente) ou
- *       {@code address} na entrega.
+ *   <li>visitante: {@code guestName}, {@code guestPhone}, {@code guestEmail} (para o link de
+ *       acompanhamento) e, na entrega, {@code address};
+ *   <li>funcionário: {@code clientId} ou {@code guestName} (com {@code guestEmail} opcional), e
+ *       {@code addressId} (do cliente) ou {@code address} na entrega.
  * </ul>
  *
  * <p>{@code paymentChannel} é opcional: sem ele o pagamento é presencial, como na v1.
@@ -30,4 +32,5 @@ public record OrderRequest(
         @Valid OrderAddressRequest address,
         @Size(max = 120) String guestName,
         @Size(max = 30) String guestPhone,
+        @Email @Size(max = 255) String guestEmail,
         Long clientId) {}
