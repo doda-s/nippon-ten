@@ -1,4 +1,4 @@
-> **Status:** fases 1 e 2 do [[#Roadmap de implementação|Roadmap]] implementadas (Pix e cartão online, webhook e aprovação do pedido). Expiração agendada e estorno ainda não existem. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
+> **Status:** fases 1 a 3 do [[#Roadmap de implementação|Roadmap]] implementadas (Pix e cartão online, webhook, aprovação do pedido e reconciliação agendada). O estorno ainda não existe. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
 
 Esta página descreve o pagamento online dos pedidos com o Mercado Pago, que completa o requisito 52 de [`requirements.md`](requirements.md) ("o cliente deve conseguir pagar pelo produto diretamente pelo sistema"). Na v1 dos pedidos o funcionário só marca o pedido como pago (ver [[orders#Pagamento|orders.md]]). Esse caminho continua existindo para quem paga na entrega ou no balcão.
 
@@ -154,12 +154,16 @@ Os eventos SSE continuam saindo só depois do commit, pelo `OrderEventBus`.
 
 O Pix na API Orders expira entre 30 minutos e 30 dias depois de criado. O plano usa o mínimo, **30 minutos**, porque um pedido de pastelaria não espera mais que isso.
 
-Um job agendado (`quarkus-scheduler`) roda a cada minuto:
+O `PaymentReconciliationJob` (`quarkus-scheduler`) chama `PaymentService.reconcile()` a cada `nippon.payments.reconciliation-interval` (60 s). Cada rodada trata até 100 itens de cada tipo, dos mais antigos para os mais novos, em três etapas:
 
-- **Pix vencido:** para cada `Payment` `PENDING` com `expires_at` no passado, o backend consulta o Mercado Pago antes de expirar. Se o pagamento foi aprovado e o webhook se perdeu, ele aprova. Senão, marca `EXPIRED`.
-- **Pedido abandonado:** um pedido em `AWAITING_PAYMENT` criado há mais que `awaiting-payment-timeout` (30 minutos), **sem** pagamento `PENDING` aberto, é cancelado com o motivo `Payment not completed` e `changed_by_user_id` nulo. Enquanto houver um Pix aberto, o pedido espera ele expirar.
+1. **Tentativa que nunca chegou ao Mercado Pago:** um `Payment` `PENDING` sem `external_id`, criado há mais que `awaiting-payment-timeout`, fica `EXPIRED` com `status_detail = not_sent`. É a tentativa cuja criação falhou (`502`) sem o cliente tentar de novo. No Pix, sem o QR code ninguém consegue pagar. No cartão, a cobrança pode ter acontecido sem a resposta chegar, então o job registra um aviso no log com a referência (`payment-<id>`) e a chave de idempotência, para alguém conferir no painel do Mercado Pago.
+2. **Pix vencido:** para cada `Payment` `PENDING` com `expires_at` vencido há mais de 1 minuto (a folga para o Mercado Pago vencer o dele), o backend consulta o Mercado Pago. Se o pagamento foi aprovado e o webhook se perdeu, ele aprova e libera o pedido. Se o Mercado Pago ainda disser que está aberto, o Pix fica `EXPIRED` aqui mesmo.
+3. **Pedido abandonado:** um pedido em `AWAITING_PAYMENT` criado há mais que `awaiting-payment-timeout` (30 minutos), **sem** pagamento `PENDING` aberto, é cancelado com o motivo `Payment not completed` e `changed_by_user_id` nulo, e sai o evento SSE `CANCELLED`. Enquanto houver um Pix no prazo ou um cartão em análise, o pedido espera.
 
-"Agora" vem do `Clock` injetado, para o `TestClock` controlar os testes.
+- **Cliente com Pix vencido:** a criação de uma nova tentativa não espera o job. Se a tentativa aberta é um Pix vencido, o backend o reconcilia na hora (consulta e, se continuar aberto, vence) e cria o novo Pix. Se a consulta mostrar que ele foi pago, a resposta é `400`, porque o pedido já está pago.
+- **Cartão em análise** não é consultado pelo job: o resultado chega pelo webhook, que o Mercado Pago reenvia até receber `200`.
+- **Falhas:** uma falha do Mercado Pago num item fica no log e não interrompe os outros. Tudo é idempotente, então rodar duas vezes, ou em duas instâncias da API ao mesmo tempo, não muda o resultado.
+- **Teste:** o scheduler fica desligado (`%test.quarkus.scheduler.enabled=false`), e os testes chamam `reconcile()` com o `TestClock` adiantado. "Agora" sempre vem do `Clock` injetado.
 
 ## Cancelamento e estorno
 
@@ -189,8 +193,8 @@ quarkus.rest-client.mercadopago.url=${MERCADOPAGO_BASE_URL:https://api.mercadopa
 nippon.payments.mercadopago.access-token=${MERCADOPAGO_ACCESS_TOKEN:}
 nippon.payments.mercadopago.webhook-secret=${MERCADOPAGO_WEBHOOK_SECRET:}
 nippon.payments.pix-expiration=PT30M
-# fase de expiração:
 nippon.payments.awaiting-payment-timeout=PT30M
+nippon.payments.reconciliation-interval=60s
 ```
 
 O `access token` e a assinatura secreta do webhook ficam só em variável de ambiente, nunca no repositório. Sem eles a aplicação sobe, mas a cobrança responde `502` e nenhum webhook é aceito (`401`). Em dev vêm de um `.env` na raiz, que está no `.gitignore`. A *public key* é usada só pelo front e não entra no backend. A URL do webhook é configurada no painel do Mercado Pago, não no backend.
@@ -226,7 +230,7 @@ As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user
 
 1. ✅ `feat/payment-gateway`: `payment_channel`, status `AWAITING_PAYMENT`, agregado `Payment`, migration, porta `PaymentGateway` com fake nos testes, adapter do Mercado Pago para Pix, `POST`/`GET /orders/{id}/payments` só para Pix, webhook com assinatura e aprovação do pedido. A porta e o adapter entram juntos porque a aplicação precisa de uma implementação real do `PaymentGateway` para subir.
 2. ✅ `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
-3. `feat/payment-expiration`: job de expiração e reconciliação.
+3. ✅ `feat/payment-expiration`: job de expiração e reconciliação.
 4. `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
 5. `docs/payment-client`: atualização de `orders.md`, `api-client.md`, do client npm e dos diagramas.
 

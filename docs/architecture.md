@@ -114,7 +114,7 @@ Nos pedidos (ver [`orders.md`](orders.md)), `OrderService.place` (lê produto, t
 
 O reenvio do link de acompanhamento, `OrderService.resendTrackingLink`, também leva `@Transactional`: ele troca o hash do token e dispara o e-mail, que só sai depois do commit.
 
-No pagamento online (ver [`payments.md`](payments.md)), o `PaymentService` grava o resultado do gateway no `Payment` e, na aprovação, chama `OrderService.confirmOnlinePayment` (pedido + `order_status_history`) na mesma transação, aberta com `QuarkusTransaction.joiningExisting()`. A chamada de rede ao gateway fica fora dela, para não segurar conexão de banco.
+No pagamento online (ver [`payments.md`](payments.md)), o `PaymentService` grava o resultado do gateway no `Payment` e, na aprovação, chama `OrderService.confirmOnlinePayment` (pedido + `order_status_history`) na mesma transação, aberta com `QuarkusTransaction.joiningExisting()`. A chamada de rede ao gateway fica fora dela, para não segurar conexão de banco. Na reconciliação agendada (`PaymentService.reconcile`), cada pagamento é gravado na própria transação, e a checagem do pedido abandonado roda numa transação nova (`QuarkusTransaction.requiringNew()`) que também cancela o pedido: fora de uma transação, a leitura usaria a sessão do request, que ainda guarda os pagamentos como estavam antes de a etapa anterior vencê-los.
 
 ---
 
@@ -210,6 +210,8 @@ Três componentes guardam estado na memória de cada instância:
 | `AuthenticationCache` | Resultado da checagem de sessão e permissões, por 30 s (`nippon.auth.session-cache-ttl`) | A invalidação só acontece na instância que recebeu a mudança. Nas outras, logout, desativação e mudança de permissão levam **até 30 s** para valer. |
 | `LoginAttemptLimiter` | Falhas de login por e-mail e por IP, em janelas de 15 min | Cada instância conta separado. Com N instâncias e balanceamento sem afinidade, um atacante tem até N vezes mais tentativas. |
 | `TrackingLinkLimiter` | Pedidos de reenvio do link de acompanhamento, por código e por IP, em janelas de 15 min | Mesmo efeito: até N vezes mais reenvios. |
+
+O `PaymentReconciliationJob` roda em todas as instâncias. Isso não causa erro, porque cada etapa da reconciliação é idempotente, mas multiplica as consultas ao Mercado Pago por N.
 
 Outro componente também vive em memória: o `OrderEventBus`, que repassa os eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]). Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
 

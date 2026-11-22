@@ -12,6 +12,7 @@ import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import java.util.List;
 
 @ApplicationScoped
@@ -84,6 +85,20 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
                 find("status", Sort.by("id"), OrderEntity.Status.valueOf(status.name())),
                 page,
                 size);
+    }
+
+    @Override
+    public List<Order> getByStatusCreatedBefore(Order.Status status, Instant cutoff, int limit) {
+        return find(
+                        "status = ?1 and createdAt < ?2",
+                        Sort.by("createdAt").and("id"),
+                        OrderEntity.Status.valueOf(status.name()),
+                        cutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 
     private PageResult<Order> toPage(PanacheQuery<OrderEntity> query, int page, int size) {

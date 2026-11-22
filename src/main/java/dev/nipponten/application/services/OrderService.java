@@ -391,6 +391,30 @@ public class OrderService {
         events.fire(OrderEvent.of(OrderEvent.Type.STATUS_CHANGED, saved));
     }
 
+    // Para a reconciliação agendada dos pagamentos online.
+    public List<Order> getAwaitingPaymentCreatedBefore(Instant cutoff, int limit) {
+        return repository.getByStatusCreatedBefore(Order.Status.AWAITING_PAYMENT, cutoff, limit);
+    }
+
+    /**
+     * Cancelamento pelo sistema de um pedido online que não foi pago a tempo (docs/payments.md,
+     * Expiração). Não faz nada se o pedido já saiu de AWAITING_PAYMENT, porque o job pode rodar ao
+     * mesmo tempo que uma aprovação ou um cancelamento do cliente.
+     */
+    @Transactional
+    public void cancelUnpaid(Long id, String reason) {
+        Order order = getById(id);
+        if (order.paid() || order.status() != Order.Status.AWAITING_PAYMENT) {
+            return;
+        }
+        Instant now = Instant.now(clock);
+        Order saved =
+                repository.save(
+                        rebuild(order, Order.Status.CANCELLED, false, null, reason, null, now));
+        recordStatus(saved, now);
+        events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
+    }
+
     /**
      * Só quem fez o pedido avalia (cliente dono ou visitante com o token), uma vez e depois de
      * COMPLETED (req. 48). O funcionário vê o pedido, mas não avalia por ele.

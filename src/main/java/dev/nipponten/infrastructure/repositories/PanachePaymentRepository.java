@@ -5,10 +5,12 @@ import dev.nipponten.domain.repositories.PaymentRepository;
 import dev.nipponten.infrastructure.entities.PaymentEntity;
 import dev.nipponten.infrastructure.mappers.PaymentMapper;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
+import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import java.util.List;
 
 @ApplicationScoped
@@ -39,6 +41,34 @@ public class PanachePaymentRepository
                 .firstResultOptional()
                 .map(mapper::toModel)
                 .orElse(null);
+    }
+
+    @Override
+    public List<Payment> getPendingExpiredBefore(Instant cutoff, int limit) {
+        return find(
+                        "status = ?1 and expiresAt < ?2",
+                        Sort.by("expiresAt").and("id"),
+                        PaymentEntity.Status.PENDING,
+                        cutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
+    public List<Payment> getPendingWithoutExternalIdCreatedBefore(Instant cutoff, int limit) {
+        return find(
+                        "status = ?1 and externalId is null and createdAt < ?2",
+                        Sort.by("createdAt").and("id"),
+                        PaymentEntity.Status.PENDING,
+                        cutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 
     @Override

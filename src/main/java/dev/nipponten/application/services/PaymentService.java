@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 /**
  * Pagamento online dos pedidos (docs/payments.md). A chamada ao provedor fica fora de transação,
@@ -43,6 +44,18 @@ public class PaymentService {
 
     @ConfigProperty(name = "nippon.payments.pix-expiration")
     Duration pixExpiration;
+
+    @ConfigProperty(name = "nippon.payments.awaiting-payment-timeout")
+    Duration awaitingPaymentTimeout;
+
+    static final String UNPAID_REASON = "Payment not completed";
+
+    // O provedor vence o Pix junto com o nosso expires_at; a folga evita consultar antes dele.
+    private static final Duration EXPIRATION_GRACE = Duration.ofMinutes(1);
+
+    private static final int RECONCILIATION_BATCH = 100;
+
+    private static final Logger LOG = Logger.getLogger(PaymentService.class);
 
     /**
      * Uma tentativa aberta por vez. Se a anterior ficou sem id externo (o provedor falhou ou não
@@ -78,7 +91,16 @@ public class PaymentService {
                         .filter(payment -> payment.status() == Payment.Status.PENDING)
                         .findFirst();
         if (open.isPresent() && open.get().externalId() != null) {
-            throw new InvalidRequestException("Order " + orderId + " already has an open payment");
+            // Pix vencido ainda não reconciliado: resolve agora, para o cliente não esperar o job.
+            Payment current = open.get();
+            if (current.expiresAt() == null || Instant.now(clock).isBefore(current.expiresAt())) {
+                throw new InvalidRequestException(
+                        "Order " + orderId + " already has an open payment");
+            }
+            if (expire(current).status() == Payment.Status.APPROVED) {
+                throw new InvalidRequestException("Order " + orderId + " is already paid");
+            }
+            open = Optional.empty();
         }
         Payment attempt = open.orElseGet(() -> repository.save(newAttempt(order, method, card)));
         PaymentGateway.Charge charge =
@@ -133,6 +155,88 @@ public class PaymentService {
             return;
         }
         apply(payment, gateway.fetch(resourceId));
+    }
+
+    /**
+     * Reconciliação agendada (docs/payments.md, Expiração e reconciliação). Cada item é tratado à
+     * parte: uma falha do provedor num deles fica no log e não para os outros. Tudo aqui é
+     * idempotente, então rodar duas vezes, ou em duas instâncias, não muda o resultado.
+     */
+    public void reconcile() {
+        Instant now = Instant.now(clock);
+        for (Payment payment :
+                repository.getPendingWithoutExternalIdCreatedBefore(
+                        now.minus(awaitingPaymentTimeout), RECONCILIATION_BATCH)) {
+            safely(payment.orderId(), () -> giveUpUnsent(payment));
+        }
+        for (Payment payment :
+                repository.getPendingExpiredBefore(
+                        now.minus(EXPIRATION_GRACE), RECONCILIATION_BATCH)) {
+            safely(payment.orderId(), () -> expire(payment));
+        }
+        for (Order order :
+                orderService.getAwaitingPaymentCreatedBefore(
+                        now.minus(awaitingPaymentTimeout), RECONCILIATION_BATCH)) {
+            safely(order.id(), () -> cancelIfAbandoned(order));
+        }
+    }
+
+    // Tentativa que nunca recebeu o id do provedor, porque a criação falhou e o cliente não tentou
+    // de novo. No Pix, sem o QR code ninguém consegue pagar. No cartão, a cobrança pode ter
+    // acontecido sem a resposta chegar: fica o aviso para conferir no painel do provedor.
+    private void giveUpUnsent(Payment payment) {
+        if (payment.method() == Payment.Method.CARD) {
+            LOG.warnf(
+                    "Card payment %d of order %d never got an answer from the provider; check"
+                            + " reference payment-%d (idempotency key %s) in the provider panel",
+                    payment.id(), payment.orderId(), payment.id(), payment.idempotencyKey());
+        }
+        markLocally(payment, Payment.Status.EXPIRED, "not_sent");
+    }
+
+    // Pix vencido: o provedor é consultado antes, porque o webhook da aprovação pode ter se
+    // perdido. Se ele ainda disser que está aberto, o Pix é vencido aqui mesmo.
+    private Payment expire(Payment payment) {
+        if (payment.externalId() == null) {
+            return markLocally(payment, Payment.Status.EXPIRED, "not_sent");
+        }
+        Payment updated = apply(payment, gateway.fetch(payment.externalId()));
+        return updated.status() == Payment.Status.PENDING
+                ? markLocally(updated, Payment.Status.EXPIRED, "expired")
+                : updated;
+    }
+
+    // Enquanto houver tentativa aberta (Pix no prazo, cartão em análise), o pedido espera. A
+    // consulta fica numa transação nova: fora dela, a leitura usa a sessão do request, que ainda
+    // guarda os pagamentos como estavam antes de a etapa anterior vencê-los.
+    private void cancelIfAbandoned(Order order) {
+        QuarkusTransaction.requiringNew()
+                .run(
+                        () -> {
+                            boolean open =
+                                    repository.getByOrder(order.id()).stream()
+                                            .anyMatch(
+                                                    payment ->
+                                                            payment.status()
+                                                                    == Payment.Status.PENDING);
+                            if (!open) {
+                                orderService.cancelUnpaid(order.id(), UNPAID_REASON);
+                            }
+                        });
+    }
+
+    private Payment markLocally(Payment payment, Payment.Status status, String detail) {
+        return apply(
+                payment,
+                new PaymentGateway.Charge(payment.externalId(), status, detail, null, null));
+    }
+
+    private static void safely(Long orderId, Runnable step) {
+        try {
+            step.run();
+        } catch (RuntimeException e) {
+            LOG.warnf(e, "Payment reconciliation failed for order %d", orderId);
+        }
     }
 
     // Grava o que o provedor disse e, na aprovação, libera o pedido na mesma transação.
