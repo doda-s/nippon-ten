@@ -240,6 +240,6 @@ As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user
 2. ✅ `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
 3. ✅ `feat/payment-expiration`: job de expiração e reconciliação.
 4. ✅ `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
-5. ✅ `docs/payment-client`: atualização de `orders.md` e `api-client.md` (seção *Pagamento online*). O client npm sai do OpenAPI no build, já com as rotas de pagamento; o webhook fica fora do schema. Os diagramas `.drawio` são atualizados à mão.
+5. ✅ `docs/payment-client`: atualização de `orders.md` e `api-client.md` (seção *Pagamento online*). O client npm sai do OpenAPI no build, já com as rotas de pagamento; o webhook fica fora do schema. Os diagramas `.drawio` (status, fluxo, ERD, modelo de dados, arquitetura e resources) mostram o pagamento online.
 
 Fontes da API do Mercado Pago: [Pix na API Orders](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-integration/pix), [status da order](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-management/status/order-status) e [notificações](https://www.mercadopago.com.br/developers/en/docs/your-integrations/notifications/webhooks).
