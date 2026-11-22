@@ -234,7 +234,8 @@ public class OrderResource {
         return Response.status(Response.Status.CREATED)
                 .entity(
                         PaymentResponse.of(
-                                paymentService.create(id, trackingToken, request.method())))
+                                paymentService.create(
+                                        id, trackingToken, request.method(), request.card())))
                 .build();
     }
 

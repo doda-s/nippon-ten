@@ -15,6 +15,12 @@ public interface PaymentGateway {
     /** Cria a cobrança Pix. Chamar de novo com a mesma idempotencyKey não cobra duas vezes. */
     Charge createPix(PixCharge charge);
 
+    /**
+     * Cobra o cartão tokenizado pelo front, à vista. O resultado já vem na resposta (aprovado,
+     * recusado ou em processamento). Mesma idempotência do Pix.
+     */
+    Charge chargeCard(CardCharge charge);
+
     /** Estado atual no provedor, que é a fonte da verdade. */
     Charge fetch(String externalId);
 
@@ -26,7 +32,22 @@ public interface PaymentGateway {
             String payerName,
             Duration expiration) {}
 
-    /** qrCode e qrCodeBase64 só vêm no Pix. */
+    /**
+     * {@code cardToken} e {@code cardBrand} vêm do formulário do provedor no front; o número do
+     * cartão nunca passa pelo backend. A identificação (CPF ou CNPJ) é opcional.
+     */
+    record CardCharge(
+            String idempotencyKey,
+            String reference,
+            BigDecimal amount,
+            String payerEmail,
+            String payerName,
+            String identificationType,
+            String identificationNumber,
+            String cardToken,
+            String cardBrand) {}
+
+    /** qrCode e qrCodeBase64 só vêm no Pix. externalId é nulo se o provedor recusou sem criar. */
     record Charge(
             String externalId,
             Payment.Status status,

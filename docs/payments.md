@@ -1,4 +1,4 @@
-> **Status:** fase 1 do [[#Roadmap de implementação|Roadmap]] implementada (Pix online, webhook e aprovação do pedido). Cartão, expiração agendada e estorno ainda não existem. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
+> **Status:** fases 1 e 2 do [[#Roadmap de implementação|Roadmap]] implementadas (Pix e cartão online, webhook e aprovação do pedido). Expiração agendada e estorno ainda não existem. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
 
 Esta página descreve o pagamento online dos pedidos com o Mercado Pago, que completa o requisito 52 de [`requirements.md`](requirements.md) ("o cliente deve conseguir pagar pelo produto diretamente pelo sistema"). Na v1 dos pedidos o funcionário só marca o pedido como pago (ver [[orders#Pagamento|orders.md]]). Esse caminho continua existindo para quem paga na entrega ou no balcão.
 
@@ -110,7 +110,34 @@ O e-mail do pagador precisa ser diferente do e-mail da conta Mercado Pago do res
 
 Um e-mail sintético (`pedido-<code>@<domínio>`) para o visitante não informar nada foi considerado e descartado. O comprovante iria para uma caixa que ninguém lê, o restaurante precisaria de um domínio próprio só para isso, e o ganho é pequeno: o visitante já informa nome e telefone, e um campo de e-mail é o padrão em compra sem conta.
 
-O nome do visitante (`guestName`) vai em `payer.first_name`. O cliente logado ainda não manda nome, porque a conta não guarda um. No sandbox, o nome `APRO` faz o Mercado Pago aprovar o Pix sozinho: é assim que o fluxo completo, com webhook, é testado sem pagar o QR code.
+O nome do visitante (`guestName`) vai em `payer.first_name`. O cliente logado manda o nome do cadastro. No sandbox, o nome `APRO` faz o Mercado Pago aprovar o Pix sozinho: é assim que o fluxo completo, com webhook, é testado sem pagar o QR code.
+
+## Cartão
+
+O front monta o Card Payment Brick com a *public key* do Mercado Pago. O Brick tokeniza o cartão e devolve o token, a bandeira (`payment_method_id`), o e-mail e a identificação do titular. O front repassa esses dados:
+
+```json
+POST /orders/{id}/payments
+{
+  "method": "CARD",
+  "card": {
+    "token": "<token do Brick>",
+    "paymentMethodId": "visa",
+    "payerEmail": "titular@exemplo.com",
+    "identification": {"type": "CPF", "number": "12345678909"}
+  }
+}
+```
+
+- `card` é obrigatório no cartão e proibido no Pix (`400`). `token` e `paymentMethodId` são obrigatórios. `payerEmail` e `identification` são opcionais: sem e-mail, vale o do pedido (visitante) ou o da conta (cliente). A identificação aceita `CPF` (11 dígitos) ou `CNPJ` (14).
+- A cobrança é sempre à vista (`installments = 1`) e com `processing_mode = automatic`, então o resultado já vem na resposta:
+  - `APPROVED`: o pedido é liberado na hora, como no Pix aprovado.
+  - `REJECTED`: o pedido continua em `AWAITING_PAYMENT`. `statusDetail` traz o motivo da transação (por exemplo `cc_rejected_insufficient_amount`) para o front mostrar a mensagem certa, e o cliente pode tentar de novo com outro cartão.
+  - `PENDING`: o cartão ficou em análise. A tentativa continua aberta (uma nova é `400`) até o webhook trazer o resultado.
+- O Mercado Pago responde `402` quando cria a order, mas a transação falha. O adapter trata isso como recusa, não como falha de comunicação: a tentativa fica `REJECTED` e a resposta é `201`.
+- O token do Brick é de uso único e não é gravado. Se o Mercado Pago não responder (`502`), a nova tentativa repete a mesma chave de idempotência: se a primeira cobrança chegou a ser feita, o Mercado Pago devolve a mesma order em vez de cobrar de novo.
+
+No sandbox, o nome do titular digitado no Brick escolhe o resultado: `APRO` aprova, `OTHE` recusa, `CONT` fica pendente e `FUND` recusa por saldo insuficiente. Os cartões de teste estão na [documentação do Mercado Pago](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/integration-test/cards).
 
 ## Webhook
 
@@ -198,7 +225,7 @@ As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user
 ## Roadmap de implementação
 
 1. ✅ `feat/payment-gateway`: `payment_channel`, status `AWAITING_PAYMENT`, agregado `Payment`, migration, porta `PaymentGateway` com fake nos testes, adapter do Mercado Pago para Pix, `POST`/`GET /orders/{id}/payments` só para Pix, webhook com assinatura e aprovação do pedido. A porta e o adapter entram juntos porque a aplicação precisa de uma implementação real do `PaymentGateway` para subir.
-2. `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
+2. ✅ `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
 3. `feat/payment-expiration`: job de expiração e reconciliação.
 4. `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
 5. `docs/payment-client`: atualização de `orders.md`, `api-client.md`, do client npm e dos diagramas.

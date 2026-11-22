@@ -1,5 +1,7 @@
 package dev.nipponten.infrastructure.payments.mercadopago;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.nipponten.application.exceptions.PaymentGatewayException;
 import dev.nipponten.domain.gateways.PaymentGateway;
 import dev.nipponten.domain.models.Payment;
@@ -26,6 +28,8 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
 
     @Inject @RestClient MercadoPagoClient client;
 
+    @Inject ObjectMapper json;
+
     // Opcional para a aplicação subir sem credenciais (dev sem .env); a cobrança falha com 502.
     @ConfigProperty(name = "nippon.payments.mercadopago.access-token")
     Optional<String> accessToken;
@@ -49,15 +53,46 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
                                         new MercadoPagoOrder.CreatePayment(
                                                 amount,
                                                 new MercadoPagoOrder.CreatePaymentMethod(
-                                                        "pix", "bank_transfer"),
+                                                        "pix", "bank_transfer", null, null),
                                                 charge.expiration().toString()))),
-                        new MercadoPagoOrder.Payer(charge.payerEmail(), charge.payerName()));
-        return toCharge(call(() -> client.create(authorization(), charge.idempotencyKey(), body)));
+                        new MercadoPagoOrder.Payer(charge.payerEmail(), charge.payerName(), null));
+        return call(() -> client.create(authorization(), charge.idempotencyKey(), body));
+    }
+
+    // Sempre à vista (docs/payments.md, Decisões).
+    @Override
+    public Charge chargeCard(CardCharge charge) {
+        String amount = charge.amount().setScale(2, RoundingMode.HALF_UP).toPlainString();
+        MercadoPagoOrder.Create body =
+                new MercadoPagoOrder.Create(
+                        "online",
+                        amount,
+                        charge.reference(),
+                        "automatic",
+                        new MercadoPagoOrder.CreateTransactions(
+                                List.of(
+                                        new MercadoPagoOrder.CreatePayment(
+                                                amount,
+                                                new MercadoPagoOrder.CreatePaymentMethod(
+                                                        charge.cardBrand(),
+                                                        "credit_card",
+                                                        charge.cardToken(),
+                                                        1),
+                                                null))),
+                        new MercadoPagoOrder.Payer(
+                                charge.payerEmail(),
+                                charge.payerName(),
+                                charge.identificationType() == null
+                                        ? null
+                                        : new MercadoPagoOrder.Identification(
+                                                charge.identificationType(),
+                                                charge.identificationNumber())));
+        return call(() -> client.create(authorization(), charge.idempotencyKey(), body));
     }
 
     @Override
     public Charge fetch(String externalId) {
-        return toCharge(call(() -> client.get(authorization(), externalId)));
+        return call(() -> client.get(authorization(), externalId));
     }
 
     private String authorization() {
@@ -70,13 +105,18 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
                                                 "Mercado Pago is not configured"));
     }
 
-    // Erro HTTP do REST Client não pode escapar: viraria a resposta da nossa API.
-    private static MercadoPagoOrder call(Supplier<MercadoPagoOrder> request) {
+    // Erro HTTP do REST Client não pode escapar: viraria a resposta da nossa API. O 402 é a
+    // exceção: a order foi criada, mas a transação falhou (cartão recusado). Isso não é falha de
+    // comunicação, então vira um resultado e não um 502.
+    private Charge call(Supplier<MercadoPagoOrder> request) {
         try {
-            return request.get();
+            return toCharge(request.get());
         } catch (WebApplicationException e) {
             String body =
                     e.getResponse().hasEntity() ? e.getResponse().readEntity(String.class) : "";
+            if (e.getResponse().getStatus() == 402) {
+                return declined(body);
+            }
             throw new PaymentGatewayException(
                     "Mercado Pago answered " + e.getResponse().getStatus() + ": " + body, e);
         } catch (ProcessingException e) {
@@ -84,17 +124,50 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
         }
     }
 
+    // O corpo do 402 é a order com a transação recusada. Se não der para ler, o cartão foi
+    // recusado mesmo assim, só sem o motivo.
+    private Charge declined(String body) {
+        try {
+            MercadoPagoOrder order = json.readValue(body, MercadoPagoOrder.class);
+            if (order.id() != null) {
+                Charge charge = toCharge(order);
+                return charge.status() == Payment.Status.APPROVED
+                        ? charge
+                        : new Charge(
+                                charge.externalId(),
+                                Payment.Status.REJECTED,
+                                charge.statusDetail(),
+                                null,
+                                null);
+            }
+        } catch (JsonProcessingException e) {
+            LOG.warnf("Unreadable Mercado Pago 402 body: %s", body);
+        }
+        return new Charge(null, Payment.Status.REJECTED, "rejected", null, null);
+    }
+
     private static Charge toCharge(MercadoPagoOrder order) {
-        MercadoPagoOrder.PaymentMethod method =
+        MercadoPagoOrder.Transaction transaction =
                 Optional.ofNullable(order.transactions())
                         .map(MercadoPagoOrder.Transactions::payments)
                         .filter(payments -> !payments.isEmpty())
-                        .map(payments -> payments.getFirst().paymentMethod())
+                        .map(List::getFirst)
                         .orElse(null);
+        MercadoPagoOrder.PaymentMethod method =
+                transaction == null ? null : transaction.paymentMethod();
+        Payment.Status status = toStatus(order.status(), order.statusDetail());
+        // Na recusa, o motivo útil (ex.: cc_rejected_insufficient_amount) está na transação; o
+        // da order é genérico.
+        String detail =
+                status == Payment.Status.REJECTED
+                                && transaction != null
+                                && transaction.statusDetail() != null
+                        ? transaction.statusDetail()
+                        : order.statusDetail();
         return new Charge(
                 order.id(),
-                toStatus(order.status(), order.statusDetail()),
-                order.statusDetail(),
+                status,
+                detail,
                 method == null ? null : method.qrCode(),
                 method == null ? null : method.qrCodeBase64());
     }

@@ -22,6 +22,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
  * sem rede nem credenciais. Fica fora da API da aplicação porque o "Authorization: Bearer" do
  * Mercado Pago seria lido como JWT nosso. Repete a order quando a chave de idempotência se repete,
  * como o Mercado Pago, e os testes mudam o status com {@link #setStatus}.
+ *
+ * <p>No cartão, o token escolhe o resultado, como o nome do titular no sandbox: {@code tok-APRO}
+ * aprova, {@code tok-CONT} fica em processamento e {@code tok-OTHE} recusa com 402.
  */
 @ApplicationScoped
 public class MercadoPagoStub {
@@ -69,6 +72,11 @@ public class MercadoPagoStub {
         return SEQUENCE.get();
     }
 
+    /** Id da última order criada. Os testes rodam um por vez, então é a do teste atual. */
+    static String lastId() {
+        return "ORD01STUB" + SEQUENCE.get();
+    }
+
     @SuppressWarnings("unchecked")
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
@@ -93,7 +101,9 @@ public class MercadoPagoStub {
             }
             Map<String, Object> body = JSON.readValue(exchange.getRequestBody(), Map.class);
             String id = BY_KEY.computeIfAbsent(key, k -> newOrder(body));
-            reply(exchange, 201, ORDERS.get(id));
+            Map<String, Object> order = ORDERS.get(id);
+            // A API responde 402 quando a order é criada, mas a transação falha.
+            reply(exchange, "failed".equals(order.get("status")) ? 402 : 201, order);
         }
     }
 
@@ -105,7 +115,18 @@ public class MercadoPagoStub {
     }
 
     // Ids em maiúsculas, como os reais (ORD...), para exercitar o minúsculo do manifesto.
+    @SuppressWarnings("unchecked")
     private static String newOrder(Map<String, Object> body) {
+        Map<String, Object> method =
+                (Map<String, Object>)
+                        ((List<Map<String, Object>>)
+                                        ((Map<String, Object>) body.get("transactions"))
+                                                .get("payments"))
+                                .getFirst()
+                                .get("payment_method");
+        if ("credit_card".equals(method.get("type"))) {
+            return newCardOrder(body, method);
+        }
         String id = "ORD01STUB" + SEQUENCE.incrementAndGet();
         Map<String, Object> order = new HashMap<>();
         order.put("id", id);
@@ -132,6 +153,38 @@ public class MercadoPagoStub {
                                                 "00020126pix-" + id,
                                                 "qr_code_base64",
                                                 "iVBORw0KGgo-" + id)))));
+        ORDERS.put(id, order);
+        REQUESTS.put(id, body);
+        return id;
+    }
+
+    private static String newCardOrder(Map<String, Object> body, Map<String, Object> method) {
+        String id = "ORD01STUB" + SEQUENCE.incrementAndGet();
+        String[] result =
+                switch (String.valueOf(method.get("token"))) {
+                    case "tok-APRO" -> new String[] {"processed", "accredited", "accredited"};
+                    case "tok-CONT" -> new String[] {"processing", "in_process", "pending_review"};
+                    default -> new String[] {"failed", "failed", "cc_rejected_insufficient_amount"};
+                };
+        Map<String, Object> order = new HashMap<>();
+        order.put("id", id);
+        order.put("status", result[0]);
+        order.put("status_detail", result[1]);
+        order.put("total_amount", body.get("total_amount"));
+        order.put(
+                "transactions",
+                Map.of(
+                        "payments",
+                        List.of(
+                                Map.of(
+                                        "id",
+                                        "PAY01STUB" + id,
+                                        "status",
+                                        result[0],
+                                        "status_detail",
+                                        result[2],
+                                        "payment_method",
+                                        Map.of("id", method.get("id"), "type", "credit_card")))));
         ORDERS.put(id, order);
         REQUESTS.put(id, body);
         return id;

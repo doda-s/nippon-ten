@@ -2,6 +2,7 @@ package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.UnauthorizedException;
+import dev.nipponten.application.requests.CardPaymentRequest;
 import dev.nipponten.domain.gateways.PaymentGateway;
 import dev.nipponten.domain.gateways.PaymentNotificationVerifier;
 import dev.nipponten.domain.models.Order;
@@ -30,6 +31,8 @@ public class PaymentService {
 
     @Inject OrderService orderService;
 
+    @Inject ClientService clientService;
+
     @Inject PaymentGateway gateway;
 
     @Inject PaymentNotificationVerifier verifier;
@@ -45,13 +48,17 @@ public class PaymentService {
      * Uma tentativa aberta por vez. Se a anterior ficou sem id externo (o provedor falhou ou não
      * respondeu), ela é repetida com a mesma chave de idempotência, sem cobrar duas vezes.
      */
-    public Payment create(Long orderId, String trackingToken, Payment.Method method) {
+    public Payment create(
+            Long orderId, String trackingToken, Payment.Method method, CardPaymentRequest card) {
         Order order = orderService.requireCustomer(orderId, trackingToken, "pay");
         if (order.paymentChannel() != Order.PaymentChannel.ONLINE) {
             throw new InvalidRequestException("Order " + orderId + " is paid IN_PERSON");
         }
-        if (method != Payment.Method.PIX) {
-            throw new InvalidRequestException(method + " payments are not available yet");
+        if (method == Payment.Method.CARD && card == null) {
+            throw new InvalidRequestException("card is required for CARD payments");
+        }
+        if (method == Payment.Method.PIX && card != null) {
+            throw new InvalidRequestException("card is not accepted for PIX payments");
         }
         if (!order.paymentMethod().name().equals(method.name())) {
             throw new InvalidRequestException(
@@ -73,16 +80,32 @@ public class PaymentService {
         if (open.isPresent() && open.get().externalId() != null) {
             throw new InvalidRequestException("Order " + orderId + " already has an open payment");
         }
-        Payment attempt = open.orElseGet(() -> repository.save(newPix(order)));
+        Payment attempt = open.orElseGet(() -> repository.save(newAttempt(order, method, card)));
         PaymentGateway.Charge charge =
-                gateway.createPix(
-                        new PaymentGateway.PixCharge(
-                                attempt.idempotencyKey(),
-                                "payment-" + attempt.id(),
-                                attempt.amount(),
-                                attempt.payerEmail(),
-                                order.guestName(),
-                                pixExpiration));
+                method == Payment.Method.PIX
+                        ? gateway.createPix(
+                                new PaymentGateway.PixCharge(
+                                        attempt.idempotencyKey(),
+                                        "payment-" + attempt.id(),
+                                        attempt.amount(),
+                                        attempt.payerEmail(),
+                                        payerName(order),
+                                        pixExpiration))
+                        : gateway.chargeCard(
+                                new PaymentGateway.CardCharge(
+                                        attempt.idempotencyKey(),
+                                        "payment-" + attempt.id(),
+                                        attempt.amount(),
+                                        attempt.payerEmail(),
+                                        payerName(order),
+                                        card.identification() == null
+                                                ? null
+                                                : card.identification().type(),
+                                        card.identification() == null
+                                                ? null
+                                                : card.identification().number(),
+                                        card.token(),
+                                        card.paymentMethodId()));
         return apply(attempt, charge);
     }
 
@@ -156,22 +179,24 @@ public class PaymentService {
                         });
     }
 
-    private Payment newPix(Order order) {
+    // O Pix vence; o cartão não tem prazo, o resultado vem na resposta ou pelo webhook.
+    private Payment newAttempt(Order order, Payment.Method method, CardPaymentRequest card) {
         Instant now = Instant.now(clock);
+        String cardEmail = card == null ? null : card.payerEmail();
         return new Payment(
                 null,
                 order.id(),
                 gateway.provider(),
                 null,
                 UUID.randomUUID().toString(),
-                Payment.Method.PIX,
+                method,
                 Payment.Status.PENDING,
                 null,
                 order.total(),
-                payerEmail(order),
+                cardEmail == null || cardEmail.isBlank() ? payerEmail(order) : cardEmail,
                 null,
                 null,
-                now.plus(pixExpiration),
+                method == Payment.Method.PIX ? now.plus(pixExpiration) : null,
                 null,
                 now,
                 now);
@@ -182,6 +207,14 @@ public class PaymentService {
      * usa o da conta e o visitante, o que informou no pedido. Pedido sem e-mail é o que o
      * funcionário lança, e esse nunca é online.
      */
+    // Nome do cadastro do cliente ou o que o visitante informou. Só ajuda o provedor (comprovante,
+    // antifraude) e nunca é obrigatório.
+    private String payerName(Order order) {
+        return order.clientId() == null
+                ? order.guestName()
+                : clientService.getById(order.clientId()).name();
+    }
+
     private String payerEmail(Order order) {
         if (order.clientId() != null) {
             return currentUser.get().email();

@@ -51,10 +51,16 @@ public record MercadoPagoOrder(
             @JsonProperty("payment_method") CreatePaymentMethod paymentMethod,
             @JsonProperty("expiration_time") String expirationTime) {}
 
-    public record CreatePaymentMethod(String id, String type) {}
-
-    // first_name é opcional; no sandbox, o valor APRO faz o Mercado Pago aprovar o pagamento
-    // sozinho.
+    // token e installments só no cartão.
     @JsonInclude(JsonInclude.Include.NON_NULL)
-    public record Payer(String email, @JsonProperty("first_name") String firstName) {}
+    public record CreatePaymentMethod(String id, String type, String token, Integer installments) {}
+
+    // first_name é opcional; no sandbox, o valor APRO faz o Mercado Pago aprovar o Pix sozinho.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Payer(
+            String email,
+            @JsonProperty("first_name") String firstName,
+            Identification identification) {}
+
+    public record Identification(String type, String number) {}
 }
