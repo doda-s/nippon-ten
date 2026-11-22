@@ -12,3 +12,6 @@ application-local.properties
 .claude/settings.local.json
 # Obsidian files
 .obsidian/
+
+# Segredos locais (credenciais do Mercado Pago etc.)
+.env

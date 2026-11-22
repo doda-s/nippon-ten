@@ -28,6 +28,7 @@ public class OrderEntity {
     }
 
     public enum Status {
+        AWAITING_PAYMENT,
         PENDING,
         IN_PREPARATION,
         READY,
@@ -40,6 +41,11 @@ public class OrderEntity {
         PIX,
         CARD,
         CASH
+    }
+
+    public enum PaymentChannel {
+        ONLINE,
+        IN_PERSON
     }
 
     @Id @GeneratedValue private Long id;
@@ -69,6 +75,10 @@ public class OrderEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod paymentMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PaymentChannel paymentChannel;
 
     @Column(nullable = false)
     private boolean paid;
@@ -185,6 +195,14 @@ public class OrderEntity {
 
     public void setPaymentMethod(PaymentMethod paymentMethod) {
         this.paymentMethod = paymentMethod;
+    }
+
+    public PaymentChannel getPaymentChannel() {
+        return paymentChannel;
+    }
+
+    public void setPaymentChannel(PaymentChannel paymentChannel) {
+        this.paymentChannel = paymentChannel;
     }
 
     public boolean isPaid() {

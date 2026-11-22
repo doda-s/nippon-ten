@@ -31,6 +31,7 @@ public class OrderResponseMapper {
                 order.fulfillmentType(),
                 order.status(),
                 order.paymentMethod(),
+                order.paymentChannel(),
                 order.paid(),
                 order.paidAt(),
                 address,

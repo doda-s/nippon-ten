@@ -8,6 +8,7 @@ import dev.nipponten.application.requests.OrderQuoteRequest;
 import dev.nipponten.application.requests.OrderRequest;
 import dev.nipponten.application.requests.OrderRequestMapper;
 import dev.nipponten.application.requests.OrderStatusRequest;
+import dev.nipponten.application.requests.PaymentRequest;
 import dev.nipponten.application.responses.OrderCreatedResponse;
 import dev.nipponten.application.responses.OrderEventResponse;
 import dev.nipponten.application.responses.OrderQuoteResponse;
@@ -16,9 +17,11 @@ import dev.nipponten.application.responses.OrderResponse;
 import dev.nipponten.application.responses.OrderResponseMapper;
 import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
+import dev.nipponten.application.responses.PaymentResponse;
 import dev.nipponten.application.services.OrderEventBus;
 import dev.nipponten.application.services.OrderQuoteService;
 import dev.nipponten.application.services.OrderService;
+import dev.nipponten.application.services.PaymentService;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
 import dev.nipponten.resource.security.Permissions;
@@ -28,6 +31,7 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
@@ -40,6 +44,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.List;
 import org.jboss.resteasy.reactive.RestStreamElementType;
 
 // As rotas públicas mudam com quem chama (visitante, cliente ou funcionário); essa regra depende
@@ -64,6 +69,8 @@ public class OrderResource {
     @Inject OrderResponseMapper mapper;
 
     @Inject OrderEventBus eventBus;
+
+    @Inject PaymentService paymentService;
 
     // Pública: o visitante também monta carrinho. Não grava nada.
     @POST
@@ -185,6 +192,32 @@ public class OrderResource {
     @Path("/{id}/items")
     public OrderResponse updateItems(@PathParam("id") Long id, @Valid OrderItemsRequest request) {
         return toResponse(service.updateItems(id, itemRequestMapper.toModels(request.items())));
+    }
+
+    // Pública: quem paga é o cliente dono ou o visitante pelo token; a regra fica no service.
+    @POST
+    @PermitAll
+    @Path("/{id}/payments")
+    public Response createPayment(
+            @PathParam("id") Long id,
+            @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken,
+            @Valid @NotNull PaymentRequest request) {
+        return Response.status(Response.Status.CREATED)
+                .entity(
+                        PaymentResponse.of(
+                                paymentService.create(
+                                        id, trackingToken, request.method(), request.payerEmail())))
+                .build();
+    }
+
+    @GET
+    @PermitAll
+    @Path("/{id}/payments")
+    public List<PaymentResponse> getPayments(
+            @PathParam("id") Long id, @HeaderParam(TRACKING_TOKEN_HEADER) String trackingToken) {
+        return paymentService.getByOrder(id, trackingToken).stream()
+                .map(PaymentResponse::of)
+                .toList();
     }
 
     private OrderResponse toResponse(OrderDetails details) {

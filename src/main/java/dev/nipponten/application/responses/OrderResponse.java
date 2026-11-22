@@ -15,6 +15,7 @@ public record OrderResponse(
         Order.FulfillmentType fulfillmentType,
         Order.Status status,
         Order.PaymentMethod paymentMethod,
+        Order.PaymentChannel paymentChannel,
         boolean paid,
         Instant paidAt,
         Address address,

@@ -33,6 +33,7 @@ public class OrderMapper {
                 OrderEntity.FulfillmentType.valueOf(model.fulfillmentType().name()));
         entity.setStatus(OrderEntity.Status.valueOf(model.status().name()));
         entity.setPaymentMethod(OrderEntity.PaymentMethod.valueOf(model.paymentMethod().name()));
+        entity.setPaymentChannel(OrderEntity.PaymentChannel.valueOf(model.paymentChannel().name()));
         entity.setPaid(model.paid());
         entity.setPaidAt(model.paidAt());
         entity.setStreetAddress(model.streetAddress());
@@ -109,6 +110,7 @@ public class OrderMapper {
                 Order.FulfillmentType.valueOf(entity.getFulfillmentType().name()),
                 Order.Status.valueOf(entity.getStatus().name()),
                 Order.PaymentMethod.valueOf(entity.getPaymentMethod().name()),
+                Order.PaymentChannel.valueOf(entity.getPaymentChannel().name()),
                 entity.isPaid(),
                 entity.getPaidAt(),
                 entity.getStreetAddress(),

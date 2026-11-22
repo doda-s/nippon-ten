@@ -17,11 +17,14 @@ import java.util.List;
  *   <li>funcionário: {@code clientId} ou {@code guestName}, e {@code addressId} (do cliente) ou
  *       {@code address} na entrega.
  * </ul>
+ *
+ * <p>{@code paymentChannel} é opcional: sem ele o pagamento é presencial, como na v1.
  */
 public record OrderRequest(
         @NotEmpty List<@NotNull @Valid OrderItemRequest> items,
         @NotNull Order.FulfillmentType fulfillmentType,
         @NotNull Order.PaymentMethod paymentMethod,
+        Order.PaymentChannel paymentChannel,
         @Size(max = 500) String notes,
         Long addressId,
         @Valid OrderAddressRequest address,

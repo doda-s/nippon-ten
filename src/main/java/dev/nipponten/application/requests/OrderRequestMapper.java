@@ -24,6 +24,9 @@ public class OrderRequestMapper {
                 request.fulfillmentType(),
                 null,
                 request.paymentMethod(),
+                request.paymentChannel() == null
+                        ? Order.PaymentChannel.IN_PERSON
+                        : request.paymentChannel(),
                 false,
                 null,
                 address == null ? null : address.streetAddress(),

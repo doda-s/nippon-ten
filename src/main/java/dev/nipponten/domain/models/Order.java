@@ -17,6 +17,7 @@ public record Order(
         FulfillmentType fulfillmentType,
         Status status,
         PaymentMethod paymentMethod,
+        PaymentChannel paymentChannel,
         boolean paid,
         Instant paidAt,
         String streetAddress,
@@ -40,6 +41,8 @@ public record Order(
     }
 
     public enum Status {
+        // Pedido online antes da confirmação do pagamento; a cozinha ainda não o vê.
+        AWAITING_PAYMENT,
         PENDING,
         IN_PREPARATION,
         READY,
@@ -52,5 +55,11 @@ public record Order(
         PIX,
         CARD,
         CASH
+    }
+
+    // Quando o cliente paga: online pelo gateway ou presencialmente, na entrega ou no balcão.
+    public enum PaymentChannel {
+        ONLINE,
+        IN_PERSON
     }
 }

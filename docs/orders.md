@@ -23,7 +23,7 @@ F -->|COMPLETED| G[Feedback]
 
 1. **Carrinho.** O carrinho vive no front (navegador ou app), não no banco. Assim ele funciona igual para cliente logado e visitante, e não sobram carrinhos abandonados para limpar.
 2. **Cotação.** `POST /orders/quote` recebe os itens do carrinho e devolve cada item com preço unitário, preço original (quando há promoção), subtotal e total. Ele confere a disponibilidade e **não grava nada**. É assim que o front mostra o carrinho com o preço correto (req. 46).
-3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma de pagamento e as observações. O pedido nasce em `PENDING`.
+3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma e o momento do pagamento e as observações. O pedido nasce em `PENDING`, ou em `AWAITING_PAYMENT` quando é pago online (ver [`payments.md`](payments.md)).
 4. **Acompanhamento.** O cliente e o dashboard recebem as mudanças em tempo real (ver [[#Notificações (SSE)|Notificações]]).
 5. **Feedback.** Depois de `COMPLETED`, o cliente pode avaliar o pedido (req. 48).
 
@@ -121,10 +121,10 @@ COMPLETED --> [*]
 CANCELLED --> [*]
 ```
 
-- O pedido nasce em `PENDING` (aguardando a cozinha). Os estados do dashboard (escopo 6: pendente, em preparo, finalizado) são `PENDING`, `IN_PREPARATION` e `COMPLETED`; `READY` e `OUT_FOR_DELIVERY` detalham o meio do caminho.
+- O pedido nasce em `PENDING` (aguardando a cozinha). O pedido pago online nasce antes, em `AWAITING_PAYMENT`, e só o pagamento aprovado o leva a `PENDING`; ninguém faz essa transição pela API (ver [`payments.md`](payments.md)). Os estados do dashboard (escopo 6: pendente, em preparo, finalizado) são `PENDING`, `IN_PREPARATION` e `COMPLETED`; `READY` e `OUT_FOR_DELIVERY` detalham o meio do caminho.
 - Só o funcionário (`manage_orders`) avança o status, sempre um passo por vez, pelo caminho do diagrama. `OUT_FOR_DELIVERY` só existe para `DELIVERY`; `PICKUP` e `DINE_IN` vão de `READY` direto para `COMPLETED`. Uma transição fora do caminho é `400`.
 - **Cancelamento** (req. 41):
-  - o cliente ou o visitante cancela só em `PENDING`, ou seja, antes de a cozinha começar;
+  - o cliente ou o visitante cancela só em `AWAITING_PAYMENT` ou `PENDING`, ou seja, antes de a cozinha começar;
   - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`).
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
@@ -132,13 +132,13 @@ CANCELLED --> [*]
 - A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
-"Pedidos ativos" (req. 42) são os que não estão em `COMPLETED` nem em `CANCELLED`.
+"Pedidos ativos" (req. 42) são os que não estão em `AWAITING_PAYMENT`, `COMPLETED` nem `CANCELLED`: a cozinha não prepara pedido online ainda não pago.
 
 ### Pagamento
 
-Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
+O pedido grava a forma de pagamento (`PIX`, `CARD` ou `CASH`) e o momento (`paymentChannel`: `IN_PERSON`, o padrão, ou `ONLINE`). Esta seção descreve o pagamento presencial, na entrega ou no balcão; o online, com o Mercado Pago, está em [`payments.md`](payments.md). O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
 
-A integração com um gateway (Pix dinâmico, cartão online) fica para uma fase 2, como um agregado `Payment` próprio. Nessa fase deve surgir um estado anterior a `PENDING` (aguardando pagamento).
+Num pedido `ONLINE`, `POST /orders/{id}/pay` e `PUT /orders/{id}/items` são `400`: só o gateway marca como pago, e o total já cobrado não pode mudar.
 
 ### Edição pelo funcionário
 
@@ -170,7 +170,9 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | `GET /orders?status=` (paginado) | `manage_orders` |
 | `GET /orders/events` | `manage_orders` |
 | `GET /orders/{id}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
-| `POST /orders/{id}/cancel` | dono ou token (só em `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/cancel` | dono ou token (só em `AWAITING_PAYMENT` ou `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/payments` | dono ou token (ver [`payments.md`](payments.md)) |
+| `GET /orders/{id}/payments` | dono, token de acompanhamento ou `manage_orders` |
 | `POST /orders/{id}/feedback` | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | `manage_orders` |
 | `GET /users/{id}/orders` (paginado, histórico) | o próprio usuário ou `manage_users` |
@@ -205,7 +207,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 - Cupons (req. 34–35) e pontos (escopo 8, req. 36–37): `discount` reservado.
 - Taxa de entrega: `delivery_fee` reservado.
-- Gateway de pagamento (req. 52 completo).
+- Gateway de pagamento (req. 52 completo): em andamento, ver [`payments.md`](payments.md).
 
 ## Roadmap de implementação
 
