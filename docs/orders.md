@@ -1,6 +1,6 @@
 > **Status:** a v1 descrita aqui está implementada (todas as fases do [[#Roadmap de implementação|Roadmap]]). O que ficou fora da v1 está em [[#Fora da v1|Fora da v1]].
 
-Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
+Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–54 (o pagamento online do req. 52 está em [`payments.md`](payments.md)) de [`requirements.md`](requirements.md).
 
 Diagramas (draw.io):
 
@@ -236,7 +236,6 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 - Cupons (req. 34–35) e pontos (escopo 8, req. 36–37): `discount` reservado.
 - Taxa de entrega: `delivery_fee` reservado.
-- Gateway de pagamento (req. 52 completo): em andamento, ver [`payments.md`](payments.md).
 
 ## Roadmap de implementação
 

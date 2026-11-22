@@ -10,6 +10,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.openapi.annotations.Operation;
 
 // Chamado pelo Mercado Pago. Pública: a origem é provada pela assinatura, conferida no service.
 @Path("/payments/webhooks/mercadopago")
@@ -17,9 +18,11 @@ public class PaymentWebhookResource {
 
     @Inject PaymentService service;
 
-    // O corpo é ignorado: o estado é buscado no provedor.
+    // O corpo é ignorado: o estado é buscado no provedor. Fora do OpenAPI (e do client npm)
+    // porque quem chama é o Mercado Pago, não o front.
     @POST
     @PermitAll
+    @Operation(hidden = true)
     @Consumes(MediaType.WILDCARD)
     public Response notify(
             @QueryParam("type") String type,

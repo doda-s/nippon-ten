@@ -89,3 +89,60 @@ As regras estão em [`orders.md`](orders.md). O que muda para o front:
 - **Página do pedido:** o e-mail de confirmação leva o link `<front>/pedido/<code>#t=<trackingToken>` (cliente com conta: sem `#t=`, e a página pede login). A rota `/pedido/:code` do front lê o token do fragmento (`location.hash`), guarda como acima e chama `GET /orders/by-code/{code}` com `X-Order-Token`. Com o `id` da resposta, abre o SSE de `GET /orders/{id}/events` para o status em tempo real. Depois de ler o token, limpe o fragmento da barra de endereço (`history.replaceState`).
 - **Perdeu o link:** `POST /orders/tracking-link` com `{code, email}` reenvia o link e responde sempre `202`. O link anterior deixa de funcionar, então o front troca o token guardado quando o visitante abrir o novo. Acima do limite, `429` com `Retry-After`.
 - **Tempo real:** `GET /orders/{id}/events` (cliente) e `GET /orders/events` (dashboard) são *Server-Sent Events*. O `EventSource` nativo do navegador não envia headers, então não carrega o `Authorization` nem o `X-Order-Token`. Use um cliente SSE sobre `fetch`, como `@microsoft/fetch-event-source`, com os mesmos headers das outras chamadas. Ao reconectar, recarregue o pedido (`GET /orders/{id}`) ou a listagem: o SSE é só um aviso, e eventos perdidos durante a queda não são reenviados.
+
+## Pagamento online
+
+As regras estão em [`payments.md`](payments.md). O backend usa só o *access token*. O front precisa da **public key** do Mercado Pago (de teste em dev, de produção em produção) para o Card Payment Brick, e só dela.
+
+### Checkout
+
+1. Crie o pedido com `paymentChannel: "ONLINE"` e `paymentMethod` `PIX` ou `CARD` (`CASH` online é `400`). O pedido nasce em `AWAITING_PAYMENT` e a cozinha ainda não o vê.
+2. Crie a cobrança com `POST /orders/{id}/payments`, com o `X-Order-Token` do visitante ou logado. A resposta (`201`) é o pagamento: `{id, method, status, statusDetail, amount, pixQrCode, pixQrCodeBase64, expiresAt, approvedAt, createdAt}`.
+3. Acompanhe o resultado pelo SSE do pedido (`GET /orders/{id}/events`): na aprovação chegam `PAID` e `STATUS_CHANGED` com o pedido em `PENDING`. Se o SSE cair, recarregue `GET /orders/{id}` e `GET /orders/{id}/payments`.
+
+O valor nunca sai do front: a cobrança é sempre o `total` do pedido. A edição de itens de um pedido online é bloqueada.
+
+### Pix
+
+- O corpo é só `{"method": "PIX"}`. O e-mail do pagador é o `guestEmail` do pedido, ou o da conta do cliente.
+- Mostre `pixQrCodeBase64` como imagem (`data:image/png;base64,...`) e `pixQrCode` com um botão de copiar. O Pix vale até `expiresAt` (30 minutos).
+- Enquanto o Pix estiver aberto, uma nova cobrança é `400`: reaproveite o QR que já existe. Depois de `expiresAt`, uma nova chamada cria outro Pix.
+- Um pedido sem pagamento aberto é cancelado pelo sistema 30 minutos depois de criado (`cancelReason = "Payment not completed"`), e chega o evento `CANCELLED`.
+
+### Cartão
+
+Monte o Card Payment Brick com a public key e o `total` do pedido em `initialization.amount`, sem parcelamento (`customization.paymentMethods.maxInstallments: 1`). No `onSubmit`, repasse ao backend o que o Brick devolve:
+
+```ts
+onSubmit: async (brick) => {
+  const { data } = await api.post(`/orders/${orderId}/payments`, {
+    method: "CARD",
+    card: {
+      token: brick.token,
+      paymentMethodId: brick.payment_method_id,
+      payerEmail: brick.payer.email,
+      identification: brick.payer.identification, // { type: "CPF", number: "..." }
+    },
+  });
+  // data.status: APPROVED, REJECTED ou PENDING
+}
+```
+
+- `APPROVED`: o pedido já foi liberado. Mostre a confirmação.
+- `REJECTED`: mostre a mensagem do motivo em `statusDetail` (por exemplo `cc_rejected_insufficient_amount`) e deixe o cliente tentar de novo. Cada tentativa precisa de um token novo do Brick, porque o token é de uso único.
+- `PENDING`: o cartão ficou em análise. Mostre "pagamento em análise" e espere o SSE.
+
+### Erros e cancelamento
+
+- `502` (`Payment provider unavailable, try again`): o Mercado Pago não respondeu. Tentar de novo é seguro, porque a nova chamada repete a mesma chave de idempotência e não cobra duas vezes.
+- `POST /orders/{id}/cancel` num pedido pago online estorna o valor total antes de cancelar. Se o estorno falhar, a resposta é `502` e o pedido continua como estava.
+- O evento `CHARGED_BACK` avisa uma contestação no cartão. O status do pedido não muda.
+- O webhook (`POST /payments/webhooks/mercadopago`) é chamado pelo Mercado Pago e não aparece no client.
+
+### Testar no sandbox
+
+Use as credenciais de teste do painel do Mercado Pago (o backend com o *access token* de teste, o front com a *public key* de teste).
+
+- **Pix:** um visitante com `guestName` `APRO` tem o Pix aprovado sozinho pelo sandbox, sem pagar o QR code.
+- **Cartão:** use os cartões de teste do Mercado Pago (Mastercard `5480 8328 0103 3311` ou Visa `4235 6477 2802 5682`, CVV `123`, validade `11/30`, CPF `12345678909`). O nome do titular escolhe o resultado: `APRO` aprova, `OTHE` recusa, `CONT` fica em análise, `FUND` recusa por saldo insuficiente.
+

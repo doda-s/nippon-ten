@@ -1,4 +1,4 @@
-> **Status:** fases 1 a 4 do [[#Roadmap de implementação|Roadmap]] implementadas: Pix e cartão online, webhook, aprovação do pedido, reconciliação agendada, cancelamento com estorno e chargeback. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
+> **Status:** todas as fases do [[#Roadmap de implementação|Roadmap]] implementadas: Pix e cartão online, webhook, aprovação do pedido, reconciliação agendada, cancelamento com estorno e chargeback. Falta o teste ponta a ponta do cartão e do estorno no sandbox. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
 
 Esta página descreve o pagamento online dos pedidos com o Mercado Pago, que completa o requisito 52 de [`requirements.md`](requirements.md) ("o cliente deve conseguir pagar pelo produto diretamente pelo sistema"). Na v1 dos pedidos o funcionário só marca o pedido como pago (ver [[orders#Pagamento|orders.md]]). Esse caminho continua existindo para quem paga na entrega ou no balcão.
 
@@ -212,7 +212,7 @@ O `access token` e a assinatura secreta do webhook ficam só em variável de amb
 - **Stub do Mercado Pago:** os `@QuarkusTest` usam o adapter real contra o `MercadoPagoStub` (`src/test`), um servidor HTTP local na porta `nippon.test.mercadopago-stub-port` que imita a API Orders: confere o `Authorization` e o `X-Idempotency-Key`, repete a order quando a chave se repete, guarda o corpo recebido e deixa o teste mudar o status ou simular falha (`500`). Ele roda fora da API da aplicação porque o `Authorization: Bearer` do Mercado Pago seria lido como o nosso JWT.
 - **Webhook:** o teste chama a rota com uma assinatura calculada com o segredo de teste, e o adapter busca o status no stub.
 - **Limite:** a assinatura é validada contra o próprio cálculo do teste. A conferência com uma notificação real do Mercado Pago fica para o teste no sandbox.
-- **Ponta a ponta:** teste manual no sandbox do Mercado Pago, com contas de teste e o webhook exposto por ngrok, antes de ir para produção.
+- **Ponta a ponta:** `scripts/payments-sandbox.py` roda contra a API local configurada com as credenciais de teste e o webhook exposto por ngrok. Ele paga um Pix (visitante `APRO`, aprovado sozinho pelo sandbox), espera o webhook e cancela com estorno. Com `MERCADOPAGO_PUBLIC_KEY`, também gera o token de um cartão de teste, como o Brick faria, paga com titular `APRO` e cancela com estorno, e confirma a recusa com titular `OTHE`.
 - Nenhum teste automatizado chama o Mercado Pago real, e o CI não recebe credenciais.
 
 ## Acesso à API
@@ -240,6 +240,6 @@ As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user
 2. ✅ `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
 3. ✅ `feat/payment-expiration`: job de expiração e reconciliação.
 4. ✅ `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
-5. `docs/payment-client`: atualização de `orders.md`, `api-client.md`, do client npm e dos diagramas.
+5. ✅ `docs/payment-client`: atualização de `orders.md` e `api-client.md` (seção *Pagamento online*). O client npm sai do OpenAPI no build, já com as rotas de pagamento; o webhook fica fora do schema. Os diagramas `.drawio` são atualizados à mão.
 
 Fontes da API do Mercado Pago: [Pix na API Orders](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-integration/pix), [status da order](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-management/status/order-status) e [notificações](https://www.mercadopago.com.br/developers/en/docs/your-integrations/notifications/webhooks).
