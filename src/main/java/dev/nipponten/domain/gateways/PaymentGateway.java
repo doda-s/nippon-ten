@@ -24,6 +24,18 @@ public interface PaymentGateway {
     /** Estado atual no provedor, que é a fonte da verdade. */
     Charge fetch(String externalId);
 
+    /**
+     * Cancela uma cobrança ainda não paga. Se o provedor não puder cancelar (já paga, já vencida,
+     * cartão em análise), devolve o estado atual em vez de falhar.
+     */
+    Charge cancel(String externalId, String idempotencyKey);
+
+    /**
+     * Estorna o valor total de uma cobrança paga. Se ela já foi estornada, ou não pode ser, devolve
+     * o estado atual; a falha de comunicação vira {@code PaymentGatewayException}.
+     */
+    Charge refund(String externalId, String idempotencyKey);
+
     record PixCharge(
             String idempotencyKey,
             String reference,

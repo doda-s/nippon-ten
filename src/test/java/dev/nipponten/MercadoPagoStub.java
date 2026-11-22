@@ -35,6 +35,8 @@ public class MercadoPagoStub {
     private static final Map<String, Map<String, Object>> ORDERS = new ConcurrentHashMap<>();
     private static final Map<String, Map<String, Object>> REQUESTS = new ConcurrentHashMap<>();
     private static final Map<String, String> BY_KEY = new ConcurrentHashMap<>();
+    // Chaves de idempotência recebidas nos cancelamentos e estornos de cada order.
+    private static final Map<String, List<String>> KEYS = new ConcurrentHashMap<>();
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
     private static final AtomicInteger FAILURES = new AtomicInteger();
 
@@ -72,6 +74,11 @@ public class MercadoPagoStub {
         return SEQUENCE.get();
     }
 
+    /** Chaves de idempotência dos cancelamentos e estornos recebidos para a order. */
+    static List<String> operationKeysOf(String id) {
+        return KEYS.getOrDefault(id, List.of());
+    }
+
     /** Id da última order criada. Os testes rodam um por vez, então é a do teste atual. */
     static String lastId() {
         return "ORD01STUB" + SEQUENCE.get();
@@ -99,11 +106,62 @@ public class MercadoPagoStub {
                 reply(exchange, 500, Map.of("message", "internal_error"));
                 return;
             }
+            if (path.endsWith("/cancel") || path.endsWith("/refund")) {
+                String id = path.substring("/v1/orders/".length(), path.lastIndexOf('/'));
+                KEYS.computeIfAbsent(id, k -> new java.util.concurrent.CopyOnWriteArrayList<>())
+                        .add(key);
+                Map<String, Object> order = ORDERS.get(id);
+                if (order == null) {
+                    reply(
+                            exchange,
+                            404,
+                            Map.of("errors", List.of(Map.of("code", "order_not_found"))));
+                } else if (path.endsWith("/cancel")) {
+                    cancel(exchange, order);
+                } else {
+                    refund(exchange, order);
+                }
+                return;
+            }
             Map<String, Object> body = JSON.readValue(exchange.getRequestBody(), Map.class);
             String id = BY_KEY.computeIfAbsent(key, k -> newOrder(body));
             Map<String, Object> order = ORDERS.get(id);
             // A API responde 402 quando a order é criada, mas a transação falha.
             reply(exchange, "failed".equals(order.get("status")) ? 402 : 201, order);
+        }
+    }
+
+    // Como a API: só cancela o que ainda não foi pago nem está em análise.
+    private static void cancel(HttpExchange exchange, Map<String, Object> order)
+            throws IOException {
+        Object status = order.get("status");
+        if ("canceled".equals(status)) {
+            reply(
+                    exchange,
+                    409,
+                    Map.of("errors", List.of(Map.of("code", "order_already_canceled"))));
+        } else if ("action_required".equals(status) || "created".equals(status)) {
+            order.put("status", "canceled");
+            order.put("status_detail", "canceled_transaction");
+            reply(exchange, 200, order);
+        } else {
+            reply(exchange, 409, Map.of("errors", List.of(Map.of("code", "cannot_cancel_order"))));
+        }
+    }
+
+    // O estorno total mantém a order processed e muda o detalhe para refunded.
+    private static void refund(HttpExchange exchange, Map<String, Object> order)
+            throws IOException {
+        if ("refunded".equals(order.get("status_detail"))) {
+            reply(
+                    exchange,
+                    409,
+                    Map.of("errors", List.of(Map.of("code", "order_already_refunded"))));
+        } else if ("processed".equals(order.get("status"))) {
+            order.put("status_detail", "refunded");
+            reply(exchange, 201, order);
+        } else {
+            reply(exchange, 409, Map.of("errors", List.of(Map.of("code", "cannot_refund_order"))));
         }
     }
 

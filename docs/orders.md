@@ -155,6 +155,7 @@ CANCELLED --> [*]
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
 - `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
+- Num pedido pago online, o cancelamento estorna o pagamento no Mercado Pago antes; se o estorno falhar, a resposta é `502` e o pedido não é cancelado (ver [[payments#Cancelamento e estorno|payments.md]]).
 - A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
@@ -183,7 +184,7 @@ As mudanças chegam em tempo real por *Server-Sent Events* (req. 49–51):
 | `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` | Mudanças daquele pedido |
 | `GET /orders/events` | `manage_orders` | Feed do dashboard: pedido novo, mudança de status, pagamento, cancelamento, edição |
 
-Cada evento é um JSON `{type, orderId, code, status, paid, occurredAt}`, com `type` entre `CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED` e `ITEMS_UPDATED`. Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás: o `OrderService` dispara um evento CDI e o `OrderEventBus` o recebe na fase `AFTER_SUCCESS` da transação. O acesso a `GET /orders/{id}/events` é conferido antes de abrir o stream, então quem não pode recebe `401`/`403` normais.
+Cada evento é um JSON `{type, orderId, code, status, paid, occurredAt}`, com `type` entre `CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED`, `ITEMS_UPDATED` e `CHARGED_BACK` (contestação de um pagamento online, que não muda o status). Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás: o `OrderService` dispara um evento CDI e o `OrderEventBus` o recebe na fase `AFTER_SUCCESS` da transação. O acesso a `GET /orders/{id}/events` é conferido antes de abrir o stream, então quem não pode recebe `401`/`403` normais.
 
 O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busca `GET /orders/{id}` (ou a listagem, no dashboard) para recuperar o que perdeu. Os limites da implementação em memória estão em [[architecture#Autenticação: implantação e riscos conhecidos|architecture.md]], e o jeito de consumir o SSE com autenticação, em [`api-client.md`](api-client.md).
 

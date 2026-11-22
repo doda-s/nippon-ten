@@ -18,4 +18,7 @@ public interface PaymentRepository {
     List<Payment> getPendingExpiredBefore(Instant cutoff, int limit);
 
     List<Payment> getPendingWithoutExternalIdCreatedBefore(Instant cutoff, int limit);
+
+    // Pagamentos aprovados de pedidos cancelados: o estorno ainda não aconteceu.
+    List<Payment> getApprovedOfCancelledOrders(int limit);
 }

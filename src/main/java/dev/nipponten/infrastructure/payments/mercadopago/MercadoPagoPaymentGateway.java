@@ -95,6 +95,32 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
         return call(() -> client.get(authorization(), externalId));
     }
 
+    @Override
+    public Charge cancel(String externalId, String idempotencyKey) {
+        return orCurrentState(
+                externalId, () -> client.cancel(authorization(), idempotencyKey, externalId));
+    }
+
+    @Override
+    public Charge refund(String externalId, String idempotencyKey) {
+        return orCurrentState(
+                externalId, () -> client.refund(authorization(), idempotencyKey, externalId));
+    }
+
+    // 409: a order não está num estado que aceita a operação (cannot_cancel_order,
+    // order_already_refunded...). Quem chamou decide a partir do estado atual.
+    private Charge orCurrentState(String externalId, Supplier<MercadoPagoOrder> request) {
+        try {
+            return call(request);
+        } catch (PaymentGatewayException e) {
+            if (e.getCause() instanceof WebApplicationException web
+                    && web.getResponse().getStatus() == 409) {
+                return fetch(externalId);
+            }
+            throw e;
+        }
+    }
+
     private String authorization() {
         return "Bearer "
                 + accessToken
@@ -177,7 +203,9 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
         boolean expired = "expired".equals(detail);
         return switch (status == null ? "" : status) {
             case "created", "processing", "action_required" -> Payment.Status.PENDING;
-            case "processed" -> Payment.Status.APPROVED;
+            // O estorno total mantém a order processed e muda só o detalhe.
+            case "processed" ->
+                    "refunded".equals(detail) ? Payment.Status.REFUNDED : Payment.Status.APPROVED;
             case "failed" -> expired ? Payment.Status.EXPIRED : Payment.Status.REJECTED;
             case "canceled" -> expired ? Payment.Status.EXPIRED : Payment.Status.CANCELLED;
             case "refunded" -> Payment.Status.REFUNDED;

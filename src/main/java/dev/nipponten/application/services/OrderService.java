@@ -21,6 +21,7 @@ import dev.nipponten.domain.repositories.OrderFeedbackRepository;
 import dev.nipponten.domain.repositories.OrderRepository;
 import dev.nipponten.domain.repositories.OrderStatusHistoryRepository;
 import dev.nipponten.domain.repositories.UserRepository;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -73,6 +74,8 @@ public class OrderService {
     @Inject UserRepository userRepository;
 
     @Inject TrackingLinkLimiter trackingLinkLimiter;
+
+    @Inject PaymentSettlementService settlement;
 
     /** trackingToken é nulo quando o pedido é de um cliente com conta. */
     public record PlacedOrder(OrderDetails details, String trackingToken) {}
@@ -296,16 +299,45 @@ public class OrderService {
     /**
      * O cliente ou o visitante cancela só antes de a cozinha começar (PENDING). O funcionário
      * cancela até antes de COMPLETED e precisa dizer o motivo.
+     *
+     * <p>Num pedido online, os pagamentos são desfeitos no provedor antes (docs/payments.md,
+     * Cancelamento e estorno): a tentativa aberta é cancelada e a aprovada, estornada. Se o
+     * provedor falhar, o pedido não é cancelado (502), para ninguém achar que devolveu um dinheiro
+     * que não devolveu. A chamada ao provedor fica fora da transação que grava o cancelamento.
      */
-    @Transactional
     public OrderDetails cancel(Long id, String trackingToken, String reason) {
         Order order = requireViewer(id, trackingToken);
-        // Temporário até o estorno (docs/payments.md, fase de estorno): cancelar aqui deixaria
-        // o dinheiro com o restaurante sem ninguém perceber.
-        if (order.paymentChannel() == Order.PaymentChannel.ONLINE && order.paid()) {
-            throw new InvalidRequestException(
-                    "Order " + id + " was paid online and cannot be cancelled before refunds");
+        requireCancellable(order, reason);
+        if (order.paymentChannel() == Order.PaymentChannel.ONLINE) {
+            settlement.settle(order);
         }
+        return QuarkusTransaction.joiningExisting()
+                .call(
+                        () -> {
+                            Order current = getById(id);
+                            // Cancelado no meio do caminho (job, outra aba): nada a gravar.
+                            if (current.status() == Order.Status.CANCELLED) {
+                                return details(current);
+                            }
+                            Instant now = Instant.now(clock);
+                            Order saved =
+                                    repository.save(
+                                            rebuild(
+                                                    current,
+                                                    Order.Status.CANCELLED,
+                                                    current.paid(),
+                                                    current.paidAt(),
+                                                    reason,
+                                                    null,
+                                                    now));
+                            recordStatus(saved, now);
+                            events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
+                            return details(saved);
+                        });
+    }
+
+    private void requireCancellable(Order order, String reason) {
+        Long id = order.id();
         boolean staff =
                 currentUser
                         .find()
@@ -325,20 +357,6 @@ public class OrderService {
                             + id
                             + " can only be cancelled by the customer before the kitchen starts");
         }
-        Instant now = Instant.now(clock);
-        Order saved =
-                repository.save(
-                        rebuild(
-                                order,
-                                Order.Status.CANCELLED,
-                                order.paid(),
-                                order.paidAt(),
-                                reason,
-                                null,
-                                now));
-        recordStatus(saved, now);
-        events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
-        return details(saved);
     }
 
     // Os itens novos substituem os antigos e são precificados com o catálogo de agora.
@@ -389,6 +407,12 @@ public class OrderService {
         recordStatus(saved, now);
         events.fire(OrderEvent.of(OrderEvent.Type.PAID, saved));
         events.fire(OrderEvent.of(OrderEvent.Type.STATUS_CHANGED, saved));
+    }
+
+    // Só avisa (dashboard e quem acompanha o pedido): o status do pedido não muda.
+    @Transactional
+    public void notifyChargeback(Long id) {
+        events.fire(OrderEvent.of(OrderEvent.Type.CHARGED_BACK, getById(id)));
     }
 
     // Para a reconciliação agendada dos pagamentos online.

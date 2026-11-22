@@ -27,4 +27,20 @@ public interface MercadoPagoClient {
     @Path("/{id}")
     MercadoPagoOrder get(
             @HeaderParam("Authorization") String authorization, @PathParam("id") String id);
+
+    // Sem corpo: o cancelamento é da order inteira.
+    @POST
+    @Path("/{id}/cancel")
+    MercadoPagoOrder cancel(
+            @HeaderParam("Authorization") String authorization,
+            @HeaderParam("X-Idempotency-Key") String idempotencyKey,
+            @PathParam("id") String id);
+
+    // Sem valor no corpo, o estorno é total.
+    @POST
+    @Path("/{id}/refund")
+    MercadoPagoOrder refund(
+            @HeaderParam("Authorization") String authorization,
+            @HeaderParam("X-Idempotency-Key") String idempotencyKey,
+            @PathParam("id") String id);
 }

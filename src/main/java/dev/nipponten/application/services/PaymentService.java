@@ -15,7 +15,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -33,6 +32,8 @@ public class PaymentService {
     @Inject OrderService orderService;
 
     @Inject ClientService clientService;
+
+    @Inject PaymentSettlementService settlement;
 
     @Inject PaymentGateway gateway;
 
@@ -179,6 +180,10 @@ public class PaymentService {
                         now.minus(awaitingPaymentTimeout), RECONCILIATION_BATCH)) {
             safely(order.id(), () -> cancelIfAbandoned(order));
         }
+        // Estorno que falhou na hora (provedor fora do ar) ou aprovação depois do cancelamento.
+        for (Payment payment : repository.getApprovedOfCancelledOrders(RECONCILIATION_BATCH)) {
+            safely(payment.orderId(), () -> settlement.refund(payment));
+        }
     }
 
     // Tentativa que nunca recebeu o id do provedor, porque a criação falhou e o cliente não tentou
@@ -239,48 +244,50 @@ public class PaymentService {
         }
     }
 
-    // Grava o que o provedor disse e, na aprovação, libera o pedido na mesma transação.
+    /**
+     * Grava o que o provedor disse e, na aprovação, libera o pedido na mesma transação. Uma
+     * aprovação que chega depois de o pedido ser cancelado é estornada em seguida; se o estorno
+     * falhar, a reconciliação agendada tenta de novo.
+     */
     private Payment apply(Payment payment, PaymentGateway.Charge charge) {
-        if (Objects.equals(charge.externalId(), payment.externalId())
-                && charge.status() == payment.status()
-                && Objects.equals(charge.statusDetail(), payment.statusDetail())) {
+        if (!PaymentUpdates.changes(payment, charge)) {
             return payment;
         }
-        return QuarkusTransaction.joiningExisting()
-                .call(
-                        () -> {
-                            Instant now = Instant.now(clock);
-                            boolean approvedNow =
-                                    charge.status() == Payment.Status.APPROVED
-                                            && payment.status() != Payment.Status.APPROVED;
-                            Payment saved =
-                                    repository.save(
-                                            new Payment(
-                                                    payment.id(),
-                                                    payment.orderId(),
-                                                    payment.provider(),
-                                                    charge.externalId(),
-                                                    payment.idempotencyKey(),
-                                                    payment.method(),
-                                                    charge.status(),
-                                                    charge.statusDetail(),
-                                                    payment.amount(),
-                                                    payment.payerEmail(),
-                                                    charge.qrCode() == null
-                                                            ? payment.pixQrCode()
-                                                            : charge.qrCode(),
-                                                    charge.qrCodeBase64() == null
-                                                            ? payment.pixQrCodeBase64()
-                                                            : charge.qrCodeBase64(),
-                                                    payment.expiresAt(),
-                                                    approvedNow ? now : payment.approvedAt(),
-                                                    payment.createdAt(),
-                                                    now));
-                            if (approvedNow) {
-                                orderService.confirmOnlinePayment(payment.orderId(), now);
-                            }
-                            return saved;
-                        });
+        boolean approvedNow =
+                charge.status() == Payment.Status.APPROVED
+                        && payment.status() != Payment.Status.APPROVED;
+        Payment saved =
+                QuarkusTransaction.joiningExisting()
+                        .call(
+                                () -> {
+                                    Instant now = Instant.now(clock);
+                                    Payment updated =
+                                            repository.save(
+                                                    PaymentUpdates.withCharge(
+                                                            payment, charge, now));
+                                    if (approvedNow) {
+                                        orderService.confirmOnlinePayment(payment.orderId(), now);
+                                    }
+                                    if (updated.status() == Payment.Status.CHARGED_BACK
+                                            && payment.status() != Payment.Status.CHARGED_BACK) {
+                                        orderService.notifyChargeback(payment.orderId());
+                                    }
+                                    return updated;
+                                });
+        if (approvedNow && isCancelled(saved.orderId())) {
+            try {
+                return settlement.refund(saved);
+            } catch (RuntimeException e) {
+                LOG.warnf(e, "Refund of payment %d of a cancelled order failed", saved.id());
+            }
+        }
+        return saved;
+    }
+
+    // Numa transação nova, para não ler o pedido da sessão do request, que pode estar velha.
+    private boolean isCancelled(Long orderId) {
+        return QuarkusTransaction.requiringNew()
+                .call(() -> orderService.getById(orderId).status() == Order.Status.CANCELLED);
     }
 
     // O Pix vence; o cartão não tem prazo, o resultado vem na resposta ou pelo webhook.

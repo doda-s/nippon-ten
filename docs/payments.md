@@ -1,4 +1,4 @@
-> **Status:** fases 1 a 3 do [[#Roadmap de implementação|Roadmap]] implementadas (Pix e cartão online, webhook, aprovação do pedido e reconciliação agendada). O estorno ainda não existe. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
+> **Status:** fases 1 a 4 do [[#Roadmap de implementação|Roadmap]] implementadas: Pix e cartão online, webhook, aprovação do pedido, reconciliação agendada, cancelamento com estorno e chargeback. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
 
 Esta página descreve o pagamento online dos pedidos com o Mercado Pago, que completa o requisito 52 de [`requirements.md`](requirements.md) ("o cliente deve conseguir pagar pelo produto diretamente pelo sistema"). Na v1 dos pedidos o funcionário só marca o pedido como pago (ver [[orders#Pagamento|orders.md]]). Esse caminho continua existindo para quem paga na entrega ou no balcão.
 
@@ -84,7 +84,7 @@ payment(id, order_id, provider, external_id UNIQUE NULL, idempotency_key UNIQUE,
 | `REJECTED` | Cartão recusado. `status_detail` guarda o motivo do Mercado Pago para o front mostrar a mensagem certa. | `failed`, exceto `expired` |
 | `EXPIRED` | Pix vencido sem pagamento. | `canceled` ou `failed` com `status_detail = expired` |
 | `CANCELLED` | Cancelado antes de pagar, por exemplo porque o pedido foi cancelado. | `canceled` |
-| `REFUNDED` | Estornado (ver [[#Cancelamento e estorno|Estorno]]). | `refunded` |
+| `REFUNDED` | Estornado (ver [[#Cancelamento e estorno|Estorno]]). | `processed` com `status_detail = refunded`, ou `refunded` |
 | `CHARGED_BACK` | Chargeback no cartão. | `charged_back` |
 
 - **Rotas aninhadas no pedido**, seguindo a regra de filhos de [[architecture#Agregados e seus filhos: sempre aninhado, sem repositório "solto"|architecture.md]]: `POST /orders/{id}/payments` e `GET /orders/{id}/payments`.
@@ -167,12 +167,19 @@ O `PaymentReconciliationJob` (`quarkus-scheduler`) chama `PaymentService.reconci
 
 ## Cancelamento e estorno
 
-- Pedido `ONLINE` cancelado **sem** pagamento aprovado: o `Payment` `PENDING` aberto é cancelado no Mercado Pago.
-- Pedido `ONLINE` cancelado **com** pagamento aprovado: o backend pede o estorno total da order no Mercado Pago antes de gravar o cancelamento. Se o estorno falhar, o cancelamento não acontece e a resposta é `502`, para o funcionário não achar que devolveu um dinheiro que não devolveu.
-- Um chargeback só é registrado no `Payment` (`CHARGED_BACK`) e avisado no dashboard. Ele não muda o status do pedido.
-- Um pagamento aprovado depois de o pedido ser cancelado não reabre o pedido: o `Payment` fica `APPROVED` e o pedido continua `CANCELLED`, à espera do estorno.
+`POST /orders/{id}/cancel` segue as regras de [[orders#Status|orders.md]] (o cliente cancela até `PENDING`, o funcionário até antes de `COMPLETED`). Num pedido `ONLINE`, o `PaymentSettlementService` desfaz os pagamentos no Mercado Pago **antes** de gravar o cancelamento, fora da transação:
 
-**Até a fase de estorno existir**, um pedido `ONLINE` já pago não pode ser cancelado por ninguém (`400`). Assim o dinheiro não fica com o restaurante sem que alguém perceba.
+- **Tentativa aberta** (`PENDING`): `POST /v1/orders/{id}/cancel`, e o `Payment` fica `CANCELLED`. Se o Mercado Pago não aceitar (`409`, por exemplo porque o Pix foi pago no último instante), o backend lê o estado atual: se estiver pago, estorna. Uma tentativa que nunca chegou ao Mercado Pago é cancelada só aqui.
+- **Pagamento aprovado:** `POST /v1/orders/{id}/refund` sem valor, que é o estorno total, e o `Payment` fica `REFUNDED`. O pedido continua com `paid = true`, porque foi pago, e passa a `CANCELLED`.
+- **Falha do Mercado Pago:** o cancelamento não acontece e a resposta é `502`, para o funcionário não achar que devolveu um dinheiro que não devolveu. Tentar de novo é seguro.
+- **Cartão em análise:** o Mercado Pago não cancela um cartão em processamento. O pedido é cancelado mesmo assim, e se o cartão for aprovado depois, a aprovação é estornada (abaixo).
+- **Idempotência:** a chave do cancelamento e a do estorno derivam da tentativa (`<chave>-cancel` e `<chave>-refund`). Repetir a operação não estorna duas vezes.
+
+Fora do cancelamento:
+
+- **Aprovação depois do cancelamento:** o pagamento aprovado de um pedido já `CANCELLED` não reabre o pedido. O backend estorna na hora em que recebe a aprovação (webhook, reconciliação ou criação). Se esse estorno falhar, a reconciliação agendada tenta de novo a cada rodada até conseguir, porque procura todo `Payment` `APPROVED` de pedido `CANCELLED`.
+- **Estorno feito no painel do Mercado Pago:** o webhook traz a order `processed` com `status_detail = refunded`, e o `Payment` fica `REFUNDED`. O pedido não muda.
+- **Chargeback:** o `Payment` fica `CHARGED_BACK` e sai o evento SSE `CHARGED_BACK` (dashboard e página do pedido). O status do pedido não muda.
 
 ## Edição de itens
 
@@ -181,6 +188,7 @@ O `PaymentReconciliationJob` (`quarkus-scheduler`) chama `PaymentService.reconci
 ## Arquitetura
 
 - **Porta:** `PaymentGateway`, uma interface em `domain` com as operações que o sistema precisa, sem nada específico do Mercado Pago: criar cobrança Pix, cobrar cartão, consultar, cancelar e estornar.
+- **Desfazer pagamentos:** o `PaymentSettlementService` cancela e estorna no provedor. Ele é separado do `PaymentService` porque o `OrderService` precisa dele no cancelamento, e o `PaymentService` já depende do `OrderService`. Ele depende só do repositório e do gateway, então não há ciclo.
 - **Adapter:** `MercadoPagoPaymentGateway` em `infrastructure`, implementado com o Quarkus REST Client (`quarkus-rest-client-jackson`) contra a API REST, sem o SDK Java oficial. O SDK usa um cliente HTTP próprio e não se integra à configuração, ao TLS e às métricas do Quarkus, e a API usada aqui é pequena.
 - **Validação do webhook:** fica no adapter, porque o formato da assinatura é do Mercado Pago.
 - **Regras:** um `PaymentService` em `application` é dono do agregado `Payment` e chama o `OrderService` para aprovar ou cancelar o pedido. A aprovação muda o pagamento e o pedido na mesma transação, então o `@Transactional` fica no service, e o caso entra na seção *Transação* de `architecture.md`.
@@ -231,7 +239,7 @@ As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user
 1. ✅ `feat/payment-gateway`: `payment_channel`, status `AWAITING_PAYMENT`, agregado `Payment`, migration, porta `PaymentGateway` com fake nos testes, adapter do Mercado Pago para Pix, `POST`/`GET /orders/{id}/payments` só para Pix, webhook com assinatura e aprovação do pedido. A porta e o adapter entram juntos porque a aplicação precisa de uma implementação real do `PaymentGateway` para subir.
 2. ✅ `feat/payment-card`: cobrança com o token do Brick, recusa com `status_detail`, pagamento em processamento.
 3. ✅ `feat/payment-expiration`: job de expiração e reconciliação.
-4. `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
+4. ✅ `feat/payment-refund`: cancelamento com estorno (substitui o bloqueio temporário de cancelar pedido pago online) e registro de chargeback. O bloqueio da edição de itens já entrou na fase 1.
 5. `docs/payment-client`: atualização de `orders.md`, `api-client.md`, do client npm e dos diagramas.
 
 Fontes da API do Mercado Pago: [Pix na API Orders](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-integration/pix), [status da order](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/payment-management/status/order-status) e [notificações](https://www.mercadopago.com.br/developers/en/docs/your-integrations/notifications/webhooks).

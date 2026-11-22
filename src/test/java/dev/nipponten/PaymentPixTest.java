@@ -352,24 +352,4 @@ class PaymentPixTest {
                 .body("status", is("CANCELLED"))
                 .body("cancelReason", nullValue());
     }
-
-    @Test
-    void aPaidOnlineOrderCannotBeCancelledBeforeRefunds() throws Exception {
-        Placed order = placeGuest("PIX", "ONLINE");
-        String qr = pay(order, PIX).statusCode(201).extract().jsonPath().getString("pixQrCode");
-        MercadoPagoStub.setStatus(externalIdOf(qr), "processed", "accredited");
-        webhook(externalIdOf(qr)).statusCode(200);
-
-        given().header("X-Order-Token", order.token())
-                .contentType(ContentType.JSON)
-                .post("/orders/{id}/cancel", order.id())
-                .then()
-                .statusCode(400);
-        asAdmin()
-                .contentType(ContentType.JSON)
-                .body(Map.of("reason", "Cliente desistiu"))
-                .post("/orders/{id}/cancel", order.id())
-                .then()
-                .statusCode(400);
-    }
 }

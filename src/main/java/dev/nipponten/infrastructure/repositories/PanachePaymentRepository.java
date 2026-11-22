@@ -2,6 +2,7 @@ package dev.nipponten.infrastructure.repositories;
 
 import dev.nipponten.domain.models.Payment;
 import dev.nipponten.domain.repositories.PaymentRepository;
+import dev.nipponten.infrastructure.entities.OrderEntity;
 import dev.nipponten.infrastructure.entities.PaymentEntity;
 import dev.nipponten.infrastructure.mappers.PaymentMapper;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
@@ -64,6 +65,21 @@ public class PanachePaymentRepository
                         Sort.by("createdAt").and("id"),
                         PaymentEntity.Status.PENDING,
                         cutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
+    public List<Payment> getApprovedOfCancelledOrders(int limit) {
+        return find(
+                        "status = ?1 and orderId in (select o.id from OrderEntity o where o.status"
+                                + " = ?2)",
+                        Sort.by("approvedAt").and("id"),
+                        PaymentEntity.Status.APPROVED,
+                        OrderEntity.Status.CANCELLED)
                 .page(Page.of(0, limit))
                 .list()
                 .stream()
