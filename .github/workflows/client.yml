@@ -1,6 +1,6 @@
 name: Client npm
 
-# Gera o client TypeScript (pacote nippon-ten) a partir do schema OpenAPI e publica no npm.
+# Gera o client TypeScript (pacote @joao.sumi/nippon-ten) a partir do schema OpenAPI e publica no npm.
 # - Tag criada: publica a versão de nippon.client.version (application.properties) na tag "latest".
 # - Manual (Actions > Client npm > Run workflow): publica snapshot por padrão, ou release se marcado.
 on:
@@ -63,7 +63,7 @@ jobs:
 
       - name: Resumo
         run: |
-          echo "### Client nippon-ten@${{ steps.client.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Client @joao.sumi/nippon-ten@${{ steps.client.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
           echo "Tag npm: \`${{ steps.client.outputs.dist-tag }}\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Anexa o client gerado

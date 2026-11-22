@@ -55,7 +55,7 @@ If you want to learn more about building native executables, please consult <htt
 
 ## API client
 
-A Node client for the API is published to npm as `nippon-ten`. See [docs/api-client.md](docs/api-client.md) for installation and publishing instructions.
+A Node client for the API is published to npm as `@joao.sumi/nippon-ten`. See [docs/api-client.md](docs/api-client.md) for installation and publishing instructions.
 
 ## Related Guides
 

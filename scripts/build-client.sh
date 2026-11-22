@@ -10,6 +10,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NPM_NAME="@joao.sumi/nippon-ten"
 OUTPUT_DIR="$ROOT_DIR/target/openapi-clients/node-client"
 PROPERTIES="$ROOT_DIR/src/main/resources/application.properties"
 
@@ -45,7 +46,7 @@ rm -rf "$OUTPUT_DIR"
   -o "$OUTPUT_DIR" \
   --git-user-id doda-s \
   --git-repo-id nippon-ten \
-  --additional-properties=apiPackage=nippon-ten,npmName=nippon-ten,npmVersion="$VERSION",snapshot="$SNAPSHOT",licenseName=GPL-3.0
+  --additional-properties=apiPackage=nippon-ten,npmName="$NPM_NAME",npmVersion="$VERSION",snapshot="$SNAPSHOT",licenseName=GPL-3.0
 
 cd "$OUTPUT_DIR"
 
@@ -54,7 +55,7 @@ npm install
 npm pkg fix
 
 PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-echo "Client nippon-ten@$PACKAGE_VERSION gerado em $OUTPUT_DIR (tag npm: $DIST_TAG)"
+echo "Client $NPM_NAME@$PACKAGE_VERSION gerado em $OUTPUT_DIR (tag npm: $DIST_TAG)"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   echo "version=$PACKAGE_VERSION" >>"$GITHUB_OUTPUT"

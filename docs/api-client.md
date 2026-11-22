@@ -1,4 +1,4 @@
-O client Node da API é gerado a partir do schema OpenAPI (`target/openapi/openapi.yaml`, gravado pelo Quarkus no build) e publicado no npm como o pacote `nippon-ten`.
+O client Node da API é gerado a partir do schema OpenAPI (`target/openapi/openapi.yaml`, gravado pelo Quarkus no build) e publicado no npm como o pacote `@joao.sumi/nippon-ten`.
 
 ## Instalação
 
@@ -6,8 +6,8 @@ A versão do client vem de `nippon.client.version` em `src/main/resources/applic
 
 | Tag npm | Versão | Instalação |
 | --- | --- | --- |
-| `latest` | Exata (ex.: `0.1.0`) | `npm install nippon-ten` |
-| `snapshot` | Com timestamp (ex.: `0.1.0-SNAPSHOT.202610011825`) | `npm install nippon-ten@snapshot` |
+| `latest` | Exata (ex.: `0.1.0`) | `npm install @joao.sumi/nippon-ten` |
+| `snapshot` | Com timestamp (ex.: `0.1.0-SNAPSHOT.202610011825`) | `npm install @joao.sumi/nippon-ten@snapshot` |
 
 ## Publicação
 
@@ -16,7 +16,7 @@ A pipe `.github/workflows/client.yml` gera o schema (`./mvnw package -DskipTests
 - **Ao criar uma tag** no GitHub, publica a versão exata na tag `latest`. Suba `nippon.client.version` antes de criar a tag: o npm recusa republicar uma versão que já existe.
 - **Manualmente** (Actions > *Client npm* > *Run workflow*), publica um snapshot; marcando *release*, publica a versão exata na tag `latest`.
 
-A publicação usa o secret `NIPPON_TEN_NPM_KEY` do repositório (Settings > Secrets and variables > Actions), um token de automação do npm com permissão de publicar o pacote `nippon-ten`. Sem o secret, a pipe só gera o client e o anexa como artefato da execução, com um aviso.
+A publicação usa o secret `NIPPON_TEN_NPM_KEY` do repositório (Settings > Secrets and variables > Actions), um token de automação do npm com permissão de publicar o pacote `@joao.sumi/nippon-ten`. Sem o secret, a pipe só gera o client e o anexa como artefato da execução, com um aviso.
 
 Para publicar localmente, rode `./mvnw package -DskipTests` e depois `scripts/build-client.sh` (Linux/macOS) ou `scripts/build-client.bat` (Windows, só snapshot), com o npm autenticado. O script aceita `CLIENT_SNAPSHOT=false` (versão exata), `CLIENT_PUBLISH=false` (só gera) e `NPM_DIST_TAG` (outra tag npm).
 
@@ -38,7 +38,7 @@ Front e API ficam em sites diferentes, então:
 ### Configuração do client
 
 ```ts
-import { AuthResourceApi, Configuration, ProductResourceApi } from "nippon-ten";
+import { AuthResourceApi, Configuration, ProductResourceApi } from "@joao.sumi/nippon-ten";
 
 let accessToken: string | undefined;
 
