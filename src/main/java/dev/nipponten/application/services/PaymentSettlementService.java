@@ -1,5 +1,6 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.PaymentGatewayException;
 import dev.nipponten.domain.gateways.PaymentGateway;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.Payment;
@@ -31,13 +32,26 @@ public class PaymentSettlementService {
 
     @Inject Clock clock;
 
-    /** Antes de cancelar o pedido. Uma falha do provedor impede o cancelamento (502). */
+    /**
+     * Antes de cancelar o pedido. Uma falha do provedor não impede o cancelamento: o Mercado Pago
+     * recusa por alguns segundos o estorno de um cartão recém-aprovado, e o cliente não deve ficar
+     * preso nisso. O que falhou fica para a reconciliação agendada: o pagamento aprovado de pedido
+     * cancelado é estornado a cada rodada, e a tentativa aberta é resolvida quando vence.
+     */
     public void settle(Order order) {
         for (Payment payment : repository.getByOrder(order.id())) {
-            switch (payment.status()) {
-                case PENDING -> cancelAttempt(payment);
-                case APPROVED -> refund(payment);
-                default -> {}
+            try {
+                switch (payment.status()) {
+                    case PENDING -> cancelAttempt(payment);
+                    case APPROVED -> refund(payment);
+                    default -> {}
+                }
+            } catch (PaymentGatewayException e) {
+                LOG.warnf(
+                        e,
+                        "Could not settle payment %d of order %d now; the reconciliation retries it",
+                        payment.id(),
+                        order.id());
             }
         }
     }

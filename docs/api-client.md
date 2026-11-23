@@ -135,7 +135,7 @@ onSubmit: async (brick) => {
 ### Erros e cancelamento
 
 - `502` (`Payment provider unavailable, try again`): o Mercado Pago não respondeu. Tentar de novo é seguro, porque a nova chamada repete a mesma chave de idempotência e não cobra duas vezes.
-- `POST /orders/{id}/cancel` num pedido pago online estorna o valor total antes de cancelar. Se o estorno falhar, a resposta é `502` e o pedido continua como estava.
+- `POST /orders/{id}/cancel` num pedido pago online estorna o valor total e cancela. Se o Mercado Pago não aceitar o estorno na hora, o pedido é cancelado mesmo assim e o backend tenta de novo a cada minuto: enquanto `GET /orders/{id}/payments` mostrar o pagamento `APPROVED` num pedido `CANCELLED`, exiba "estorno em processamento".
 - O evento `CHARGED_BACK` avisa uma contestação no cartão. O status do pedido não muda.
 - O webhook (`POST /payments/webhooks/mercadopago`) é chamado pelo Mercado Pago e não aparece no client.
 

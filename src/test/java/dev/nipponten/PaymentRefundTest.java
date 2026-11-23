@@ -136,20 +136,32 @@ class PaymentRefundTest {
     }
 
     @Test
-    void aFailedRefundKeepsTheOrder() throws Exception {
+    void aFailedRefundStillCancelsAndTheReconciliationRefundsLater() throws Exception {
         Placed order = placeGuest("PIX");
         paidPix(order);
 
+        // O Mercado Pago recusa por alguns segundos o estorno de um cartão recém-aprovado.
         MercadoPagoStub.failNext(1);
-        cancelAsStaff(order).statusCode(502);
-        given().header("X-Order-Token", order.token())
-                .get("/orders/{id}", order.id())
-                .then()
-                .body("status", is("PENDING"))
-                .body("paid", is(true));
+        cancelAsStaff(order).statusCode(200).body("status", is("CANCELLED")).body("paid", is(true));
         assertEquals("APPROVED", lastPaymentStatus(order));
 
-        cancelAsStaff(order).statusCode(200);
+        paymentService.reconcile();
+        assertEquals("REFUNDED", lastPaymentStatus(order));
+    }
+
+    @Test
+    void aFailedCancelOfAnOpenPixStillCancelsTheOrder() throws Exception {
+        Placed order = placeGuest("PIX");
+        pay(order, Map.of("method", "PIX")).statusCode(201);
+        String externalId = MercadoPagoStub.lastId();
+
+        MercadoPagoStub.failNext(1);
+        cancelAsCustomer(order).statusCode(200).body("status", is("CANCELLED"));
+        assertEquals("PENDING", lastPaymentStatus(order));
+
+        // Pago antes de vencer: a aprovação de pedido cancelado é estornada.
+        MercadoPagoStub.setStatus(externalId, "processed", "accredited");
+        MercadoPagoWebhooks.send(externalId).statusCode(200);
         assertEquals("REFUNDED", lastPaymentStatus(order));
     }
 

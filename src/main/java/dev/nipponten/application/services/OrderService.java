@@ -302,8 +302,9 @@ public class OrderService {
      *
      * <p>Num pedido online, os pagamentos são desfeitos no provedor antes (docs/payments.md,
      * Cancelamento e estorno): a tentativa aberta é cancelada e a aprovada, estornada. Se o
-     * provedor falhar, o pedido não é cancelado (502), para ninguém achar que devolveu um dinheiro
-     * que não devolveu. A chamada ao provedor fica fora da transação que grava o cancelamento.
+     * provedor falhar, o pedido é cancelado mesmo assim e a reconciliação agendada estorna depois;
+     * o pagamento continua APPROVED até o estorno sair. A chamada ao provedor fica fora da
+     * transação que grava o cancelamento.
      */
     public OrderDetails cancel(Long id, String trackingToken, String reason) {
         Order order = requireViewer(id, trackingToken);

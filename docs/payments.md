@@ -171,7 +171,7 @@ O `PaymentReconciliationJob` (`quarkus-scheduler`) chama `PaymentService.reconci
 
 - **Tentativa aberta** (`PENDING`): `POST /v1/orders/{id}/cancel`, e o `Payment` fica `CANCELLED`. Se o Mercado Pago não aceitar (`409`, por exemplo porque o Pix foi pago no último instante), o backend lê o estado atual: se estiver pago, estorna. Uma tentativa que nunca chegou ao Mercado Pago é cancelada só aqui.
 - **Pagamento aprovado:** `POST /v1/orders/{id}/refund` sem valor, que é o estorno total, e o `Payment` fica `REFUNDED`. O pedido continua com `paid = true`, porque foi pago, e passa a `CANCELLED`.
-- **Falha do Mercado Pago:** o cancelamento não acontece e a resposta é `502`, para o funcionário não achar que devolveu um dinheiro que não devolveu. Tentar de novo é seguro.
+- **Falha do Mercado Pago:** o pedido é cancelado mesmo assim, e o que falhou fica para a reconciliação agendada. No sandbox, o estorno de um cartão aprovado há poucos segundos volta `422` (`Post processing rejected the operation`) e passa minutos depois; o cliente não deve ficar preso nisso. Até o estorno sair, o `Payment` continua `APPROVED` num pedido `CANCELLED`, que é como o front mostra "estorno em processamento". A tentativa aberta que não foi cancelada é resolvida quando vence, e se for paga antes, a aprovação é estornada (abaixo).
 - **Cartão em análise:** o Mercado Pago não cancela um cartão em processamento. O pedido é cancelado mesmo assim, e se o cartão for aprovado depois, a aprovação é estornada (abaixo).
 - **Idempotência:** a chave do cancelamento e a do estorno derivam da tentativa (`<chave>-cancel` e `<chave>-refund`). Repetir a operação não estorna duas vezes.
 

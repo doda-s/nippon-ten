@@ -155,7 +155,7 @@ CANCELLED --> [*]
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
 - `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
-- Num pedido pago online, o cancelamento estorna o pagamento no Mercado Pago antes; se o estorno falhar, a resposta é `502` e o pedido não é cancelado (ver [[payments#Cancelamento e estorno|payments.md]]).
+- Num pedido pago online, o cancelamento estorna o pagamento no Mercado Pago; se o estorno falhar, o pedido é cancelado mesmo assim e a reconciliação agendada estorna depois (ver [[payments#Cancelamento e estorno|payments.md]]).
 - A listagem do dashboard, `GET /orders?status=`, devolve resumos do mais antigo para o mais novo (a fila da cozinha); sem `status`, traz todos.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
