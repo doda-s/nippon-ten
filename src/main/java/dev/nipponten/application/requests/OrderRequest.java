@@ -32,5 +32,5 @@ public record OrderRequest(
         @Valid OrderAddressRequest address,
         @Size(max = 120) String guestName,
         @Size(max = 30) String guestPhone,
-        @Email @Size(max = 255) String guestEmail,
+        @Email(regexp = EmailFormat.WITH_DOTTED_DOMAIN) @Size(max = 255) String guestEmail,
         Long clientId) {}

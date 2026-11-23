@@ -185,6 +185,21 @@ class PaymentCardTest {
                                         "identification",
                                         Map.of("type", "RG", "number", "123"))))
                 .statusCode(400);
+        // Domínio sem ponto: o Mercado Pago recusaria; a API responde 400 antes de cobrar.
+        pay(
+                        cardOrder,
+                        Map.of(
+                                "method",
+                                "CARD",
+                                "card",
+                                Map.of(
+                                        "token",
+                                        "tok-APRO",
+                                        "paymentMethodId",
+                                        "visa",
+                                        "payerEmail",
+                                        "ana@gmailcom")))
+                .statusCode(400);
         getOrder(cardOrder).body("status", is("AWAITING_PAYMENT"));
     }
 }

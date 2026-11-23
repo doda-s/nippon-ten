@@ -14,7 +14,7 @@ import jakarta.validation.constraints.Size;
 public record CardPaymentRequest(
         @NotBlank @Size(max = 255) String token,
         @NotBlank @Size(max = 40) String paymentMethodId,
-        @Email @Size(max = 255) String payerEmail,
+        @Email(regexp = EmailFormat.WITH_DOTTED_DOMAIN) @Size(max = 255) String payerEmail,
         @Valid Identification identification) {
 
     public record Identification(

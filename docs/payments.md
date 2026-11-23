@@ -98,6 +98,7 @@ O Mercado Pago exige `payer.email` em toda order. Como cada meio usa o e-mail:
 
 - **Pix:** o e-mail serve só para o Mercado Pago mandar o comprovante. Não entra em antifraude (o Pix é enviado pelo próprio pagador, autenticado no banco, e não tem chargeback), e o estorno volta pela própria transação.
 - **Cartão:** o e-mail entra na análise antifraude. Um e-mail inválido aumenta as recusas.
+- **Formato:** o Mercado Pago recusa um e-mail com domínio sem ponto (`ana@gmailcom`), que o `@Email` do Bean Validation aceita. Por isso o e-mail do visitante, o do cartão e o da conta exigem também um ponto no domínio (`EmailFormat`), e o erro sai como `400` na criação, não como `502` na cobrança.
 
 Por isso:
 

@@ -4,6 +4,7 @@ import static dev.nipponten.TestAuth.as;
 import static dev.nipponten.TestAuth.asAdmin;
 import static dev.nipponten.TestAuth.login;
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -138,6 +139,13 @@ class OrderTrackingTest {
                 .post("/orders")
                 .then()
                 .statusCode(400);
+        // Domínio sem ponto: passa no @Email puro, mas o Mercado Pago recusa o pagador.
+        given().contentType(ContentType.JSON)
+                .body(guestBody("Ana", "ana@gmailcom", "ONLINE"))
+                .post("/orders")
+                .then()
+                .statusCode(400)
+                .body("violations[0].field", containsString("guestEmail"));
 
         String email = uniqueEmail("cliente");
         String token = registerClient(email);
