@@ -126,8 +126,25 @@ public class MercadoPagoStub {
             Map<String, Object> body = JSON.readValue(exchange.getRequestBody(), Map.class);
             String id = BY_KEY.computeIfAbsent(key, k -> newOrder(body));
             Map<String, Object> order = ORDERS.get(id);
-            // A API responde 402 quando a order é criada, mas a transação falha.
-            reply(exchange, "failed".equals(order.get("status")) ? 402 : 201, order);
+            // A API responde 402 quando a order é criada, mas a transação falha, com a order em
+            // "data" (formato visto no sandbox).
+            if ("failed".equals(order.get("status"))) {
+                reply(
+                        exchange,
+                        402,
+                        Map.of(
+                                "errors",
+                                List.of(
+                                        Map.of(
+                                                "code",
+                                                "failed",
+                                                "message",
+                                                "The following transactions failed")),
+                                "data",
+                                order));
+            } else {
+                reply(exchange, 201, order);
+            }
         }
     }
 

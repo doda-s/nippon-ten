@@ -1,4 +1,4 @@
-> **Status:** todas as fases do [[#Roadmap de implementação|Roadmap]] implementadas: Pix e cartão online, webhook, aprovação do pedido, reconciliação agendada, cancelamento com estorno e chargeback. Falta o teste ponta a ponta do cartão e do estorno no sandbox. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
+> **Status:** todas as fases do [[#Roadmap de implementação|Roadmap]] implementadas: Pix e cartão online, webhook, aprovação do pedido, reconciliação agendada, cancelamento com estorno e chargeback. Pix, cartão aprovado e estorno testados ponta a ponta no sandbox. As decisões de [[#Decisões|Decisões]] marcadas como *proposta adotada* valem até alguém decidir diferente.
 
 Esta página descreve o pagamento online dos pedidos com o Mercado Pago, que completa o requisito 52 de [`requirements.md`](requirements.md) ("o cliente deve conseguir pagar pelo produto diretamente pelo sistema"). Na v1 dos pedidos o funcionário só marca o pedido como pago (ver [[orders#Pagamento|orders.md]]). Esse caminho continua existindo para quem paga na entrega ou no balcão.
 
@@ -134,7 +134,7 @@ POST /orders/{id}/payments
   - `APPROVED`: o pedido é liberado na hora, como no Pix aprovado.
   - `REJECTED`: o pedido continua em `AWAITING_PAYMENT`. `statusDetail` traz o motivo da transação (por exemplo `cc_rejected_insufficient_amount`) para o front mostrar a mensagem certa, e o cliente pode tentar de novo com outro cartão.
   - `PENDING`: o cartão ficou em análise. A tentativa continua aberta (uma nova é `400`) até o webhook trazer o resultado.
-- O Mercado Pago responde `402` quando cria a order, mas a transação falha. O adapter trata isso como recusa, não como falha de comunicação: a tentativa fica `REJECTED` e a resposta é `201`.
+- O Mercado Pago responde `402` quando cria a order, mas a transação falha. O corpo traz os erros e a order em `data` (`{"errors": [...], "data": {order}}`), com o motivo da recusa na transação (ex.: `rejected_by_issuer`). O adapter trata isso como recusa, não como falha de comunicação: a tentativa fica `REJECTED`, com o id da order e o motivo, e a resposta é `201`.
 - O token do Brick é de uso único e não é gravado. Se o Mercado Pago não responder (`502`), a nova tentativa repete a mesma chave de idempotência: se a primeira cobrança chegou a ser feita, o Mercado Pago devolve a mesma order em vez de cobrar de novo.
 
 No sandbox, o nome do titular digitado no Brick escolhe o resultado: `APRO` aprova, `OTHE` recusa, `CONT` fica pendente e `FUND` recusa por saldo insuficiente. Os cartões de teste estão na [documentação do Mercado Pago](https://www.mercadopago.com.br/developers/pt/docs/checkout-api-orders/integration-test/cards).

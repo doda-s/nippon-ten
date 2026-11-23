@@ -1,6 +1,7 @@
 package dev.nipponten.infrastructure.payments.mercadopago;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.nipponten.application.exceptions.PaymentGatewayException;
 import dev.nipponten.domain.gateways.PaymentGateway;
@@ -150,11 +151,14 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
         }
     }
 
-    // O corpo do 402 é a order com a transação recusada. Se não der para ler, o cartão foi
-    // recusado mesmo assim, só sem o motivo.
+    // O corpo do 402 traz os erros e, em "data", a order com a transação recusada
+    // ({"errors": [...], "data": {order}}). Se não der para ler, o cartão foi recusado mesmo
+    // assim, só sem o motivo.
     private Charge declined(String body) {
         try {
-            MercadoPagoOrder order = json.readValue(body, MercadoPagoOrder.class);
+            JsonNode root = json.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            MercadoPagoOrder order = json.treeToValue(data, MercadoPagoOrder.class);
             if (order.id() != null) {
                 Charge charge = toCharge(order);
                 return charge.status() == Payment.Status.APPROVED
