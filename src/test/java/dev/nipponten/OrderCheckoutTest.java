@@ -78,6 +78,7 @@ class OrderCheckoutTest {
         Map<String, Object> body = order(fulfillment);
         body.put("guestName", "Maria");
         body.put("guestPhone", "11999990000");
+        body.put("guestEmail", "maria@example.com");
         return body;
     }
 

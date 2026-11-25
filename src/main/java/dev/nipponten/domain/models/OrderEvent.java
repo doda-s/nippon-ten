@@ -16,7 +16,9 @@ public record OrderEvent(
         STATUS_CHANGED,
         PAID,
         CANCELLED,
-        ITEMS_UPDATED
+        ITEMS_UPDATED,
+        // Contestação do pagamento online no cartão; o status do pedido não muda.
+        CHARGED_BACK
     }
 
     public static OrderEvent of(Type type, Order order) {

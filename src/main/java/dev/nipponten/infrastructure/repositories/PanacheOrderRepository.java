@@ -12,6 +12,7 @@ import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +51,18 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
         return count("code", code) > 0;
     }
 
+    @Override
+    public Order getByCode(String code) {
+        OrderEntity entity = find("code", code).firstResult();
+        return entity == null ? null : mapper.toModel(entity);
+    }
+
+    @Override
+    @Transactional
+    public void updateTrackingTokenHash(Long id, String trackingTokenHash) {
+        update("trackingTokenHash = ?1 where id = ?2", trackingTokenHash, id);
+    }
+
     // Mais recentes primeiro: é o histórico do cliente. O id desempata e mantém as páginas
     // estáveis.
     @Override
@@ -65,6 +78,20 @@ public class PanacheOrderRepository implements OrderRepository, PanacheRepositor
                         params),
                 page,
                 size);
+    }
+
+    @Override
+    public List<Order> getByStatusCreatedBefore(Order.Status status, Instant cutoff, int limit) {
+        return find(
+                        "status = ?1 and createdAt < ?2",
+                        Sort.by("createdAt").and("id"),
+                        OrderEntity.Status.valueOf(status.name()),
+                        cutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
     }
 
     @Override

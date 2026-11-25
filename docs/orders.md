@@ -1,6 +1,6 @@
 > **Status:** a v1 descrita aqui está implementada (todas as fases do [[#Roadmap de implementação|Roadmap]]). O que ficou fora da v1 está em [[#Fora da v1|Fora da v1]].
 
-Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–51, 52 (parcial), 53 e 54 de [`requirements.md`](requirements.md).
+Um *Order* (pedido) é a compra que um cliente faz na Marusan: os produtos e combos escolhidos, como ele quer receber, como vai pagar e em que etapa o pedido está. Ele cobre os requisitos de escopo 1, 2, 5–7, 9, 13 e 14 e os requisitos 40–46, 48–54 (o pagamento online do req. 52 está em [`payments.md`](payments.md)) de [`requirements.md`](requirements.md).
 
 Diagramas (draw.io):
 
@@ -23,7 +23,7 @@ F -->|COMPLETED| G[Feedback]
 
 1. **Carrinho.** O carrinho vive no front (navegador ou app), não no banco. Assim ele funciona igual para cliente logado e visitante, e não sobram carrinhos abandonados para limpar.
 2. **Cotação.** `POST /orders/quote` recebe os itens do carrinho e devolve cada item com preço unitário, preço original (quando há promoção), subtotal e total. Ele confere a disponibilidade e **não grava nada**. É assim que o front mostra o carrinho com o preço correto (req. 46).
-3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma de pagamento, as observações e, para cliente com conta, os pontos a usar (`pointsToRedeem`). O pedido nasce em `PENDING`.
+3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma e o momento do pagamento, as observações e, para cliente com conta, os pontos a usar (`pointsToRedeem`). O pedido nasce em `PENDING`, ou em `AWAITING_PAYMENT` quando é pago online (ver [`payments.md`](payments.md)).
 4. **Acompanhamento.** O cliente e o dashboard recebem as mudanças em tempo real (ver [[#Notificações (SSE)|Notificações]]).
 5. **Feedback.** Depois de `COMPLETED`, o cliente pode avaliar o pedido (req. 48).
 
@@ -97,9 +97,9 @@ A taxa de entrega fica fora da v1: `delivery_fee` existe e vale `0`.
 
 | Quem | Como | Dados |
 | --- | --- | --- |
-| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone` nem `address` (`400`). |
-| *Guest User* (visitante) | Sem token (escopo 2) | `guestName` e `guestPhone` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
-| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão), e na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
+| *Client User* logado | Token de cliente | Pedido ligado ao `client`. Na entrega, informa `addressId` de um endereço seu (`404` se for de outro cliente). Não envia `clientId`, `guestName`, `guestPhone`, `guestEmail` nem `address` (`400`). |
+| *Guest User* (visitante) | Sem token (escopo 2) | `guestName`, `guestPhone` e `guestEmail` obrigatórios e, na entrega, `address`. Ficam gravados **no próprio pedido**, sem criar conta (ver [[user-management#Guest User|user-management.md]]). Não envia `clientId` nem `addressId` (`400`). |
+| *Internal User* com `manage_orders` | Token interno | Lança o pedido no balcão (escopo 7). Em nome de um cliente: `clientId` (`404` se não existir) e, na entrega, `addressId` desse cliente ou `address`. Em nome de um visitante: só `guestName` é obrigatório (mesa, balcão); `guestEmail` é opcional, e sem ele não sai e-mail de confirmação. Na entrega vai `address`. O pedido guarda `created_by_internal_id`. |
 
 Um *Internal User* sem `manage_orders` não cria pedidos: ele não é cliente (um `User` é cliente **ou** interno).
 
@@ -110,7 +110,33 @@ A resposta de `POST /orders` é `{order, trackingToken}`. Todo pedido sem client
 - `code`: código de 6 caracteres, sem os que se confundem lidos em voz alta (0/O, 1/I/L), mostrado ao cliente e usado no balcão;
 - `trackingToken`: segredo aleatório que o front guarda e envia no header `X-Order-Token`.
 
-O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `PENDING`) e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
+O banco guarda só o SHA-256 do token, como no refresh token. O token dá acesso **àquele pedido** e a nada mais: consultar, acompanhar pelo SSE, cancelar (enquanto `AWAITING_PAYMENT` ou `PENDING`), pagar online e enviar o feedback. O cliente logado também recebe `code`, mas acessa o pedido pelo próprio token de acesso, e `trackingToken` vem nulo.
+
+### E-mail de confirmação
+
+Logo depois do commit do pedido, sai um e-mail com o código, o total e o link de acompanhamento. É o único e-mail do pedido: as mudanças de status chegam pelo SSE, na página que o link abre.
+
+| Pedido | Para quem | Link |
+| --- | --- | --- |
+| Do visitante, ou do funcionário para um visitante com `guestEmail` | `guestEmail` | `<front>/pedido/<code>#t=<trackingToken>` |
+| Do cliente, feito por ele ou pelo funcionário | E-mail da conta | `<front>/pedido/<code>`, aberto com login |
+| Do funcionário para um visitante sem `guestEmail` | Ninguém | — |
+
+- `<front>` vem de `nippon.front.base-url`. O token vai no fragmento (`#`), que o navegador não manda ao servidor: não aparece em log de acesso nem no `Referer`.
+- No pedido online, o texto avisa que o pedido vai para a cozinha quando o pagamento for confirmado.
+- O envio é assíncrono. Uma falha do SMTP fica no log e não desfaz o pedido, que já foi gravado.
+- O e-mail sai por SMTP (`quarkus-mailer`). Em dev, o mailer fica em modo mock (só loga a mensagem) até `MAILER_MOCK=false`; em teste é sempre mock. A configuração está em [[architecture#E-mail: porta no domínio, envio depois do commit|architecture.md]].
+
+### Página de acompanhamento
+
+O front lê o código e o token do link e chama `GET /orders/by-code/{code}` com `X-Order-Token` (ou logado, no caso do cliente). A resposta é o mesmo `OrderResponse` de `GET /orders/{id}`, e daí em diante o front usa o `id` nas outras rotas: `GET /orders/{id}/events` para o status em tempo real, cancelamento, pagamento e feedback. O código não diferencia maiúsculas. As regras de acesso são as de `GET /orders/{id}`: código inexistente é `403` para quem não tem `manage_orders`, sem revelar se ele existe.
+
+### Reenvio do link
+
+Quem perdeu o e-mail pede outro com `POST /orders/tracking-link` e `{code, email}`. Se o pedido for de visitante e o e-mail for o do pedido (sem diferenciar maiúsculas), o backend gera um **token novo**, grava o hash e manda o link. Como o banco guarda só o hash, o token antigo não pode ser recuperado, e o link anterior deixa de funcionar.
+
+- A resposta é sempre `202`, acerte ou não, para não revelar quais pedidos existem. Pedido de cliente com conta é ignorado: ele acompanha logado.
+- O limite é de 3 pedidos por código e 10 por IP a cada 15 minutos (`nippon.orders.tracking-link.*`); passou disso, `429`. Todo pedido conta, acerte ou não. O contador fica em memória, com os mesmos limites do limite de login (ver [[architecture#Autenticação: implantação e riscos conhecidos|architecture.md]]).
 
 ## Status
 
@@ -130,28 +156,29 @@ COMPLETED --> [*]
 CANCELLED --> [*]
 ```
 
-- O pedido nasce em `PENDING` (aguardando a cozinha). Os estados do dashboard (escopo 6: pendente, em preparo, finalizado) são `PENDING`, `IN_PREPARATION` e `COMPLETED`; `READY` e `OUT_FOR_DELIVERY` detalham o meio do caminho.
+- O pedido nasce em `PENDING` (aguardando a cozinha). O pedido pago online nasce antes, em `AWAITING_PAYMENT`, e só o pagamento aprovado o leva a `PENDING`; ninguém faz essa transição pela API (ver [`payments.md`](payments.md)). Os estados do dashboard (escopo 6: pendente, em preparo, finalizado) são `PENDING`, `IN_PREPARATION` e `COMPLETED`; `READY` e `OUT_FOR_DELIVERY` detalham o meio do caminho.
 - Só o funcionário (`manage_orders`) avança o status, sempre um passo por vez, pelo caminho do diagrama. `OUT_FOR_DELIVERY` só existe para `DELIVERY`; `PICKUP` e `DINE_IN` vão de `READY` direto para `COMPLETED`. Uma transição fora do caminho é `400`.
 - **Cancelamento** (req. 41):
-  - o cliente ou o visitante cancela só em `PENDING`, ou seja, antes de a cozinha começar;
+  - o cliente ou o visitante cancela só em `AWAITING_PAYMENT` ou `PENDING`, ou seja, antes de a cozinha começar;
   - o funcionário cancela em qualquer estado antes de `COMPLETED`, informando o motivo (`cancelReason`);
-  - os pontos resgatados no pedido voltam para o cliente.
+  - os pontos resgatados no pedido voltam para o cliente, também quando o sistema cancela um pedido online não pago.
 - `COMPLETED` e `CANCELLED` são finais.
 - `POST /orders/{id}/status` recebe `{status}` com o **próximo** estado; pular etapas ou pedir `CANCELLED` por ela é `400`.
 - `POST /orders/{id}/cancel` aceita corpo opcional `{reason}` e não exige `Content-Type`. Só o motivo do funcionário é obrigatório.
+- Num pedido pago online, o cancelamento estorna o pagamento no Mercado Pago; se o estorno falhar, o pedido é cancelado mesmo assim e a reconciliação agendada estorna depois (ver [[payments#Cancelamento e estorno|payments.md]]).
 - A listagem do dashboard, `GET /orders`, devolve resumos do mais antigo para o mais novo (a fila da cozinha). Os filtros são opcionais e se combinam:
   - `status`, que pode se repetir (`?status=PENDING&status=IN_PREPARATION`); sem ele, traz todos;
   - `active=true`, atalho para os pedidos ativos (ver abaixo). Usar junto com `status` é `400`;
   - `code`, o código que o cliente dita no balcão. Espaços e caixa são ignorados, e a página volta com um pedido ou vazia.
 - Toda mudança, incluindo a criação, grava uma linha em `order_status_history` (status, instante e quem mudou; `null` para o visitante).
 
-"Pedidos ativos" (req. 42) são os que não estão em `COMPLETED` nem em `CANCELLED`.
+"Pedidos ativos" (req. 42) são os que não estão em `AWAITING_PAYMENT`, `COMPLETED` nem `CANCELLED`: a cozinha não prepara pedido online ainda não pago.
 
 ### Pagamento
 
-Na v1 não há gateway (req. 52 parcial). O pedido grava a forma de pagamento escolhida no checkout (`PIX`, `CARD` ou `CASH`), paga na entrega ou no balcão. O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
+O pedido grava a forma de pagamento (`PIX`, `CARD` ou `CASH`) e o momento (`paymentChannel`: `IN_PERSON`, o padrão, ou `ONLINE`). Esta seção descreve o pagamento presencial, na entrega ou no balcão; o online, com o Mercado Pago, está em [`payments.md`](payments.md). O funcionário marca o pedido como pago (`POST /orders/{id}/pay`, sem corpo), o que preenche `paid` e `paid_at` e gera uma notificação (req. 49). Marcar de novo um pedido já pago, ou um pedido cancelado, é `400`. O pagamento é independente do status: um pedido pode ser pago antes ou depois de sair para a entrega.
 
-A integração com um gateway (Pix dinâmico, cartão online) fica para uma fase 2, como um agregado `Payment` próprio. Nessa fase deve surgir um estado anterior a `PENDING` (aguardando pagamento).
+Num pedido `ONLINE`, `POST /orders/{id}/pay` e `PUT /orders/{id}/items` são `400`: só o gateway marca como pago, e o total já cobrado não pode mudar.
 
 ### Edição pelo funcionário
 
@@ -170,7 +197,7 @@ As mudanças chegam em tempo real por *Server-Sent Events* (req. 49–51):
 | `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` | Mudanças daquele pedido |
 | `GET /orders/events` | `manage_orders` | Feed do dashboard: pedido novo, mudança de status, pagamento, cancelamento, edição |
 
-Cada evento é um JSON `{type, orderId, code, status, paid, occurredAt}`, com `type` entre `CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED` e `ITEMS_UPDATED`. Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás: o `OrderService` dispara um evento CDI e o `OrderEventBus` o recebe na fase `AFTER_SUCCESS` da transação. O acesso a `GET /orders/{id}/events` é conferido antes de abrir o stream, então quem não pode recebe `401`/`403` normais.
+Cada evento é um JSON `{type, orderId, code, status, paid, occurredAt}`, com `type` entre `CREATED`, `STATUS_CHANGED`, `PAID`, `CANCELLED`, `ITEMS_UPDATED` e `CHARGED_BACK` (contestação de um pagamento online, que não muda o status). Os eventos são publicados **só depois do commit**, para ninguém ser avisado de uma mudança que voltou atrás: o `OrderService` dispara um evento CDI e o `OrderEventBus` o recebe na fase `AFTER_SUCCESS` da transação. O acesso a `GET /orders/{id}/events` é conferido antes de abrir o stream, então quem não pode recebe `401`/`403` normais.
 
 O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busca `GET /orders/{id}` (ou a listagem, no dashboard) para recuperar o que perdeu. Os limites da implementação em memória estão em [[architecture#Autenticação: implantação e riscos conhecidos|architecture.md]], e o jeito de consumir o SSE com autenticação, em [`api-client.md`](api-client.md).
 
@@ -182,8 +209,11 @@ O SSE é só um aviso: o estado oficial é o pedido. Ao reconectar, o front busc
 | `POST /orders` | pública (visitante), cliente autenticado ou `manage_orders` |
 | `GET /orders?status=&active=&code=` (paginado) | `manage_orders` |
 | `GET /orders/events` | `manage_orders` |
-| `GET /orders/{id}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
-| `POST /orders/{id}/cancel` | dono ou token (só em `PENDING`), ou `manage_orders` |
+| `GET /orders/{id}`, `GET /orders/by-code/{code}`, `GET /orders/{id}/events` | dono, token de acompanhamento ou `manage_orders` |
+| `POST /orders/tracking-link` | pública (com limite por código e por IP) |
+| `POST /orders/{id}/cancel` | dono ou token (só em `AWAITING_PAYMENT` ou `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/payments` | dono ou token (ver [`payments.md`](payments.md)) |
+| `GET /orders/{id}/payments` | dono, token de acompanhamento ou `manage_orders` |
 | `POST /orders/{id}/feedback` | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | `manage_orders` |
 | `GET /users/{id}/orders?status=&active=` (paginado, histórico) | o próprio usuário ou `manage_users` |
@@ -196,7 +226,8 @@ A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `Ord
 
 ```
 orders(id, code UNIQUE, client_id NULL, created_by_internal_id NULL, tracking_token_hash NULL,
-       guest_name, guest_phone, fulfillment_type, status, payment_method, paid, paid_at,
+       guest_name, guest_phone, guest_email NULL, fulfillment_type, status, payment_method,
+       payment_channel, paid, paid_at,
        street_address, number, cep, complement, notes, cancel_reason,
        subtotal, discount, delivery_fee, total, points_redeemed, point_value NULL, earn_rate NULL,
        points_earned, created_at, updated_at)
@@ -219,7 +250,6 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 
 - Cupons (req. 34–35). Os pontos (escopo 8, req. 36–37) foram implementados depois da v1, em [`points.md`](points.md).
 - Taxa de entrega: `delivery_fee` reservado.
-- Gateway de pagamento (req. 52 completo).
 
 ## Roadmap de implementação
 
@@ -231,3 +261,4 @@ Cada fase é uma branch própria, a partir de `main`:
 4. ✅ `feat/order-lifecycle`: status, pagamento, cancelamento, edição de itens, `GET /orders` paginado.
 5. ✅ `feat/order-events`: SSE do pedido e do dashboard.
 6. ✅ `feat/order-feedback`.
+7. ✅ `feat/order-email-tracking`: e-mail do visitante, e-mail de confirmação com o link, `GET /orders/by-code/{code}` e reenvio do link.

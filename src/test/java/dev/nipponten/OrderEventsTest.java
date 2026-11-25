@@ -51,7 +51,9 @@ class OrderEventsTest {
                                         "guestName",
                                         "Bia",
                                         "guestPhone",
-                                        "11977776666"))
+                                        "11977776666",
+                                        "guestEmail",
+                                        "bia@example.com"))
                         .post("/orders")
                         .then()
                         .statusCode(201)

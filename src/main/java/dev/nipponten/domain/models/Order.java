@@ -5,7 +5,8 @@ import java.time.Instant;
 import java.util.List;
 
 // O endereço é cópia do momento do pedido. clientId é nulo para visitante, que é identificado por
-// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado). pointValue e
+// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado). guestEmail recebe
+// o link de acompanhamento; só é nulo no pedido que o funcionário lança sem ele. pointValue e
 // earnRate são cópias da configuração de pontos no checkout; nulos para visitante.
 public record Order(
         Long id,
@@ -15,9 +16,11 @@ public record Order(
         String trackingTokenHash,
         String guestName,
         String guestPhone,
+        String guestEmail,
         FulfillmentType fulfillmentType,
         Status status,
         PaymentMethod paymentMethod,
+        PaymentChannel paymentChannel,
         boolean paid,
         Instant paidAt,
         String streetAddress,
@@ -45,6 +48,8 @@ public record Order(
     }
 
     public enum Status {
+        // Pedido online antes da confirmação do pagamento; a cozinha ainda não o vê.
+        AWAITING_PAYMENT,
         PENDING,
         IN_PREPARATION,
         READY,
@@ -57,5 +62,11 @@ public record Order(
         PIX,
         CARD,
         CASH
+    }
+
+    // Quando o cliente paga: online pelo gateway ou presencialmente, na entrega ou no balcão.
+    public enum PaymentChannel {
+        ONLINE,
+        IN_PERSON
     }
 }

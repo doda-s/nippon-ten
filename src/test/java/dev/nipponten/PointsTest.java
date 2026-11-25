@@ -6,10 +6,12 @@ import static dev.nipponten.TestAuth.login;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import dev.nipponten.application.services.PaymentService;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
@@ -32,6 +34,8 @@ class PointsTest {
             Map.of("earnRate", 1, "pointValue", 0.05, "expirationDays", 365);
 
     @Inject TestClock clock;
+
+    @Inject PaymentService paymentService;
 
     private record Client(long userId, String token) {}
 
@@ -282,6 +286,49 @@ class PointsTest {
                 .get("/users/{id}/points/transactions", client.userId())
                 .then()
                 .body("content.type", hasItem("REFUND"));
+    }
+
+    @Test
+    void anAbandonedOnlineOrderGivesTheRedeemedPointsBack() {
+        Client client = newClient();
+        adjust(client, 100).statusCode(201);
+        Map<String, Object> body = order(List.of(pastel(1)), 100);
+        body.put("paymentMethod", "PIX");
+        body.put("paymentChannel", "ONLINE");
+        long orderId = placeOk(client, body);
+        balanceOf(client).body("balance", is(0));
+
+        // Ninguém pagou: a reconciliação cancela o pedido e devolve os pontos.
+        try {
+            clock.advance(Duration.ofMinutes(31));
+            paymentService.reconcile();
+        } finally {
+            clock.reset();
+        }
+
+        as(client.token()).get("/orders/{id}", orderId).then().body("status", is("CANCELLED"));
+        balanceOf(client).body("balance", is(100));
+    }
+
+    @Test
+    void anOrderWaitingForTheOnlinePaymentIsNotActive() {
+        Client client = newClient();
+        Map<String, Object> body = order(List.of(pastel(1)), null);
+        body.put("paymentMethod", "PIX");
+        body.put("paymentChannel", "ONLINE");
+        long orderId = placeOk(client, body);
+
+        as(client.token())
+                .queryParam("active", true)
+                .get("/users/{id}/orders", client.userId())
+                .then()
+                .statusCode(200)
+                .body("content.id", not(hasItem((int) orderId)));
+        as(client.token())
+                .queryParam("status", "AWAITING_PAYMENT")
+                .get("/users/{id}/orders", client.userId())
+                .then()
+                .body("content.id", hasItem((int) orderId));
     }
 
     @Test

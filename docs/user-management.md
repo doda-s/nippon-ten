@@ -152,9 +152,13 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `POST /orders` | — | pública (visitante), cliente autenticado ou `manage_orders` |
 | `GET /orders` | `manage_orders` | — |
 | `GET /orders/events` (SSE) | `manage_orders` | — |
-| `GET /orders/{id}` | dono, token de acompanhamento (`X-Order-Token`) ou `manage_orders` | — |
+| `GET /orders/{id}`, `GET /orders/by-code/{code}` | dono, token de acompanhamento (`X-Order-Token`) ou `manage_orders` | — |
+| `POST /orders/tracking-link` | — | pública, com limite por código e por IP |
 | `GET /orders/{id}/events` (SSE) | dono, token de acompanhamento ou `manage_orders` | — |
-| `POST /orders/{id}/cancel` | — | dono ou token (só em `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/cancel` | — | dono ou token (só em `AWAITING_PAYMENT` ou `PENDING`), ou `manage_orders` |
+| `POST /orders/{id}/payments` | — | dono ou token |
+| `GET /orders/{id}/payments` | — | dono, token de acompanhamento ou `manage_orders` |
+| `POST /payments/webhooks/mercadopago` | — | pública, validada pela assinatura do Mercado Pago |
 | `POST /orders/{id}/feedback` | — | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
 | `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
@@ -192,7 +196,7 @@ Representa um usuário que não possui um cadastro, ou seja, não é um *Client 
 - Salvar formas de pagamento.
 - Histórico de pedidos
 
-Nenhum dado desse tipo de usuário fica persistido. Apenas o necessário para a realização de análises de negócio. Os dados de entrega que ele informa (nome, telefone e endereço) ficam gravados só no próprio pedido, e ele acompanha o pedido por um token de acompanhamento devolvido na criação (ver [[orders#Acompanhamento do visitante|Acompanhamento do visitante]]). Exemplos de casos onde dados de Guest User podem ser salvos:
+Nenhum dado desse tipo de usuário fica persistido. Apenas o necessário para a realização de análises de negócio. Os dados que ele informa (nome, telefone, e-mail e endereço) ficam gravados só no próprio pedido, e ele acompanha o pedido por um token de acompanhamento devolvido na criação e enviado por e-mail no link de acompanhamento (ver [[orders#Acompanhamento do visitante|Acompanhamento do visitante]]). Exemplos de casos onde dados de Guest User podem ser salvos:
 
 - Histórico de pedidos geral;
 - Analytics (mediante aceite do usuário).
