@@ -22,4 +22,9 @@ public class BusinessTime {
     public LocalDateTime now() {
         return LocalDateTime.now(clock.withZone(zone));
     }
+
+    // Para converter um dia de negócio ("pedidos de outubro") em instantes.
+    public ZoneId zone() {
+        return zone;
+    }
 }

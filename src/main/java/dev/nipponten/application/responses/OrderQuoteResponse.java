@@ -8,4 +8,7 @@ public record OrderQuoteResponse(
         BigDecimal subtotal,
         BigDecimal discount,
         BigDecimal deliveryFee,
-        BigDecimal total) {}
+        BigDecimal total,
+        int pointsRedeemed,
+        BigDecimal pointsEligibleSubtotal,
+        int pointsToEarn) {}

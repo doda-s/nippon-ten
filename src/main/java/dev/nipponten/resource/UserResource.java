@@ -1,17 +1,22 @@
 package dev.nipponten.resource;
 
 import dev.nipponten.application.requests.ClientRequest;
+import dev.nipponten.application.requests.PointsAdjustmentRequest;
 import dev.nipponten.application.requests.UserAddressRequest;
 import dev.nipponten.application.requests.UserRegistrationRequest;
 import dev.nipponten.application.requests.UserRequest;
 import dev.nipponten.application.responses.ClientResponse;
 import dev.nipponten.application.responses.OrderSummaryResponse;
 import dev.nipponten.application.responses.PageResponse;
+import dev.nipponten.application.responses.PointsBalanceResponse;
+import dev.nipponten.application.responses.PointsTransactionResponse;
 import dev.nipponten.application.responses.UserAddressResponse;
 import dev.nipponten.application.responses.UserDetailResponse;
 import dev.nipponten.application.responses.UserResponse;
 import dev.nipponten.application.services.OrderService;
+import dev.nipponten.application.services.PointsService;
 import dev.nipponten.application.services.UserService;
+import dev.nipponten.domain.models.Order;
 import dev.nipponten.resource.security.Permissions;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.PermitAll;
@@ -31,6 +36,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 // "O próprio usuário ou MANAGE_USERS" depende do {id}: as rotas com @Authenticated fazem essa
@@ -43,6 +49,8 @@ public class UserResource {
     @Inject UserService service;
 
     @Inject OrderService orderService;
+
+    @Inject PointsService pointsService;
 
     @POST
     @PermitAll
@@ -76,14 +84,51 @@ public class UserResource {
     @Path("/{userId}/orders")
     public PageResponse<OrderSummaryResponse> getOrders(
             @PathParam("userId") Long userId,
+            @QueryParam("status") Set<Order.Status> statuses,
+            @QueryParam("active") boolean active,
             @QueryParam("page") @DefaultValue("0") int page,
             @QueryParam("size") @DefaultValue("20") int size) {
         PageParams params = PageParams.of(page, size);
         return PageResponse.of(
-                orderService.getPageByUser(userId, params.page(), params.size()),
+                orderService.getPageByUser(userId, statuses, active, params.page(), params.size()),
                 params.page(),
                 params.size(),
                 OrderSummaryResponse::of);
+    }
+
+    // Saldo e extrato de pontos; "o próprio usuário ou MANAGE_USERS" é conferido no service.
+    @GET
+    @Authenticated
+    @Path("/{userId}/points")
+    public PointsBalanceResponse getPoints(@PathParam("userId") Long userId) {
+        return PointsBalanceResponse.of(pointsService.getBalanceByUser(userId));
+    }
+
+    @GET
+    @Authenticated
+    @Path("/{userId}/points/transactions")
+    public PageResponse<PointsTransactionResponse> getPointsTransactions(
+            @PathParam("userId") Long userId,
+            @QueryParam("page") @DefaultValue("0") int page,
+            @QueryParam("size") @DefaultValue("20") int size) {
+        PageParams params = PageParams.of(page, size);
+        return PageResponse.of(
+                pointsService.getPageByUser(userId, params.page(), params.size()),
+                params.page(),
+                params.size(),
+                PointsTransactionResponse::of);
+    }
+
+    @POST
+    @RolesAllowed(Permissions.MANAGE_POINTS)
+    @Path("/{userId}/points/adjustments")
+    public Response adjustPoints(
+            @PathParam("userId") Long userId, @Valid PointsAdjustmentRequest request) {
+        return Response.status(Response.Status.CREATED)
+                .entity(
+                        PointsBalanceResponse.of(
+                                pointsService.adjust(userId, request.points(), request.reason())))
+                .build();
     }
 
     @PUT

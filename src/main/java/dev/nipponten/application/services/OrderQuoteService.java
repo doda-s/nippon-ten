@@ -1,5 +1,6 @@
 package dev.nipponten.application.services;
 
+import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.UnavailableItemsException;
 import dev.nipponten.application.exceptions.UnavailableItemsException.Problem;
 import dev.nipponten.domain.models.AdditionalIngredient;
@@ -59,6 +60,15 @@ public class OrderQuoteService {
 
     // Id inexistente é 404 na hora; indisponibilidade é acumulada e devolvida de uma vez.
     public OrderQuote quote(List<OrderItem> items) {
+        return quote(items, 0, null, null);
+    }
+
+    /**
+     * Com pontos: o desconto é pointsToRedeem × pointValue e não passa da soma dos itens elegíveis.
+     * earnRate nulo (visitante) estima zero pontos a ganhar.
+     */
+    public OrderQuote quote(
+            List<OrderItem> items, int pointsToRedeem, BigDecimal pointValue, BigDecimal earnRate) {
         LocalDateTime now = businessTime.now();
         List<Problem> problems = new ArrayList<>();
         List<OrderItem> priced = new ArrayList<>();
@@ -75,8 +85,36 @@ public class OrderQuoteService {
             throw new UnavailableItemsException(problems);
         }
         BigDecimal subtotal = priced.stream().map(OrderItem::total).reduce(ZERO, BigDecimal::add);
-        // Cupons, pontos e taxa de entrega ficam fora da primeira versão.
-        return new OrderQuote(priced, subtotal, ZERO, ZERO, subtotal);
+        BigDecimal eligible =
+                priced.stream()
+                        .filter(OrderItem::pointsEligible)
+                        .map(OrderItem::total)
+                        .reduce(ZERO, BigDecimal::add);
+        BigDecimal discount = ZERO;
+        if (pointsToRedeem > 0) {
+            discount = money(pointValue.multiply(BigDecimal.valueOf(pointsToRedeem)));
+            // Recusa em vez de cortar: o cliente não gasta ponto que não vira desconto.
+            if (discount.compareTo(eligible) > 0) {
+                int max = eligible.divide(pointValue, 0, RoundingMode.FLOOR).intValueExact();
+                throw new InvalidRequestException(
+                        "pointsToRedeem exceeds the eligible amount of "
+                                + eligible
+                                + ": at most "
+                                + max
+                                + " points");
+            }
+        }
+        // Cupons e taxa de entrega ficam fora da primeira versão.
+        BigDecimal total = subtotal.subtract(discount);
+        return new OrderQuote(
+                priced,
+                subtotal,
+                discount,
+                ZERO,
+                total,
+                pointsToRedeem,
+                eligible,
+                PointsService.pointsFor(total, earnRate));
     }
 
     private OrderItem priceProduct(
@@ -127,6 +165,8 @@ public class OrderQuoteService {
                 money(originalPrice),
                 money(unitPrice),
                 money(total),
+                // Promoção que não aceita pontos tira o item da base do resgate.
+                promotion.map(Promotion::enablePromotionPoints).orElse(true),
                 item.notes(),
                 additionals,
                 removed,
@@ -297,6 +337,7 @@ public class OrderQuoteService {
                 money(combo.price()),
                 money(combo.price()),
                 money(total),
+                true,
                 item.notes(),
                 List.of(),
                 List.of(),

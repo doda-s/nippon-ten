@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -21,6 +22,8 @@ import java.util.List;
  * </ul>
  *
  * <p>{@code paymentChannel} é opcional: sem ele o pagamento é presencial, como na v1.
+ *
+ * <p>{@code pointsToRedeem} só vale para pedido de cliente com conta.
  */
 public record OrderRequest(
         @NotEmpty List<@NotNull @Valid OrderItemRequest> items,
@@ -33,4 +36,5 @@ public record OrderRequest(
         @Size(max = 120) String guestName,
         @Size(max = 30) String guestPhone,
         @Email(regexp = EmailFormat.WITH_DOTTED_DOMAIN) @Size(max = 255) String guestEmail,
-        Long clientId) {}
+        Long clientId,
+        @PositiveOrZero Integer pointsToRedeem) {}

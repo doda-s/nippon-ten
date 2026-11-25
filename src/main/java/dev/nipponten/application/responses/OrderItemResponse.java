@@ -15,6 +15,7 @@ public record OrderItemResponse(
         BigDecimal originalUnitPrice,
         BigDecimal unitPrice,
         BigDecimal total,
+        boolean pointsEligible,
         String notes,
         List<Additional> additionals,
         List<RemovedIngredient> removedIngredients,

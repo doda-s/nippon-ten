@@ -3,7 +3,7 @@
 Fontes editáveis em `docs/diagrams/` (abrir no draw.io / diagrams.net):
 
 - [`architecture.drawio`](diagrams/architecture.drawio) — camadas, portas e adapters (página *Camadas*) e o caminho de um request autenticado do token até o banco (página *Fluxo de um request*).
-- [`database-erd.drawio`](diagrams/database-erd.drawio) — schema final das migrations V1–V9, agrupado por agregado, com o comportamento de cada FK na exclusão.
+- [`database-erd.drawio`](diagrams/database-erd.drawio) — schema final das migrations V1–V10, agrupado por agregado, com o comportamento de cada FK na exclusão.
 - [`resources.drawio`](diagrams/resources.drawio) — rotas e permissão de cada resource (página *Rotas e permissões*), quais services cada resource usa (*Resources → services*) e as dependências entre services (*Services → services*).
 
 ---
@@ -115,6 +115,8 @@ Nos pedidos (ver [`orders.md`](orders.md)), `OrderService.place` (lê produto, t
 O reenvio do link de acompanhamento, `OrderService.resendTrackingLink`, também leva `@Transactional`: ele troca o hash do token e dispara o e-mail, que só sai depois do commit.
 
 No pagamento online (ver [`payments.md`](payments.md)), o `PaymentService` grava o resultado do gateway no `Payment` e, na aprovação, chama `OrderService.confirmOnlinePayment` (pedido + `order_status_history`) na mesma transação, aberta com `QuarkusTransaction.joiningExisting()`. A chamada de rede ao gateway fica fora dela, para não segurar conexão de banco. Na reconciliação agendada (`PaymentService.reconcile`), cada pagamento é gravado na própria transação, e a checagem do pedido abandonado roda numa transação nova (`QuarkusTransaction.requiringNew()`) que também cancela o pedido: fora de uma transação, a leitura usaria a sessão do request, que ainda guarda os pagamentos como estavam antes de a etapa anterior vencê-los.
+
+Nos pontos (ver [`points.md`](points.md)), todo movimento grava o extrato (`points_transaction`) e o saldo em cache do `Client` juntos, com a linha do cliente travada (`ClientRepository.lockById`). Por isso os métodos que mexem no saldo levam `@Transactional`: `PointsService.redeem`, `refund`, `earn`, `adjust`, e as leituras `getBalanceByUser` e `getPageByUser`, que gravam as expirações vencidas antes de responder. `OrderService.place`, `changeStatus` e `cancel` chamam o `PointsService` dentro da própria transação, então o pedido e os pontos são gravados ou desfeitos juntos.
 
 ---
 
@@ -228,7 +230,7 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12). O envio de e-mail já existe (ver [[#E-mail: porta no domínio, envio depois do commit|E-mail]]), então ela pode usar a mesma porta.
 
-Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`), o feedback e o e-mail de confirmação com o link de acompanhamento. Continuam fora, por decisão, cupons, pontos e taxa de entrega. O pagamento online com o Mercado Pago (Pix e cartão, webhook, reconciliação agendada e estorno) está em [`payments.md`](payments.md). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
+Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`), o feedback e o e-mail de confirmação com o link de acompanhamento. Continuam fora, por decisão, cupons e taxa de entrega. Os pontos vieram depois, em [`points.md`](points.md) (`PointsService` e `PointsSettingsService`). O pagamento online com o Mercado Pago (Pix e cartão, webhook, reconciliação agendada e estorno) está em [`payments.md`](payments.md). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 
