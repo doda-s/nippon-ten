@@ -94,7 +94,7 @@ O cadastro e a edição de um *User Address* consultam o CEP e gravam bairro, ci
 
 - **Busca.** O texto vai com rua, número e bairro, e o filtro `components` vai com `country:BR|administrative_area:<UF>|locality:<cidade>`. O CEP fica de fora: a base de CEPs do Google no Brasil é incompleta, e com o CEP no texto o Google chegou a devolver uma rua de mesmo nome em outra cidade.
 - **Precisão.** Só valem os resultados `ROOFTOP`, `RANGE_INTERPOLATED` e `GEOMETRIC_CENTER`, e só na cidade e UF do CEP. `APPROXIMATE` é o centro do bairro ou da cidade, longe demais para cobrar por km.
-- **Cache de 29 dias.** Os termos do Google só permitem guardar latitude e longitude por 30 dias seguidos. O `geocoded_address` guarda a coordenada com chave no SHA-256 do endereço normalizado, sem o endereço em claro. O `GeocodeCachePurgeJob` apaga as linhas vencidas todo dia às 4h. O "não achou" também fica em cache, para a cotação repetida não chamar o Google de novo.
+- **Cache de 29 dias.** Os termos do Google só permitem guardar latitude e longitude por 30 dias seguidos. O `geocoded_address` guarda a coordenada com chave no SHA-256 do endereço normalizado, sem o endereço em claro. O `GeocodeCachePurgeJob` apaga as linhas vencidas todo dia às 4h. No Cloud Run, onde o scheduler interno fica desligado, a mesma limpeza é disparada pelo Cloud Scheduler em `POST /jobs/geocode-cache-purge` (ver *Jobs agendados* em [`deploy.md`](deploy.md)). O "não achou" também fica em cache, para a cotação repetida não chamar o Google de novo.
 - **Custo.** O SKU *Geocoding* (Essentials) tem 10.000 chamadas grátis por mês, somadas em todos os projetos da conta de faturamento. Depois disso, custa US$5 a cada 1.000. Como a cotação e o checkout do mesmo endereço fazem uma chamada só, o volume de uma pastelaria fica na faixa grátis.
 - **Chave.** `GOOGLE_MAPS_API_KEY`, restrita à Geocoding API. No staging ela está no secret `google-maps-api-key`, com cota de 300 chamadas por dia no projeto, para um erro ou abuso não gerar conta. Sem a chave a aplicação sobe, mas a entrega com o cálculo ligado responde `400`.
 
@@ -124,6 +124,7 @@ Em teste, os três provedores são o `GeoStub` (`src/test`), um servidor HTTP lo
 | `GET /delivery/settings` | pública |
 | `PUT /delivery/settings` | `manage_delivery` |
 | `GET /addresses/cep/{cep}` | pública |
+| `POST /jobs/geocode-cache-purge` | pública, validada pelo header `X-Job-Token` (Cloud Scheduler) |
 
 ## Modelo de dados
 

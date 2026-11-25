@@ -8,6 +8,7 @@ import java.security.MessageDigest;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 /**
  * Jobs disparados de fora por HTTP (docs/deploy.md, Jobs agendados). No Cloud Run a CPU só fica
@@ -18,24 +19,47 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 @ApplicationScoped
 public class JobTriggerService {
 
+    private static final Logger LOG = Logger.getLogger(JobTriggerService.class);
+
     @Inject PaymentService paymentService;
+
+    @Inject GeocodingService geocodingService;
 
     @ConfigProperty(name = "nippon.jobs.token")
     Optional<String> token;
 
-    // Uma rodada lenta (provedor fora do ar) não empilha outra por cima, como o SKIP do
-    // PaymentReconciliationJob. A reconciliação é idempotente; isto só evita trabalho repetido.
+    // Uma rodada lenta (provedor fora do ar) não empilha outra por cima, como o SKIP dos jobs do
+    // scheduler interno. Os dois jobs são idempotentes; isto só evita trabalho repetido.
     private final AtomicBoolean reconciling = new AtomicBoolean();
+    private final AtomicBoolean purgingGeocodeCache = new AtomicBoolean();
 
+    /** Mesma rodada do PaymentReconciliationJob. */
     public void reconcilePayments(String presentedToken) {
         requireToken(presentedToken);
-        if (!reconciling.compareAndSet(false, true)) {
+        runAlone(reconciling, paymentService::reconcile);
+    }
+
+    /** Mesma limpeza do GeocodeCachePurgeJob (docs/delivery.md, cache de 29 dias). */
+    public void purgeGeocodeCache(String presentedToken) {
+        requireToken(presentedToken);
+        runAlone(
+                purgingGeocodeCache,
+                () -> {
+                    int removed = geocodingService.purgeExpired();
+                    if (removed > 0) {
+                        LOG.infof("Removed %d expired geocoded addresses", removed);
+                    }
+                });
+    }
+
+    private static void runAlone(AtomicBoolean running, Runnable job) {
+        if (!running.compareAndSet(false, true)) {
             return;
         }
         try {
-            paymentService.reconcile();
+            job.run();
         } finally {
-            reconciling.set(false);
+            running.set(false);
         }
     }
 

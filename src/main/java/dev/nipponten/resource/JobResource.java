@@ -26,4 +26,13 @@ public class JobResource {
         service.reconcilePayments(token);
         return Response.noContent().build();
     }
+
+    @POST
+    @Path("/geocode-cache-purge")
+    @PermitAll
+    @Operation(hidden = true)
+    public Response purgeGeocodeCache(@HeaderParam(TOKEN_HEADER) String token) {
+        service.purgeGeocodeCache(token);
+        return Response.noContent().build();
+    }
 }

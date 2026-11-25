@@ -2,12 +2,17 @@ package dev.nipponten;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
+import dev.nipponten.domain.models.GeocodedAddress;
+import dev.nipponten.domain.repositories.GeocodedAddressRepository;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import jakarta.inject.Inject;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +26,33 @@ class JobTriggerTest {
     private static final String TOKEN = "test-jobs-token";
 
     @Inject TestClock clock;
+
+    @Inject GeocodedAddressRepository geocodedAddresses;
+
+    @Test
+    void geocodeCachePurgeWithoutTokenIsRejected() {
+        given().post("/jobs/geocode-cache-purge")
+                .then()
+                .statusCode(401)
+                .body("message", is("Invalid job token"));
+    }
+
+    @Test
+    void geocodeCachePurgeWithTheTokenDeletesOnlyExpiredCoordinates() {
+        Instant now = Instant.now(clock);
+        geocodedAddresses.save(
+                new GeocodedAddress("job-test-expired", null, now.minus(Duration.ofDays(30))));
+        geocodedAddresses.save(
+                new GeocodedAddress("job-test-fresh", null, now.minus(Duration.ofDays(1))));
+
+        given().header("X-Job-Token", TOKEN)
+                .post("/jobs/geocode-cache-purge")
+                .then()
+                .statusCode(204);
+
+        assertNull(geocodedAddresses.getByHash("job-test-expired"));
+        assertNotNull(geocodedAddresses.getByHash("job-test-fresh"));
+    }
 
     @AfterEach
     void resetClock() {
