@@ -62,7 +62,8 @@ class AuthorizationTest {
                     new Route("PUT", "/points/settings", Permissions.MANAGE_POINTS),
                     new Route("POST", "/points/settings/simulation", Permissions.MANAGE_POINTS),
                     new Route(
-                            "POST", "/users/999999/points/adjustments", Permissions.MANAGE_POINTS));
+                            "POST", "/users/999999/points/adjustments", Permissions.MANAGE_POINTS),
+                    new Route("PUT", "/delivery/settings", Permissions.MANAGE_DELIVERY));
 
     private static final List<String> PUBLIC_READS =
             List.of(
@@ -72,7 +73,8 @@ class AuthorizationTest {
                     "/combos",
                     "/promotions",
                     "/promotion-types",
-                    "/points/settings");
+                    "/points/settings",
+                    "/delivery/settings");
 
     private static String uniqueEmail(String prefix) {
         return prefix + "." + System.nanoTime() + "@example.com";

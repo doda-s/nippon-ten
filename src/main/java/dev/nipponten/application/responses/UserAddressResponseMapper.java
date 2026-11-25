@@ -13,6 +13,9 @@ public class UserAddressResponseMapper {
                 userAddress.streetAddress(),
                 userAddress.number(),
                 userAddress.cep(),
-                userAddress.complement());
+                userAddress.complement(),
+                userAddress.neighborhood(),
+                userAddress.city(),
+                userAddress.state());
     }
 }

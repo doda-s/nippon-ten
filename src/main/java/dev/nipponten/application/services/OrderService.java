@@ -4,8 +4,10 @@ import dev.nipponten.application.exceptions.ForbiddenException;
 import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.OrderNotFoundException;
 import dev.nipponten.application.exceptions.UnauthorizedException;
+import dev.nipponten.domain.models.Address;
 import dev.nipponten.domain.models.AuthenticatedUser;
 import dev.nipponten.domain.models.Client;
+import dev.nipponten.domain.models.DeliveryQuote;
 import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
@@ -71,6 +73,10 @@ public class OrderService {
 
     @Inject UserAddressService userAddressService;
 
+    @Inject CepService cepService;
+
+    @Inject DeliveryFeeService deliveryFeeService;
+
     @Inject InternalService internalService;
 
     @Inject PointsService pointsService;
@@ -104,30 +110,39 @@ public class OrderService {
             String guestPhone,
             String guestEmail) {}
 
-    private record Address(String streetAddress, String number, String cep, String complement) {
-        static final Address NONE = new Address(null, null, null, null);
-    }
-
     /**
      * Cotação pública. Pontos só com login de cliente, porque a cotação confere o saldo dele; o
-     * visitante vê quantos pontos o pedido renderia se tivesse conta.
+     * visitante vê quantos pontos o pedido renderia se tivesse conta. Na entrega, addressId também
+     * exige login de cliente, e address (digitado) vale para qualquer um.
      */
-    public OrderQuote quote(List<OrderItem> items, int pointsToRedeem) {
+    public OrderQuote quote(
+            List<OrderItem> items,
+            int pointsToRedeem,
+            Order.FulfillmentType fulfillmentType,
+            Long addressId,
+            Address typed) {
         PointsSettings settings = pointsSettingsService.get();
+        Optional<Long> clientId =
+                currentUser
+                        .find()
+                        .filter(caller -> caller.type() == UserType.CLIENT)
+                        .map(caller -> clientService.getByUser(caller.userId()).id());
         if (pointsToRedeem > 0) {
-            AuthenticatedUser user =
-                    currentUser
-                            .find()
-                            .filter(caller -> caller.type() == UserType.CLIENT)
-                            .orElseThrow(
-                                    () ->
-                                            new InvalidRequestException(
-                                                    "pointsToRedeem requires a client login"));
-            pointsService.requireAvailable(
-                    clientService.getByUser(user.userId()).id(), pointsToRedeem);
+            Long owner =
+                    clientId.orElseThrow(
+                            () ->
+                                    new InvalidRequestException(
+                                            "pointsToRedeem requires a client login"));
+            pointsService.requireAvailable(owner, pointsToRedeem);
         }
+        if (addressId != null && clientId.isEmpty()) {
+            throw new InvalidRequestException("addressId requires a client login");
+        }
+        Address address = resolveAddress(fulfillmentType, addressId, typed, clientId.orElse(null));
+        // Sem endereço, a cotação de entrega mostra só os itens; o checkout exige o endereço.
+        DeliveryQuote delivery = address == Address.NONE ? null : deliveryFeeService.quote(address);
         return quoteService.quote(
-                items, pointsToRedeem, settings.pointValue(), settings.earnRate());
+                items, pointsToRedeem, settings.pointValue(), settings.earnRate(), delivery);
     }
 
     // Cria o pedido, os itens, a primeira linha do histórico e o resgate de pontos juntos.
@@ -136,6 +151,10 @@ public class OrderService {
         Optional<AuthenticatedUser> user = currentUser.find();
         Customer customer = resolveCustomer(draft, addressId, user);
         Address address = resolveAddress(draft, addressId, customer);
+        DeliveryQuote delivery =
+                draft.fulfillmentType() == Order.FulfillmentType.DELIVERY
+                        ? deliveryFeeService.quote(address)
+                        : null;
         Order.Status initial = resolveInitialStatus(draft, customer);
         int pointsToRedeem = draft.pointsRedeemed();
         if (pointsToRedeem > 0 && customer.clientId() == null) {
@@ -145,7 +164,8 @@ public class OrderService {
         PointsSettings settings = customer.clientId() == null ? null : pointsSettingsService.get();
         BigDecimal pointValue = settings == null ? null : settings.pointValue();
         BigDecimal earnRate = settings == null ? null : settings.earnRate();
-        OrderQuote quote = quoteService.quote(draft.items(), pointsToRedeem, pointValue, earnRate);
+        OrderQuote quote =
+                quoteService.quote(draft.items(), pointsToRedeem, pointValue, earnRate, delivery);
 
         String trackingToken = customer.clientId() == null ? OpaqueTokens.generate() : null;
         Instant now = Instant.now(clock);
@@ -170,11 +190,15 @@ public class OrderService {
                                 address.number(),
                                 address.cep(),
                                 address.complement(),
+                                address.neighborhood(),
+                                address.city(),
+                                address.state(),
                                 draft.notes(),
                                 null,
                                 quote.subtotal(),
                                 quote.discount(),
                                 quote.deliveryFee(),
+                                quote.deliveryDistanceKm(),
                                 quote.total(),
                                 pointsToRedeem,
                                 pointValue,
@@ -443,7 +467,7 @@ public class OrderService {
     }
 
     // Os itens novos substituem os antigos e são precificados com o catálogo de agora. Os pontos
-    // já resgatados e as taxas do checkout se mantêm.
+    // já resgatados, as taxas do checkout e a taxa de entrega se mantêm: o endereço não muda.
     @Transactional
     public OrderDetails updateItems(Long id, List<OrderItem> items) {
         Order order = getById(id);
@@ -459,7 +483,11 @@ public class OrderService {
         }
         OrderQuote quote =
                 quoteService.quote(
-                        items, order.pointsRedeemed(), order.pointValue(), order.earnRate());
+                        items,
+                        order.pointsRedeemed(),
+                        order.pointValue(),
+                        order.earnRate(),
+                        keptDelivery(order));
         Instant now = Instant.now(clock);
         Order saved =
                 repository.save(
@@ -624,11 +652,15 @@ public class OrderService {
                 order.number(),
                 order.cep(),
                 order.complement(),
+                order.neighborhood(),
+                order.city(),
+                order.state(),
                 order.notes(),
                 cancelReason == null ? order.cancelReason() : cancelReason,
                 quote == null ? order.subtotal() : quote.subtotal(),
                 quote == null ? order.discount() : quote.discount(),
                 quote == null ? order.deliveryFee() : quote.deliveryFee(),
+                quote == null ? order.deliveryDistanceKm() : quote.deliveryDistanceKm(),
                 quote == null ? order.total() : quote.total(),
                 order.pointsRedeemed(),
                 order.pointValue(),
@@ -706,25 +738,55 @@ public class OrderService {
 
     // O pedido guarda a cópia do endereço, não o id: o histórico não muda se o cliente o editar.
     private Address resolveAddress(Order draft, Long addressId, Customer customer) {
-        boolean typed = draft.streetAddress() != null;
-        if (draft.fulfillmentType() != Order.FulfillmentType.DELIVERY) {
-            if (typed || addressId != null) {
+        Address typed =
+                draft.streetAddress() == null
+                        ? null
+                        : new Address(
+                                draft.streetAddress(),
+                                draft.number(),
+                                draft.complement(),
+                                draft.cep(),
+                                null,
+                                null,
+                                null);
+        Address address =
+                resolveAddress(draft.fulfillmentType(), addressId, typed, customer.clientId());
+        if (address == Address.NONE && draft.fulfillmentType() == Order.FulfillmentType.DELIVERY) {
+            throw new InvalidRequestException("DELIVERY orders require an address");
+        }
+        return address;
+    }
+
+    /**
+     * Endereço da entrega com bairro, cidade e UF, ou {@link Address#NONE} quando não veio nenhum.
+     * O endereço salvo antes da consulta de CEP é completado na hora.
+     */
+    private Address resolveAddress(
+            Order.FulfillmentType fulfillmentType, Long addressId, Address typed, Long clientId) {
+        if (fulfillmentType != Order.FulfillmentType.DELIVERY) {
+            if (typed != null || addressId != null) {
                 throw new InvalidRequestException("Only DELIVERY orders take an address");
             }
             return Address.NONE;
         }
         if (addressId != null) {
-            if (typed) {
+            if (typed != null) {
                 throw new InvalidRequestException("Send either addressId or address, not both");
             }
-            UserAddress saved = userAddressService.requireByClient(customer.clientId(), addressId);
-            return new Address(
-                    saved.streetAddress(), saved.number(), saved.cep(), saved.complement());
+            UserAddress saved = userAddressService.requireByClient(clientId, addressId);
+            return saved.city() == null
+                    ? cepService.complete(saved.toAddress())
+                    : saved.toAddress();
         }
-        if (!typed) {
-            throw new InvalidRequestException("DELIVERY orders require an address");
-        }
-        return new Address(draft.streetAddress(), draft.number(), draft.cep(), draft.complement());
+        return typed == null ? Address.NONE : cepService.complete(typed);
+    }
+
+    // Pedido antigo, de antes da taxa de entrega, não tem distância: a taxa gravada vale do mesmo
+    // jeito.
+    private static DeliveryQuote keptDelivery(Order order) {
+        return order.fulfillmentType() == Order.FulfillmentType.DELIVERY
+                ? new DeliveryQuote(order.deliveryDistanceKm(), order.deliveryFee())
+                : null;
     }
 
     private String newCode() {

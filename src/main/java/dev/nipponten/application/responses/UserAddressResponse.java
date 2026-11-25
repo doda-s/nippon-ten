@@ -6,4 +6,7 @@ public record UserAddressResponse(
         String streetAddress,
         String number,
         String cep,
-        String complement) {}
+        String complement,
+        String neighborhood,
+        String city,
+        String state) {}

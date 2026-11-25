@@ -13,6 +13,7 @@ public class OrderQuoteResponseMapper {
                 quote.subtotal(),
                 quote.discount(),
                 quote.deliveryFee(),
+                quote.deliveryDistanceKm(),
                 quote.total(),
                 quote.pointsRedeemed(),
                 quote.pointsEligibleSubtotal(),
