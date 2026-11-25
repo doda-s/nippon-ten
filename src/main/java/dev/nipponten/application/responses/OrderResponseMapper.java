@@ -21,7 +21,10 @@ public class OrderResponseMapper {
                                 order.streetAddress(),
                                 order.number(),
                                 order.cep(),
-                                order.complement());
+                                order.complement(),
+                                order.neighborhood(),
+                                order.city(),
+                                order.state());
         return new OrderResponse(
                 order.id(),
                 order.code(),
@@ -42,6 +45,7 @@ public class OrderResponseMapper {
                 order.subtotal(),
                 order.discount(),
                 order.deliveryFee(),
+                order.deliveryDistanceKm(),
                 order.total(),
                 order.pointsRedeemed(),
                 order.pointsEarned(),

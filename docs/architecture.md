@@ -3,7 +3,7 @@
 Fontes editáveis em `docs/diagrams/` (abrir no draw.io / diagrams.net):
 
 - [`architecture.drawio`](diagrams/architecture.drawio) — camadas, portas e adapters (página *Camadas*) e o caminho de um request autenticado do token até o banco (página *Fluxo de um request*).
-- [`database-erd.drawio`](diagrams/database-erd.drawio) — schema final das migrations V1–V10, agrupado por agregado, com o comportamento de cada FK na exclusão.
+- [`database-erd.drawio`](diagrams/database-erd.drawio) — schema final das migrations V1–V11, agrupado por agregado, com o comportamento de cada FK na exclusão.
 - [`resources.drawio`](diagrams/resources.drawio) — rotas e permissão de cada resource (página *Rotas e permissões*), quais services cada resource usa (*Resources → services*) e as dependências entre services (*Services → services*).
 
 ---
@@ -139,6 +139,14 @@ nippon.front.base-url=${FRONT_BASE_URL:http://localhost:5173}
 - **Teste:** sempre mock. Os testes leem as mensagens na `MockMailbox`.
 - **Produção:** um serviço de e-mail transacional (Resend, Brevo, Amazon SES ou similar) com domínio próprio e SPF/DKIM configurados. Um Gmail pessoal cai em spam e não serve para e-mail transacional. Todos falam SMTP, então trocar de serviço é só configuração.
 
+## CEP e geocodificação: portas no domínio, cache no banco
+
+A taxa de entrega ([`delivery.md`](delivery.md)) depende de dois provedores externos, cada um atrás de uma porta em `domain.gateways`. A `CepLookup` é implementada por `PublicCepLookup` (ViaCEP, com a BrasilAPI de reserva) e a `Geocoder` por `GoogleGeocoder`. Os adapters ficam em `infrastructure.geo`, com REST clients do Quarkus.
+
+As respostas ficam em cache no banco (`cep_address` e `geocoded_address`), atrás dos repositórios `CepAddressRepository` e `GeocodedAddressRepository`. O cache poupa chamadas pagas e segura a consulta quando o provedor cai. As duas gravações usam `insert ... on conflict do update`, porque a cotação e o checkout do mesmo endereço podem chegar juntos. Quem decide o prazo de cada cache é o service (`CepService` e `GeocodingService`), e o das coordenadas fica abaixo dos 30 dias que os termos do Google permitem.
+
+A chamada ao Google acontece dentro da transação do checkout (`OrderService.place`) só quando o endereço não está no cache. Normalmente ele está, porque a cotação o geocodificou antes. Uma falha do provedor de CEP vira `AddressLookupException` (`502`). A falha do Google não chega ao cliente como erro de provedor: o `DeliveryFeeService` a transforma em `400`, porque a entrega sem taxa calculada é recusada.
+
 ## Validação: Bean Validation nos requests, exceção de domínio para o resto
 
 Todo `XRequest` é anotado com Bean Validation (`@NotNull`, `@NotBlank`, `@Positive`, `@Email` etc.) e todo método de `Resource` que recebe um request usa `@Valid`. A extensão `quarkus-hibernate-validator` intercepta antes do request chegar ao `Service` e devolve `400` automaticamente se alguma constraint falhar. Esse `ConstraintViolationException` é mapeado por `ConstraintViolationExceptionMapper` (`resource.exception`) para o mesmo formato de erro do resto da API — `{"message": "Invalid request", "violations": [{"field": ..., "message": ...}]}` — em vez do payload padrão (mais verboso, com o caminho completo do método) do Hibernate Validator.
@@ -217,7 +225,9 @@ O `PaymentReconciliationJob` roda em todas as instâncias. Isso não causa erro,
 
 Outro componente também vive em memória: o `OrderEventBus`, que repassa os eventos SSE dos pedidos ([[orders#Notificações (SSE)|orders.md]]). Com várias instâncias, quem está conectado numa instância não recebe os eventos gerados em outra. Como o SSE é só um aviso e o front recarrega o pedido ao reconectar, nada se perde no banco, mas o aviso em tempo real falha. A solução é distribuir os eventos por Postgres `LISTEN/NOTIFY` ou Redis.
 
-O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
+O `GeocodeCachePurgeJob` também roda em todas as instâncias. Ele só apaga coordenadas vencidas, então rodar mais de uma vez não causa erro.
+
+O resto do estado (refresh tokens e sessões, e os caches de CEP e de coordenadas da entrega) fica no banco e é compartilhado. Se o atraso de 30 s não for aceitável, reduza `nippon.auth.session-cache-ttl` (`PT0S` desliga o cache) ou troque os dois componentes por um armazenamento compartilhado, como Redis.
 
 ### Riscos conhecidos
 
@@ -230,7 +240,7 @@ O resto do estado (refresh tokens e sessões) fica no banco e é compartilhado. 
 
 A autenticação e a autorização descritas em [`requirements.md`](requirements.md) e [`user-management.md`](user-management.md) estão implementadas (ver as seções acima). Continua fora, por decisão, a recuperação de senha (requisito 12). O envio de e-mail já existe (ver [[#E-mail: porta no domínio, envio depois do commit|E-mail]]), então ela pode usar a mesma porta.
 
-Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`), o feedback e o e-mail de confirmação com o link de acompanhamento. Continuam fora, por decisão, cupons e taxa de entrega. Os pontos vieram depois, em [`points.md`](points.md) (`PointsService` e `PointsSettingsService`). O pagamento online com o Mercado Pago (Pix e cartão, webhook, reconciliação agendada e estorno) está em [`payments.md`](payments.md). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
+Os pedidos estão em [`orders.md`](orders.md), com a v1 implementada: a cotação (`OrderQuoteService`) e, no `OrderService`, a criação, a consulta, o histórico do cliente, a listagem do dashboard, o ciclo de vida (status, pagamento, cancelamento e edição de itens), os eventos SSE (`OrderEventBus`), o feedback e o e-mail de confirmação com o link de acompanhamento. Continuam fora, por decisão, os cupons. Os pontos vieram depois, em [`points.md`](points.md) (`PointsService` e `PointsSettingsService`), e a taxa de entrega também, em [`delivery.md`](delivery.md) (`DeliveryFeeService`, `DeliverySettingsService`, `CepService` e `GeocodingService`). O pagamento online com o Mercado Pago (Pix e cartão, webhook, reconciliação agendada e estorno) está em [`payments.md`](payments.md). O pedido é um agregado gravado inteiro pelo `PanacheOrderRepository` (itens e filhos em cascata); as referências ao catálogo e aos usuários são só ids, com FK `on delete set null`. O histórico de status e o feedback têm repositórios próprios, mas continuam filhos do pedido (sem rota de leitura própria e removidos junto com ele).
 
 Os domain models são apenas dados (records sem invariantes): as regras de negócio vivem no `Service` do agregado responsável, seguindo os padrões descritos acima. É lá que estão, por exemplo, o mínimo de dois produtos por combo, a promoção única por produto e a validação das janelas de disponibilidade.
 

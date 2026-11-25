@@ -1,5 +1,6 @@
 package dev.nipponten.application.requests;
 
+import dev.nipponten.domain.models.Address;
 import dev.nipponten.domain.models.Order;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -35,7 +36,11 @@ public class OrderRequestMapper {
                 address == null ? null : address.number(),
                 address == null ? null : address.cep(),
                 address == null ? null : address.complement(),
+                null,
+                null,
+                null,
                 request.notes(),
+                null,
                 null,
                 null,
                 null,
@@ -48,5 +53,19 @@ public class OrderRequestMapper {
                 null,
                 null,
                 itemMapper.toModels(request.items()));
+    }
+
+    /** Endereço digitado; bairro, cidade e UF são preenchidos pelo service a partir do CEP. */
+    public static Address toAddress(OrderAddressRequest request) {
+        return request == null
+                ? null
+                : new Address(
+                        request.streetAddress(),
+                        request.number(),
+                        request.complement(),
+                        request.cep(),
+                        null,
+                        null,
+                        null);
     }
 }

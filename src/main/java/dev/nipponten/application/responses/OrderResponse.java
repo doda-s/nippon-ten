@@ -26,6 +26,7 @@ public record OrderResponse(
         BigDecimal subtotal,
         BigDecimal discount,
         BigDecimal deliveryFee,
+        BigDecimal deliveryDistanceKm,
         BigDecimal total,
         int pointsRedeemed,
         int pointsEarned,
@@ -34,7 +35,14 @@ public record OrderResponse(
         List<StatusChange> statusHistory,
         Feedback feedback) {
 
-    public record Address(String streetAddress, String number, String cep, String complement) {}
+    public record Address(
+            String streetAddress,
+            String number,
+            String cep,
+            String complement,
+            String neighborhood,
+            String city,
+            String state) {}
 
     public record StatusChange(Order.Status status, Instant changedAt) {}
 

@@ -113,6 +113,7 @@ Quem gerencia roles só cria, edita ou reativa uma role com permissões que ele 
 | manage_promotions  | Permissão para gerenciar os combos e promotions existentes. Possibilita criar, editar, deletar e alterar o status de um combo/promotion.                                   |
 | manage_orders      | Permissão para operar pedidos (ver [[orders]]). Possibilita lançar pedidos no balcão, listar e acompanhar todos os pedidos, avançar status, marcar como pago, editar itens e cancelar. |
 | manage_points      | Permissão para administrar o programa de pontos (ver [[points]]). Possibilita alterar a conversão de dinheiro em pontos, simular o impacto de uma configuração e ajustar o saldo de um cliente. |
+| manage_delivery    | Permissão para configurar a entrega (ver [[delivery]]). Possibilita alterar as coordenadas da loja e as faixas da taxa de entrega. |
 
 ## Bootstrap
 
@@ -166,6 +167,9 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `PUT /points/settings`, `POST /points/settings/simulation` | — | `manage_points` |
 | `GET /users/{id}/points`, `GET /users/{id}/points/transactions` | o próprio usuário ou `manage_users` | — |
 | `POST /users/{id}/points/adjustments` | — | `manage_points` |
+| `GET /delivery/settings` | pública | — |
+| `PUT /delivery/settings` | — | `manage_delivery` |
+| `GET /addresses/cep/{cep}` | pública | — |
 
 `POST /auth/login`, `/auth/refresh` e `/auth/logout` são públicas. O Swagger (`/api`) e o schema (`/q/openapi`) também.
 

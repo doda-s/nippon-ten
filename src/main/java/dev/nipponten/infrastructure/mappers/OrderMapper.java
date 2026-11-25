@@ -41,11 +41,15 @@ public class OrderMapper {
         entity.setNumber(model.number());
         entity.setCep(model.cep());
         entity.setComplement(model.complement());
+        entity.setNeighborhood(model.neighborhood());
+        entity.setCity(model.city());
+        entity.setState(model.state());
         entity.setNotes(model.notes());
         entity.setCancelReason(model.cancelReason());
         entity.setSubtotal(model.subtotal());
         entity.setDiscount(model.discount());
         entity.setDeliveryFee(model.deliveryFee());
+        entity.setDeliveryDistanceKm(model.deliveryDistanceKm());
         entity.setTotal(model.total());
         entity.setPointsRedeemed(model.pointsRedeemed());
         entity.setPointValue(model.pointValue());
@@ -124,11 +128,15 @@ public class OrderMapper {
                 entity.getNumber(),
                 entity.getCep(),
                 entity.getComplement(),
+                entity.getNeighborhood(),
+                entity.getCity(),
+                entity.getState(),
                 entity.getNotes(),
                 entity.getCancelReason(),
                 entity.getSubtotal(),
                 entity.getDiscount(),
                 entity.getDeliveryFee(),
+                entity.getDeliveryDistanceKm(),
                 entity.getTotal(),
                 entity.getPointsRedeemed(),
                 entity.getPointValue(),
