@@ -36,6 +36,7 @@ class OrderLifecycleTest {
         body.put("paymentMethod", "PIX");
         body.put("guestName", "Ana");
         body.put("guestPhone", "11988887777");
+        body.put("guestEmail", "guest@example.com");
         if (fulfillment.equals("DELIVERY")) {
             body.put(
                     "address", Map.of("streetAddress", "Rua B", "number", "2", "cep", "02000-000"));

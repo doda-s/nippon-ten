@@ -5,6 +5,7 @@ import dev.nipponten.application.exceptions.InvalidRequestException;
 import dev.nipponten.application.exceptions.OrderNotFoundException;
 import dev.nipponten.application.exceptions.UnauthorizedException;
 import dev.nipponten.domain.models.AuthenticatedUser;
+import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.InternalPermission;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
@@ -20,6 +21,8 @@ import dev.nipponten.domain.models.UserType;
 import dev.nipponten.domain.repositories.OrderFeedbackRepository;
 import dev.nipponten.domain.repositories.OrderRepository;
 import dev.nipponten.domain.repositories.OrderStatusHistoryRepository;
+import dev.nipponten.domain.repositories.UserRepository;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import jakarta.inject.Inject;
@@ -35,14 +38,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 @ApplicationScoped
 public class OrderService {
 
     // Sem 0/O, 1/I/L: o código é lido em voz alta no balcão.
-    // "Pedidos ativos" (req. 42): os que ainda não terminaram.
+    // "Pedidos ativos" (req. 42): os que ainda não terminaram. O pedido online que espera o
+    // pagamento fica de fora, porque a cozinha não prepara o que não foi pago.
     private static final Set<Order.Status> ACTIVE_STATUSES =
-            EnumSet.complementOf(EnumSet.of(Order.Status.COMPLETED, Order.Status.CANCELLED));
+            EnumSet.complementOf(
+                    EnumSet.of(
+                            Order.Status.AWAITING_PAYMENT,
+                            Order.Status.COMPLETED,
+                            Order.Status.CANCELLED));
 
     private static final String CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
@@ -75,11 +84,25 @@ public class OrderService {
     // Entregues ao OrderEventBus só depois do commit.
     @Inject Event<OrderEvent> events;
 
+    // Entregues ao OrderConfirmationMailer só depois do commit.
+    @Inject Event<OrderConfirmation> confirmations;
+
+    // Só para ler o e-mail da conta do cliente, que recebe a confirmação.
+    @Inject UserRepository userRepository;
+
+    @Inject TrackingLinkLimiter trackingLinkLimiter;
+
+    @Inject PaymentSettlementService settlement;
+
     /** trackingToken é nulo quando o pedido é de um cliente com conta. */
     public record PlacedOrder(OrderDetails details, String trackingToken) {}
 
     private record Customer(
-            Long clientId, Long createdByInternalId, String guestName, String guestPhone) {}
+            Long clientId,
+            Long createdByInternalId,
+            String guestName,
+            String guestPhone,
+            String guestEmail) {}
 
     private record Address(String streetAddress, String number, String cep, String complement) {
         static final Address NONE = new Address(null, null, null, null);
@@ -113,6 +136,7 @@ public class OrderService {
         Optional<AuthenticatedUser> user = currentUser.find();
         Customer customer = resolveCustomer(draft, addressId, user);
         Address address = resolveAddress(draft, addressId, customer);
+        Order.Status initial = resolveInitialStatus(draft, customer);
         int pointsToRedeem = draft.pointsRedeemed();
         if (pointsToRedeem > 0 && customer.clientId() == null) {
             throw new InvalidRequestException("pointsToRedeem is only accepted for client orders");
@@ -135,9 +159,11 @@ public class OrderService {
                                 trackingToken == null ? null : OpaqueTokens.hash(trackingToken),
                                 customer.guestName(),
                                 customer.guestPhone(),
+                                customer.guestEmail(),
                                 draft.fulfillmentType(),
-                                Order.Status.PENDING,
+                                initial,
                                 draft.paymentMethod(),
+                                draft.paymentChannel(),
                                 false,
                                 null,
                                 address.streetAddress(),
@@ -165,11 +191,48 @@ public class OrderService {
                         new OrderStatusChange(
                                 null,
                                 saved.id(),
-                                Order.Status.PENDING,
+                                initial,
                                 now,
                                 user.map(AuthenticatedUser::userId).orElse(null)));
         events.fire(OrderEvent.of(OrderEvent.Type.CREATED, saved));
+        confirm(saved, trackingToken);
         return new PlacedOrder(new OrderDetails(saved, List.of(created), null), trackingToken);
+    }
+
+    /**
+     * O pedido pelo código, que é o que vai no link do e-mail. Mesmo acesso de {@link
+     * #getForViewer}.
+     */
+    public OrderDetails getForViewerByCode(String code, String trackingToken) {
+        String normalized = normalizeCode(code);
+        return details(
+                authorizeViewer(
+                        repository.getByCode(normalized),
+                        normalized,
+                        trackingToken,
+                        () -> new OrderNotFoundException(normalized)));
+    }
+
+    /**
+     * Reenvia o link de acompanhamento para o e-mail do visitante, com um token novo: o banco só
+     * guarda o hash, então o antigo não pode ser recuperado, e trocar invalida o link anterior. Não
+     * responde se o código e o e-mail batem, para não revelar quais pedidos existem; um código de
+     * cliente com conta é ignorado, porque ele acompanha o pedido logado.
+     */
+    @Transactional
+    public void resendTrackingLink(String code, String email, String clientIp) {
+        trackingLinkLimiter.acquire(code, clientIp);
+        Order order = repository.getByCode(normalizeCode(code));
+        if (order == null
+                || order.clientId() != null
+                || order.guestEmail() == null
+                || !order.guestEmail().equalsIgnoreCase(email.trim())) {
+            return;
+        }
+        String trackingToken = OpaqueTokens.generate();
+        repository.updateTrackingTokenHash(order.id(), OpaqueTokens.hash(trackingToken));
+        confirmations.fire(
+                confirmation(order, order.guestEmail(), order.guestName(), trackingToken, true));
     }
 
     /**
@@ -181,18 +244,43 @@ public class OrderService {
     }
 
     public Order requireViewer(Long id, String trackingToken) {
+        return authorizeViewer(
+                repository.getById(id),
+                String.valueOf(id),
+                trackingToken,
+                () -> new OrderNotFoundException(id));
+    }
+
+    // order nulo quando não existe: 404 só para quem tem manage_orders.
+    private Order authorizeViewer(
+            Order order,
+            String reference,
+            String trackingToken,
+            Supplier<OrderNotFoundException> notFound) {
         Optional<AuthenticatedUser> user = currentUser.find();
         if (user.isPresent() && user.get().has(InternalPermission.MANAGE_ORDERS)) {
-            return getById(id);
+            if (order == null) throw notFound.get();
+            return order;
         }
-        Order order = repository.getById(id);
         if (order != null && (holdsToken(order, trackingToken) || isOwner(order, user))) {
             return order;
         }
         if (user.isEmpty() && (trackingToken == null || trackingToken.isBlank())) {
             throw new UnauthorizedException("Authentication required");
         }
-        throw new ForbiddenException("Not allowed to access order " + id);
+        throw new ForbiddenException("Not allowed to access order " + reference);
+    }
+
+    /**
+     * Só quem fez o pedido: o cliente dono ou o visitante com o token. O funcionário vê o pedido,
+     * mas não age como cliente (avaliar, pagar online).
+     */
+    public Order requireCustomer(Long id, String trackingToken, String action) {
+        Order order = requireViewer(id, trackingToken);
+        if (!holdsToken(order, trackingToken) && !isOwner(order, currentUser.find())) {
+            throw new ForbiddenException("Only the customer can " + action + " order " + id);
+        }
+        return order;
     }
 
     public Order getById(Long id) {
@@ -270,6 +358,11 @@ public class OrderService {
     @Transactional
     public OrderDetails markPaid(Long id) {
         Order order = getById(id);
+        // Num pedido online, só o pagamento aprovado pelo gateway marca como pago.
+        if (order.paymentChannel() == Order.PaymentChannel.ONLINE) {
+            throw new InvalidRequestException(
+                    "Order " + id + " is paid online and cannot be marked as paid by hand");
+        }
         if (order.paid()) {
             throw new InvalidRequestException("Order " + id + " is already paid");
         }
@@ -286,10 +379,48 @@ public class OrderService {
     /**
      * O cliente ou o visitante cancela só antes de a cozinha começar (PENDING). O funcionário
      * cancela até antes de COMPLETED e precisa dizer o motivo.
+     *
+     * <p>Num pedido online, os pagamentos são desfeitos no provedor antes (docs/payments.md,
+     * Cancelamento e estorno): a tentativa aberta é cancelada e a aprovada, estornada. Se o
+     * provedor falhar, o pedido é cancelado mesmo assim e a reconciliação agendada estorna depois;
+     * o pagamento continua APPROVED até o estorno sair. A chamada ao provedor fica fora da
+     * transação que grava o cancelamento.
      */
-    @Transactional
     public OrderDetails cancel(Long id, String trackingToken, String reason) {
         Order order = requireViewer(id, trackingToken);
+        requireCancellable(order, reason);
+        if (order.paymentChannel() == Order.PaymentChannel.ONLINE) {
+            settlement.settle(order);
+        }
+        return QuarkusTransaction.joiningExisting()
+                .call(
+                        () -> {
+                            Order current = getById(id);
+                            // Cancelado no meio do caminho (job, outra aba): nada a gravar.
+                            if (current.status() == Order.Status.CANCELLED) {
+                                return details(current);
+                            }
+                            Instant now = Instant.now(clock);
+                            Order saved =
+                                    repository.save(
+                                            rebuild(
+                                                    current,
+                                                    Order.Status.CANCELLED,
+                                                    current.paid(),
+                                                    current.paidAt(),
+                                                    reason,
+                                                    null,
+                                                    null,
+                                                    now));
+                            refundRedeemedPoints(current);
+                            recordStatus(saved, now);
+                            events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
+                            return details(saved);
+                        });
+    }
+
+    private void requireCancellable(Order order, String reason) {
+        Long id = order.id();
         boolean staff =
                 currentUser
                         .find()
@@ -302,29 +433,13 @@ public class OrderService {
                         "Order " + id + " is " + order.status() + " and cannot be cancelled");
             }
             requirePresent(reason, "reason", "a cancellation by the staff");
-        } else if (order.status() != Order.Status.PENDING) {
+        } else if (order.status() != Order.Status.PENDING
+                && order.status() != Order.Status.AWAITING_PAYMENT) {
             throw new InvalidRequestException(
-                    "Order " + id + " can only be cancelled by the customer while PENDING");
+                    "Order "
+                            + id
+                            + " can only be cancelled by the customer before the kitchen starts");
         }
-        Instant now = Instant.now(clock);
-        Order saved =
-                repository.save(
-                        rebuild(
-                                order,
-                                Order.Status.CANCELLED,
-                                order.paid(),
-                                order.paidAt(),
-                                reason,
-                                null,
-                                null,
-                                now));
-        // O cliente pode ter sido excluído; aí os lotes já foram junto.
-        if (order.pointsRedeemed() > 0 && order.clientId() != null) {
-            pointsService.refund(order.clientId(), order.id());
-        }
-        recordStatus(saved, now);
-        events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
-        return details(saved);
     }
 
     // Os itens novos substituem os antigos e são precificados com o catálogo de agora. Os pontos
@@ -332,6 +447,11 @@ public class OrderService {
     @Transactional
     public OrderDetails updateItems(Long id, List<OrderItem> items) {
         Order order = getById(id);
+        // O pagamento online já cobrou o total antigo (docs/payments.md, Edição de itens).
+        if (order.paymentChannel() == Order.PaymentChannel.ONLINE) {
+            throw new InvalidRequestException(
+                    "Order " + id + " is paid online and its items cannot change");
+        }
         if (order.status() != Order.Status.PENDING
                 && order.status() != Order.Status.IN_PREPARATION) {
             throw new InvalidRequestException(
@@ -357,14 +477,78 @@ public class OrderService {
     }
 
     /**
+     * Chamado pelo PaymentService quando o gateway aprova o pagamento: marca como pago e libera o
+     * pedido para a cozinha. Repetir não faz nada, porque o gateway reenvia notificações. Um pedido
+     * cancelado antes da aprovação fica como está, e o estorno é tratado à parte.
+     */
+    @Transactional
+    public void confirmOnlinePayment(Long id, Instant approvedAt) {
+        Order order = getById(id);
+        if (order.paid() || order.status() != Order.Status.AWAITING_PAYMENT) {
+            return;
+        }
+        Instant now = Instant.now(clock);
+        Order saved =
+                repository.save(
+                        rebuild(
+                                order,
+                                Order.Status.PENDING,
+                                true,
+                                approvedAt,
+                                null,
+                                null,
+                                null,
+                                now));
+        recordStatus(saved, now);
+        events.fire(OrderEvent.of(OrderEvent.Type.PAID, saved));
+        events.fire(OrderEvent.of(OrderEvent.Type.STATUS_CHANGED, saved));
+    }
+
+    // Só avisa (dashboard e quem acompanha o pedido): o status do pedido não muda.
+    @Transactional
+    public void notifyChargeback(Long id) {
+        events.fire(OrderEvent.of(OrderEvent.Type.CHARGED_BACK, getById(id)));
+    }
+
+    // Para a reconciliação agendada dos pagamentos online.
+    public List<Order> getAwaitingPaymentCreatedBefore(Instant cutoff, int limit) {
+        return repository.getByStatusCreatedBefore(Order.Status.AWAITING_PAYMENT, cutoff, limit);
+    }
+
+    /**
+     * Cancelamento pelo sistema de um pedido online que não foi pago a tempo (docs/payments.md,
+     * Expiração). Não faz nada se o pedido já saiu de AWAITING_PAYMENT, porque o job pode rodar ao
+     * mesmo tempo que uma aprovação ou um cancelamento do cliente.
+     */
+    @Transactional
+    public void cancelUnpaid(Long id, String reason) {
+        Order order = getById(id);
+        if (order.paid() || order.status() != Order.Status.AWAITING_PAYMENT) {
+            return;
+        }
+        Instant now = Instant.now(clock);
+        Order saved =
+                repository.save(
+                        rebuild(
+                                order,
+                                Order.Status.CANCELLED,
+                                false,
+                                null,
+                                reason,
+                                null,
+                                null,
+                                now));
+        refundRedeemedPoints(order);
+        recordStatus(saved, now);
+        events.fire(OrderEvent.of(OrderEvent.Type.CANCELLED, saved));
+    }
+
+    /**
      * Só quem fez o pedido avalia (cliente dono ou visitante com o token), uma vez e depois de
      * COMPLETED (req. 48). O funcionário vê o pedido, mas não avalia por ele.
      */
     public OrderDetails giveFeedback(Long id, String trackingToken, int rating, String comment) {
-        Order order = requireViewer(id, trackingToken);
-        if (!holdsToken(order, trackingToken) && !isOwner(order, currentUser.find())) {
-            throw new ForbiddenException("Only the customer can give feedback on order " + id);
-        }
+        Order order = requireCustomer(id, trackingToken, "give feedback on");
         if (order.status() != Order.Status.COMPLETED) {
             throw new InvalidRequestException(
                     "Order " + id + " is " + order.status() + ": feedback only after COMPLETED");
@@ -378,6 +562,8 @@ public class OrderService {
 
     private static Optional<Order.Status> nextStatus(Order order) {
         return switch (order.status()) {
+            // Só o pagamento aprovado tira o pedido daqui (confirmOnlinePayment).
+            case AWAITING_PAYMENT -> Optional.empty();
             case PENDING -> Optional.of(Order.Status.IN_PREPARATION);
             case IN_PREPARATION -> Optional.of(Order.Status.READY);
             case READY ->
@@ -402,6 +588,14 @@ public class OrderService {
 
     // Cópia do pedido com o que muda; quote nulo mantém itens e totais, pointsEarned nulo mantém
     // os pontos creditados.
+    // Devolve os pontos resgatados no checkout. O cliente pode ter sido excluído; aí os lotes já
+    // foram junto.
+    private void refundRedeemedPoints(Order order) {
+        if (order.pointsRedeemed() > 0 && order.clientId() != null) {
+            pointsService.refund(order.clientId(), order.id());
+        }
+    }
+
     private static Order rebuild(
             Order order,
             Order.Status status,
@@ -419,9 +613,11 @@ public class OrderService {
                 order.trackingTokenHash(),
                 order.guestName(),
                 order.guestPhone(),
+                order.guestEmail(),
                 order.fulfillmentType(),
                 status,
                 order.paymentMethod(),
+                order.paymentChannel(),
                 paid,
                 paidAt,
                 order.streetAddress(),
@@ -457,15 +653,19 @@ public class OrderService {
             requireAbsent(addressId, "addressId", "a guest");
             requirePresent(draft.guestName(), "guestName", "a guest");
             requirePresent(draft.guestPhone(), "guestPhone", "a guest");
-            return new Customer(null, null, draft.guestName(), draft.guestPhone());
+            requirePresent(draft.guestEmail(), "guestEmail", "a guest");
+            return new Customer(
+                    null, null, draft.guestName(), draft.guestPhone(), draft.guestEmail().trim());
         }
         AuthenticatedUser caller = user.get();
         if (caller.type() == UserType.CLIENT) {
             requireAbsent(draft.clientId(), "clientId", "a client");
             requireAbsent(draft.guestName(), "guestName", "a client");
             requireAbsent(draft.guestPhone(), "guestPhone", "a client");
+            requireAbsent(draft.guestEmail(), "guestEmail", "a client");
             requireAbsent(draft.streetAddress(), "address", "a client (use addressId)");
-            return new Customer(clientService.getByUser(caller.userId()).id(), null, null, null);
+            return new Customer(
+                    clientService.getByUser(caller.userId()).id(), null, null, null, null);
         }
         if (!caller.has(InternalPermission.MANAGE_ORDERS)) {
             throw new ForbiddenException(
@@ -476,11 +676,32 @@ public class OrderService {
             clientService.getById(draft.clientId());
             requireAbsent(draft.guestName(), "guestName", "an order for a client");
             requireAbsent(draft.guestPhone(), "guestPhone", "an order for a client");
-            return new Customer(draft.clientId(), internalId, null, null);
+            requireAbsent(draft.guestEmail(), "guestEmail", "an order for a client");
+            return new Customer(draft.clientId(), internalId, null, null, null);
         }
         requireAbsent(addressId, "addressId", "a guest");
         requirePresent(draft.guestName(), "guestName", "a guest");
-        return new Customer(null, internalId, draft.guestName(), draft.guestPhone());
+        // Pedido por telefone ou no balcão: o e-mail é opcional, e sem ele não há confirmação.
+        String guestEmail =
+                draft.guestEmail() == null || draft.guestEmail().isBlank()
+                        ? null
+                        : draft.guestEmail().trim();
+        return new Customer(null, internalId, draft.guestName(), draft.guestPhone(), guestEmail);
+    }
+
+    // Pagamento online: o pedido espera o gateway antes de ir para a cozinha. Dinheiro não passa
+    // pelo gateway, e o funcionário que lança no balcão recebe na hora.
+    private static Order.Status resolveInitialStatus(Order draft, Customer customer) {
+        if (draft.paymentChannel() != Order.PaymentChannel.ONLINE) {
+            return Order.Status.PENDING;
+        }
+        if (draft.paymentMethod() == Order.PaymentMethod.CASH) {
+            throw new InvalidRequestException("CASH orders cannot be paid ONLINE");
+        }
+        if (customer.createdByInternalId() != null) {
+            throw new InvalidRequestException("Orders placed by the staff are paid IN_PERSON");
+        }
+        return Order.Status.AWAITING_PAYMENT;
     }
 
     // O pedido guarda a cópia do endereço, não o id: o histórico não muda se o cliente o editar.
@@ -516,6 +737,35 @@ public class OrderService {
             code = builder.toString();
         } while (repository.existsByCode(code));
         return code;
+    }
+
+    // O cliente com conta recebe na conta e acompanha logado; o visitante recebe o token no link.
+    private void confirm(Order order, String trackingToken) {
+        if (order.clientId() != null) {
+            Client client = clientService.getById(order.clientId());
+            String email = userRepository.getById(client.userId()).email();
+            confirmations.fire(confirmation(order, email, client.name(), null, false));
+        } else if (order.guestEmail() != null) {
+            confirmations.fire(
+                    confirmation(
+                            order, order.guestEmail(), order.guestName(), trackingToken, false));
+        }
+    }
+
+    private static OrderConfirmation confirmation(
+            Order order, String email, String name, String trackingToken, boolean resent) {
+        return new OrderConfirmation(
+                email,
+                name,
+                order.code(),
+                order.total(),
+                order.status() == Order.Status.AWAITING_PAYMENT,
+                trackingToken,
+                resent);
+    }
+
+    private static String normalizeCode(String code) {
+        return code == null ? "" : code.trim().toUpperCase(Locale.ROOT);
     }
 
     // Comparação em tempo constante, para o tempo de resposta não vazar o hash.

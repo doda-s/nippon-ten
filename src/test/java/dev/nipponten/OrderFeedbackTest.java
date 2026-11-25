@@ -48,6 +48,7 @@ class OrderFeedbackTest {
         Map<String, Object> body = pickupOrder();
         body.put("guestName", "Caio");
         body.put("guestPhone", "11966665555");
+        body.put("guestEmail", "guest@example.com");
         return place(given(), body);
     }
 

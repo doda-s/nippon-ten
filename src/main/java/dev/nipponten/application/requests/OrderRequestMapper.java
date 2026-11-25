@@ -22,9 +22,13 @@ public class OrderRequestMapper {
                 null,
                 request.guestName(),
                 request.guestPhone(),
+                request.guestEmail(),
                 request.fulfillmentType(),
                 null,
                 request.paymentMethod(),
+                request.paymentChannel() == null
+                        ? Order.PaymentChannel.IN_PERSON
+                        : request.paymentChannel(),
                 false,
                 null,
                 address == null ? null : address.streetAddress(),
