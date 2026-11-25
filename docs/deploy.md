@@ -24,6 +24,7 @@ Variáveis e secrets ficam no próprio serviço Cloud Run. A pipe troca a imagem
 | `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET` | *pipe*, secrets `mercadopago-access-token`, `mercadopago-webhook-secret`, com valor vindo do GitHub |
 | `MAILER_FROM`, `MAILER_USERNAME`, `MAILER_PASSWORD` | *pipe*, secrets `mailer-from`, `mailer-username`, `mailer-password`, com valor vindo do GitHub |
 | `NIPPON_JOBS_TOKEN` | *pipe*, secret `nippon-jobs-token` (gerado no GCP, não fica no GitHub) |
+| `GOOGLE_MAPS_API_KEY` | *pipe*, secret `google-maps-api-key` (fica no GCP, não no GitHub; ver [`delivery.md`](delivery.md)) |
 | `DB_JDBC_URL`, `DB_USERNAME`, `DB_PASSWORD` | Secrets `db-jdbc-url`, `db-username`, `db-password` |
 | `NIPPON_BOOTSTRAP_ADMIN_EMAIL`, `NIPPON_BOOTSTRAP_ADMIN_PASSWORD` | Secrets `bootstrap-admin-email`, `bootstrap-admin-password` |
 | `JWT_PRIVATE_KEY_LOCATION`, `JWT_PUBLIC_KEY_LOCATION` | `/secrets/jwt-private/key.pem` e `/secrets/jwt-public/key.pem`, arquivos montados dos secrets `jwt-private-key` e `jwt-public-key` |
@@ -58,21 +59,22 @@ O Cloud Run só aloca CPU durante uma request, e com zero instâncias não há p
 | Job do Cloud Scheduler | Frequência | Chama |
 | --- | --- | --- |
 | `payment-reconciliation` | A cada minuto (`* * * * *`, `America/Sao_Paulo`) | `POST /jobs/payment-reconciliation` → `PaymentService.reconcile()` |
+| `geocode-cache-purge` | Todo dia às 4h (`0 4 * * *`, `America/Sao_Paulo`) | `POST /jobs/geocode-cache-purge` → `GeocodingService.purgeExpired()` |
 
-A rota é pública e exige o header `X-Job-Token` igual a `nippon.jobs.token` (`NIPPON_JOBS_TOKEN`); qualquer outro valor responde `401`, e sem token configurado nenhuma chamada é aceita. O token fica no secret `nippon-jobs-token` e no header do job do Cloud Scheduler. Uma chamada que chega com outra rodada ainda em andamento responde `204` sem fazer nada. Em dev e fora do Cloud Run, o `PaymentReconciliationJob` continua rodando pelo scheduler interno.
+Cada job do scheduler interno tem uma rota em `/jobs` e um job no Cloud Scheduler; um `@Scheduled` novo sem esse par não roda no Cloud Run. Um job novo no Cloud Scheduler é criado pausado (`gcloud scheduler jobs create http ...` seguido de `gcloud scheduler jobs pause ...`) e entra na lista do passo *Ativa os jobs do Cloud Scheduler* da pipe, que o ativa depois do deploy, quando a rota já está no ar. As rotas são públicas e exigem o header `X-Job-Token` igual a `nippon.jobs.token` (`NIPPON_JOBS_TOKEN`); qualquer outro valor responde `401`, e sem token configurado nenhuma chamada é aceita. O token fica no secret `nippon-jobs-token` e no header dos jobs do Cloud Scheduler. Uma chamada que chega com outra rodada do mesmo job ainda em andamento responde `204` sem fazer nada. Em dev e fora do Cloud Run, o `PaymentReconciliationJob` e o `GeocodeCachePurgeJob` continuam rodando pelo scheduler interno.
 
-Trocar o token é criar uma versão nova do secret, fazer um deploy e atualizar o job (`gcloud scheduler jobs update http payment-reconciliation --location southamerica-east1 --update-headers X-Job-Token=<token>`).
+Trocar o token é criar uma versão nova do secret, fazer um deploy e atualizar cada job (`gcloud scheduler jobs update http <job> --location southamerica-east1 --update-headers X-Job-Token=<token>`).
 
 A chamada a cada minuto mantém o banco acordado: o Neon não suspende a computação por inatividade enquanto o job roda, o que conta nas horas de computação do plano.
 
 ## Deploy automático
 
-A pipe `.github/workflows/deploy-staging.yml` roda depois que o **CI** termina com sucesso num push na `main`, e também manualmente (Actions > *Deploy staging* > *Run workflow*, só a partir da `main`). Ela confere os [secrets do GitHub](#secrets-do-github), empacota a aplicação, publica a imagem com a tag do commit, sincroniza os secrets com o Secret Manager e faz o deploy de uma revisão nova no Cloud Run.
+A pipe `.github/workflows/deploy-staging.yml` roda depois que o **CI** termina com sucesso num push na `main`, e também manualmente (Actions > *Deploy staging* > *Run workflow*, só a partir da `main`). Ela confere os [secrets do GitHub](#secrets-do-github), empacota a aplicação, publica a imagem com a tag do commit, sincroniza os secrets com o Secret Manager, faz o deploy de uma revisão nova no Cloud Run e ativa os [jobs agendados](#jobs-agendados) que estiverem pausados.
 
 A autenticação no GCP usa Workload Identity Federation, sem chave JSON no repositório:
 
 - Pool `github`, provider `github-oidc`, que só aceita tokens do repositório `doda-s/nippon-ten` na ref `refs/heads/main`.
-- Service account `github-deployer@nippon-ten-staging.iam.gserviceaccount.com`, com `roles/run.developer` no projeto, `roles/artifactregistry.writer` no repositório `nippon-ten`, `roles/iam.serviceAccountUser` na service account do serviço e `roles/secretmanager.secretAccessor` mais `roles/secretmanager.secretVersionAdder` nos secrets que vêm do GitHub.
+- Service account `github-deployer@nippon-ten-staging.iam.gserviceaccount.com`, com `roles/run.developer` no projeto, `roles/artifactregistry.writer` no repositório `nippon-ten`, `roles/iam.serviceAccountUser` na service account do serviço e `roles/secretmanager.secretAccessor` mais `roles/secretmanager.secretVersionAdder` nos secrets que vêm do GitHub, e o papel customizado `schedulerJobEnabler` (só `cloudscheduler.jobs.get` e `cloudscheduler.jobs.enable`), que deixa a pipe ativar um job, mas não criar, alterar ou apagar.
 
 ## Deploy manual
 

@@ -120,7 +120,7 @@ jobs:
           MAILER_USERNAME: ${{ secrets.MAILER_USERNAME }}
           MAILER_PASSWORD: ${{ secrets.MAILER_PASSWORD }}
 
-      # Troca a imagem e aplica a configuração de pagamentos, e-mail e jobs. Banco, JWT, admin
+      # Troca a imagem e aplica a configuração de pagamentos, e-mail, geocoding e jobs. Banco, JWT, admin
       # inicial, recursos e acesso público ficam como configurados no serviço (docs/deploy.md).
       # O scheduler interno fica desligado: quem dispara a reconciliação é o Cloud Scheduler.
       - name: Faz o deploy no Cloud Run
@@ -131,8 +131,23 @@ jobs:
             --region "${REGION}" \
             --image "${IMAGE}:${COMMIT_SHA}" \
             --update-env-vars "FRONT_BASE_URL=https://niponten-front.vercel.app,QUARKUS_SCHEDULER_ENABLED=false" \
-            --update-secrets "MERCADOPAGO_ACCESS_TOKEN=mercadopago-access-token:latest,MERCADOPAGO_WEBHOOK_SECRET=mercadopago-webhook-secret:latest,MAILER_FROM=mailer-from:latest,MAILER_USERNAME=mailer-username:latest,MAILER_PASSWORD=mailer-password:latest,NIPPON_JOBS_TOKEN=nippon-jobs-token:latest" \
+            --update-secrets "MERCADOPAGO_ACCESS_TOKEN=mercadopago-access-token:latest,MERCADOPAGO_WEBHOOK_SECRET=mercadopago-webhook-secret:latest,MAILER_FROM=mailer-from:latest,MAILER_USERNAME=mailer-username:latest,MAILER_PASSWORD=mailer-password:latest,NIPPON_JOBS_TOKEN=nippon-jobs-token:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest" \
             --quiet
           echo "url=$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
         env:
           COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Os jobs do Cloud Scheduler (docs/deploy.md, Jobs agendados) são criados pausados e só
+      # passam a rodar depois que uma revisão com as rotas de /jobs está no ar. Job já ativo fica
+      # como está.
+      - name: Ativa os jobs do Cloud Scheduler
+        run: |
+          for job in payment-reconciliation geocode-cache-purge; do
+            state="$(gcloud scheduler jobs describe "${job}" --project "${PROJECT_ID}" --location "${REGION}" --format='value(state)')"
+            if [ "${state}" = "PAUSED" ]; then
+              gcloud scheduler jobs resume "${job}" --project "${PROJECT_ID}" --location "${REGION}" --quiet
+              echo "${job}: ativado"
+            else
+              echo "${job}: ${state}"
+            fi
+          done
