@@ -5,6 +5,7 @@ import dev.nipponten.application.exceptions.UnavailableItemsException;
 import dev.nipponten.application.exceptions.UnavailableItemsException.Problem;
 import dev.nipponten.domain.models.AdditionalIngredient;
 import dev.nipponten.domain.models.Combo;
+import dev.nipponten.domain.models.DeliveryQuote;
 import dev.nipponten.domain.models.Ingredient;
 import dev.nipponten.domain.models.OrderItem;
 import dev.nipponten.domain.models.OrderItemAdditional;
@@ -60,15 +61,20 @@ public class OrderQuoteService {
 
     // Id inexistente é 404 na hora; indisponibilidade é acumulada e devolvida de uma vez.
     public OrderQuote quote(List<OrderItem> items) {
-        return quote(items, 0, null, null);
+        return quote(items, 0, null, null, null);
     }
 
     /**
      * Com pontos: o desconto é pointsToRedeem × pointValue e não passa da soma dos itens elegíveis.
-     * earnRate nulo (visitante) estima zero pontos a ganhar.
+     * earnRate nulo (visitante) estima zero pontos a ganhar. delivery nulo = sem taxa de entrega
+     * (retirada, consumo no local ou cotação sem endereço).
      */
     public OrderQuote quote(
-            List<OrderItem> items, int pointsToRedeem, BigDecimal pointValue, BigDecimal earnRate) {
+            List<OrderItem> items,
+            int pointsToRedeem,
+            BigDecimal pointValue,
+            BigDecimal earnRate,
+            DeliveryQuote delivery) {
         LocalDateTime now = businessTime.now();
         List<Problem> problems = new ArrayList<>();
         List<OrderItem> priced = new ArrayList<>();
@@ -104,17 +110,19 @@ public class OrderQuoteService {
                                 + " points");
             }
         }
-        // Cupons e taxa de entrega ficam fora da primeira versão.
-        BigDecimal total = subtotal.subtract(discount);
+        // A taxa de entrega não rende pontos nem pode ser paga com eles (docs/points.md).
+        BigDecimal paidForItems = subtotal.subtract(discount);
+        BigDecimal deliveryFee = delivery == null ? ZERO : delivery.fee();
         return new OrderQuote(
                 priced,
                 subtotal,
                 discount,
-                ZERO,
-                total,
+                deliveryFee,
+                delivery == null ? null : delivery.distanceKm(),
+                paidForItems.add(deliveryFee),
                 pointsToRedeem,
                 eligible,
-                PointsService.pointsFor(total, earnRate));
+                PointsService.pointsFor(paidForItems, earnRate));
     }
 
     private OrderItem priceProduct(

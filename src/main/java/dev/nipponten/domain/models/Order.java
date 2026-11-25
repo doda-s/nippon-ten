@@ -4,10 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-// O endereço é cópia do momento do pedido. clientId é nulo para visitante, que é identificado por
-// guestName/guestPhone e acompanha o pedido pelo token (só o hash fica guardado). guestEmail recebe
-// o link de acompanhamento; só é nulo no pedido que o funcionário lança sem ele. pointValue e
-// earnRate são cópias da configuração de pontos no checkout; nulos para visitante.
+// O endereço é cópia do momento do pedido, e deliveryDistanceKm é a distância usada na taxa.
+// clientId é nulo para visitante, que é identificado por guestName/guestPhone e acompanha o pedido
+// pelo token (só o hash fica guardado). guestEmail recebe o link de acompanhamento; só é nulo no
+// pedido que o funcionário lança sem ele. pointValue e earnRate são cópias da configuração de
+// pontos no checkout; nulos para visitante.
 public record Order(
         Long id,
         String code,
@@ -27,11 +28,15 @@ public record Order(
         String number,
         String cep,
         String complement,
+        String neighborhood,
+        String city,
+        String state,
         String notes,
         String cancelReason,
         BigDecimal subtotal,
         BigDecimal discount,
         BigDecimal deliveryFee,
+        BigDecimal deliveryDistanceKm,
         BigDecimal total,
         int pointsRedeemed,
         BigDecimal pointValue,

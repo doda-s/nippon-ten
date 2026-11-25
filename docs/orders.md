@@ -22,7 +22,7 @@ F -->|COMPLETED| G[Feedback]
 ```
 
 1. **Carrinho.** O carrinho vive no front (navegador ou app), não no banco. Assim ele funciona igual para cliente logado e visitante, e não sobram carrinhos abandonados para limpar.
-2. **Cotação.** `POST /orders/quote` recebe os itens do carrinho e devolve cada item com preço unitário, preço original (quando há promoção), subtotal e total. Ele confere a disponibilidade e **não grava nada**. É assim que o front mostra o carrinho com o preço correto (req. 46).
+2. **Cotação.** `POST /orders/quote` recebe os itens do carrinho e devolve cada item com preço unitário, preço original (quando há promoção), subtotal e total. Com `fulfillmentType = DELIVERY` e um endereço, a cotação inclui a taxa de entrega (ver [`delivery.md`](delivery.md)). Ele confere a disponibilidade e **não grava nada**. É assim que o front mostra o carrinho com o preço correto (req. 46).
 3. **Checkout.** `POST /orders` recebe os mesmos itens, mais o tipo de atendimento, o endereço (se for entrega), a forma e o momento do pagamento, as observações e, para cliente com conta, os pontos a usar (`pointsToRedeem`). O pedido nasce em `PENDING`, ou em `AWAITING_PAYMENT` quando é pago online (ver [`payments.md`](payments.md)).
 4. **Acompanhamento.** O cliente e o dashboard recebem as mudanças em tempo real (ver [[#Notificações (SSE)|Notificações]]).
 5. **Feedback.** Depois de `COMPLETED`, o cliente pode avaliar o pedido (req. 48).
@@ -91,7 +91,7 @@ Por isso, pedidos **não bloqueiam** a exclusão de produtos, tamanhos, combos, 
 | `PICKUP` | Retirada no balcão | Não se aplica |
 | `DINE_IN` | Consumo no local (req. 9) | Não se aplica |
 
-A taxa de entrega fica fora da v1: `delivery_fee` existe e vale `0`.
+Na entrega, o endereço é completado com bairro, cidade e UF do CEP, e o pedido cobra a taxa de entrega pela distância até a loja, em faixas. As regras estão em [`delivery.md`](delivery.md). Enquanto a loja não configura a entrega, a taxa vale `0`, como na v1.
 
 ## Quem faz o pedido
 
@@ -228,8 +228,9 @@ A regra "dono, token ou `manage_orders`" depende de dados, por isso fica no `Ord
 orders(id, code UNIQUE, client_id NULL, created_by_internal_id NULL, tracking_token_hash NULL,
        guest_name, guest_phone, guest_email NULL, fulfillment_type, status, payment_method,
        payment_channel, paid, paid_at,
-       street_address, number, cep, complement, notes, cancel_reason,
-       subtotal, discount, delivery_fee, total, points_redeemed, point_value NULL, earn_rate NULL,
+       street_address, number, cep, complement, neighborhood NULL, city NULL, state NULL,
+       notes, cancel_reason,
+       subtotal, discount, delivery_fee, delivery_distance_km NULL, total, points_redeemed, point_value NULL, earn_rate NULL,
        points_earned, created_at, updated_at)
 order_item(id, order_id, item_type, product_size_id NULL, combo_id NULL, promotion_id NULL,
            name, size_name, quantity, original_unit_price, unit_price, points_eligible, notes)
@@ -249,7 +250,7 @@ order_feedback(id, order_id UNIQUE, rating, comment, created_at)
 ## Fora da v1
 
 - Cupons (req. 34–35). Os pontos (escopo 8, req. 36–37) foram implementados depois da v1, em [`points.md`](points.md).
-- Taxa de entrega: `delivery_fee` reservado.
+- Taxa de entrega. Ela foi implementada depois da v1, em [`delivery.md`](delivery.md).
 
 ## Roadmap de implementação
 

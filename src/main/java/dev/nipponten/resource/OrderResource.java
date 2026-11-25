@@ -79,7 +79,12 @@ public class OrderResource {
     @Path("/quote")
     public OrderQuoteResponse quote(@Valid OrderQuoteRequest request) {
         return quoteMapper.toResponse(
-                service.quote(itemRequestMapper.toModels(request.items()), request.points()));
+                service.quote(
+                        itemRequestMapper.toModels(request.items()),
+                        request.points(),
+                        request.fulfillmentType(),
+                        request.addressId(),
+                        OrderRequestMapper.toAddress(request.address())));
     }
 
     @POST

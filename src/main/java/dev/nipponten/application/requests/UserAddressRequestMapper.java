@@ -3,6 +3,7 @@ package dev.nipponten.application.requests;
 import dev.nipponten.domain.models.UserAddress;
 import jakarta.enterprise.context.ApplicationScoped;
 
+// Bairro, cidade e UF são preenchidos pelo service a partir do CEP.
 @ApplicationScoped
 public class UserAddressRequestMapper {
 
@@ -13,6 +14,9 @@ public class UserAddressRequestMapper {
                 request.streetAddress(),
                 request.number(),
                 request.cep(),
-                request.complement());
+                request.complement(),
+                null,
+                null,
+                null);
     }
 }

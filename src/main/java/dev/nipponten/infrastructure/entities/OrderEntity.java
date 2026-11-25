@@ -95,6 +95,12 @@ public class OrderEntity {
 
     private String complement;
 
+    private String neighborhood;
+
+    private String city;
+
+    private String state;
+
     private String notes;
 
     private String cancelReason;
@@ -107,6 +113,8 @@ public class OrderEntity {
 
     @Column(nullable = false)
     private BigDecimal deliveryFee;
+
+    private BigDecimal deliveryDistanceKm;
 
     @Column(nullable = false)
     private BigDecimal total;
@@ -371,5 +379,37 @@ public class OrderEntity {
 
     public List<OrderItemEntity> getItems() {
         return items;
+    }
+
+    public String getNeighborhood() {
+        return neighborhood;
+    }
+
+    public void setNeighborhood(String neighborhood) {
+        this.neighborhood = neighborhood;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public BigDecimal getDeliveryDistanceKm() {
+        return deliveryDistanceKm;
+    }
+
+    public void setDeliveryDistanceKm(BigDecimal deliveryDistanceKm) {
+        this.deliveryDistanceKm = deliveryDistanceKm;
     }
 }
