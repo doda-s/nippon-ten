@@ -8,4 +8,5 @@ public record ProductRequest(
         @NotBlank String name,
         String imageUrl,
         String description,
-        @NotNull Product.Status status) {}
+        @NotNull Product.Status status,
+        Long categoryId) {}

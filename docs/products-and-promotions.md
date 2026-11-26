@@ -7,6 +7,7 @@ Um *Product* representa um item/serviço oferecido pelo cliente do sistema. O *P
 - Image URL: URL da imagem ilustrativa do produto.
 - Description: Descrição com os detalhes do produto.
 - Status: Status representa a disponibilidade do produto: `ACTIVE` (disponível) ou `INACTIVE` (esgotado). O status pode ser alterado manualmente por um usuário interno.
+- Category: Categoria do cardápio em que o produto aparece (ver [[#Category]]). É opcional: produto sem categoria continua pedível e aparece numa seção à parte.
 
 O produto pode ter seu status alterado caso um ingrediente se esgote. Essa propagação **não é automática**: ao marcar um ingrediente (ou produto) como esgotado, o usuário interno recebe a lista de produtos/combos/promoções que dependem dele e escolhe, manualmente, quais também devem ser marcados como esgotados naquele momento. O sistema nunca decide isso sozinho.
 
@@ -27,6 +28,17 @@ Para a criação de um produto, o usuário interno precisa conter a [[user-manag
 O *Product Size* representa os tamanhos disponíveis para um produto. Os tamanhos (ex.: Pequeno, Médio, Grande) formam um catálogo **global**, reaproveitável entre produtos — um usuário interno cadastra o tamanho uma vez e ele fica disponível para ser associado a qualquer produto. A relação entre um produto e um tamanho é feita por uma tabela auxiliar própria, que também guarda o **preço daquela combinação específica de produto+tamanho** (o mesmo tamanho pode ter preços diferentes em produtos diferentes) e o status de disponibilidade daquela combinação (`ACTIVE`/`INACTIVE`). Para poder configurar tamanhos (o catálogo global) ou associá-los a um produto, o usuário interno precisa conter a [[user-management#Permissions|permissão]] `manage_products`.
 
 > Modelo de dados: `size(id, name)` como catálogo global; `product_size(id, product_id, size_id, price, status)` como tabela auxiliar de associação. Implementado: o catálogo é exposto em `/sizes` e a associação em `/products/{id}/sizes`. O mesmo tamanho só pode ser associado uma vez a cada produto, e um tamanho em uso não pode ser deletado. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda mostra `product_size` sem a tabela `size` — precisa ser atualizado manualmente.
+
+### Category
+
+*Category* agrupa os produtos no cardápio, como "Pastéis", "Sucos" ou "Pizzas". O usuário interno com a [[user-management#Permissions|permissão]] `manage_products` cria, renomeia, reordena e exclui as categorias em `/categories`; a leitura é pública, porque a vitrine agrupa os produtos por elas.
+
+- **Name:** obrigatório, até 60 caracteres, sem espaços nas pontas. Não pode repetir, sem diferenciar maiúsculas ("Pastéis" e "pastéis" são a mesma categoria): o repetido é `400`.
+- **Display order:** número inteiro maior ou igual a zero (padrão 0) que define a ordem das seções no cardápio, menor primeiro. `GET /categories` já devolve nessa ordem, com o `id` desempatando.
+- **Produto:** `categoryId` em `POST /products` (dentro de `product`) e em `PUT /products/{id}`, opcional. Categoria inexistente é `404`. Mandar `null` tira o produto da categoria. A listagem de produtos traz o `categoryId` de cada um, e é por ele que a vitrine monta as seções.
+- **Exclusão:** uma categoria com produtos não pode ser excluída (`400`). Mova ou tire a categoria dos produtos antes; assim nenhum produto some da vitrine sem alguém decidir.
+
+> Modelo de dados: `category(id, name, display_order)` com índice único em `lower(name)`, e `product.category_id` opcional referenciando `category`. Os produtos de antes da migration ficam sem categoria. O diagrama em `docs/data-modeling/data_modeling.drawio` ainda não mostra a tabela `category` — precisa ser atualizado manualmente.
 
 ---
 ## Ingredient

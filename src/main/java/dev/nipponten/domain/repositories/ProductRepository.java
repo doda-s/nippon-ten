@@ -14,4 +14,6 @@ public interface ProductRepository {
     List<Product> getAll();
 
     PageResult<Product> getPage(int page, int size);
+
+    long countByCategory(Long categoryId);
 }
