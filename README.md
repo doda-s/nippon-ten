@@ -49,13 +49,17 @@ Or, if you don't have GraalVM installed, you can run the native executable build
 ./mvnw package -Dnative -Dquarkus.native.container-build=true
 ```
 
-You can then execute your native executable with: `./target/nippon-ten-0.2.0-SNAPSHOT-runner`
+You can then execute your native executable with: `./target/nippon-ten-0.3.0-SNAPSHOT-runner`
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 
 ## API client
 
 A Node client for the API is published to npm as `@joao.sumi/nippon-ten`. See [docs/api-client.md](docs/api-client.md) for installation and publishing instructions.
+
+## Deploy
+
+The API runs on Google Cloud Run (staging only for now). See [docs/deploy.md](docs/deploy.md) for the environment, the deploy pipeline and manual deploys.
 
 ## Related Guides
 

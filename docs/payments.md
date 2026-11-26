@@ -164,6 +164,7 @@ O `PaymentReconciliationJob` (`quarkus-scheduler`) chama `PaymentService.reconci
 - **Cliente com Pix vencido:** a criação de uma nova tentativa não espera o job. Se a tentativa aberta é um Pix vencido, o backend o reconcilia na hora (consulta e, se continuar aberto, vence) e cria o novo Pix. Se a consulta mostrar que ele foi pago, a resposta é `400`, porque o pedido já está pago.
 - **Cartão em análise** não é consultado pelo job: o resultado chega pelo webhook, que o Mercado Pago reenvia até receber `200`.
 - **Falhas:** uma falha do Mercado Pago num item fica no log e não interrompe os outros. Tudo é idempotente, então rodar duas vezes, ou em duas instâncias da API ao mesmo tempo, não muda o resultado.
+- **Cloud Run:** lá o scheduler interno fica desligado e a mesma rodada é disparada pelo Cloud Scheduler a cada minuto, em `POST /jobs/payment-reconciliation` com o header `X-Job-Token` (ver *Jobs agendados* em [`deploy.md`](deploy.md)). Uma chamada que chega com outra rodada em andamento não faz nada.
 - **Teste:** o scheduler fica desligado (`%test.quarkus.scheduler.enabled=false`), e os testes chamam `reconcile()` com o `TestClock` adiantado. "Agora" sempre vem do `Clock` injetado.
 
 ## Cancelamento e estorno
@@ -223,6 +224,7 @@ O `access token` e a assinatura secreta do webhook ficam só em variável de amb
 | `POST /orders/{id}/payments` | Dono do pedido ou token de acompanhamento |
 | `GET /orders/{id}/payments` | Dono, token de acompanhamento ou `manage_orders` |
 | `POST /payments/webhooks/mercadopago` | Público, validado pela assinatura |
+| `POST /jobs/payment-reconciliation` | Público, validado pelo header `X-Job-Token` (Cloud Scheduler) |
 
 As rotas também estão na tabela *Acesso à API* de [`user-management.md`](user-management.md).
 

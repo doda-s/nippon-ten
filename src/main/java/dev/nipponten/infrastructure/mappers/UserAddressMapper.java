@@ -28,6 +28,9 @@ public class UserAddressMapper {
         entity.setNumber(model.number());
         entity.setCep(model.cep());
         entity.setComplement(model.complement());
+        entity.setNeighborhood(model.neighborhood());
+        entity.setCity(model.city());
+        entity.setState(model.state());
     }
 
     public UserAddress toModel(UserAddressEntity entity) {
@@ -37,6 +40,9 @@ public class UserAddressMapper {
                 entity.getStreetAddress(),
                 entity.getNumber(),
                 entity.getCep(),
-                entity.getComplement());
+                entity.getComplement(),
+                entity.getNeighborhood(),
+                entity.getCity(),
+                entity.getState());
     }
 }

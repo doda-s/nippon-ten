@@ -14,6 +14,7 @@ public final class Permissions {
     public static final String MANAGE_PROMOTIONS = "MANAGE_PROMOTIONS";
     public static final String MANAGE_ORDERS = "MANAGE_ORDERS";
     public static final String MANAGE_POINTS = "MANAGE_POINTS";
+    public static final String MANAGE_DELIVERY = "MANAGE_DELIVERY";
 
     /** Interno com a role reservada; ver {@code SuperAdminService}. */
     public static final String SUPER_ADMIN = "SUPER_ADMIN";

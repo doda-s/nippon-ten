@@ -1,0 +1,153 @@
+name: Deploy staging
+
+# Publica a API no Cloud Run de staging (docs/deploy.md).
+# - Automático: depois que o CI passa num push na main.
+# - Manual (Actions > Deploy staging > Run workflow): só a partir da main; o provider do Workload
+#   Identity recusa qualquer outra ref.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Deploys em sequência: o último commit da main é o que fica no ar.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Token OIDC trocado por uma credencial do GCP (Workload Identity Federation), sem chave JSON.
+  id-token: write
+
+env:
+  PROJECT_ID: nippon-ten-staging
+  REGION: southamerica-east1
+  SERVICE: nippon-ten-api
+  IMAGE: southamerica-east1-docker.pkg.dev/nippon-ten-staging/nippon-ten/api
+  WORKLOAD_IDENTITY_PROVIDER: projects/637299454303/locations/global/workloadIdentityPools/github/providers/github-oidc
+  DEPLOYER_SERVICE_ACCOUNT: github-deployer@nippon-ten-staging.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    name: Build e deploy no Cloud Run
+    # No workflow_run, só segue se o CI terminou com sucesso (falha ou cancelamento não publica).
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      # No workflow_run o checkout precisa apontar para o commit que o CI testou, não para o HEAD
+      # atual da main.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configura o JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      # Os secrets do Mercado Pago e do SMTP vêm do GitHub (environment staging). Sem algum deles o
+      # deploy não segue: a API subiria sem cobrar ou sem mandar e-mail.
+      - name: Confere os secrets do GitHub
+        run: |
+          missing=0
+          for name in MERCADOPAGO_ACCESS_TOKEN MERCADOPAGO_WEBHOOK_SECRET MAILER_FROM MAILER_USERNAME MAILER_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret ${name} não configurado (Settings > Environments > staging)."
+              missing=1
+            fi
+          done
+          exit "$missing"
+        env:
+          MERCADOPAGO_ACCESS_TOKEN: ${{ secrets.MERCADOPAGO_ACCESS_TOKEN }}
+          MERCADOPAGO_WEBHOOK_SECRET: ${{ secrets.MERCADOPAGO_WEBHOOK_SECRET }}
+          MAILER_FROM: ${{ secrets.MAILER_FROM }}
+          MAILER_USERNAME: ${{ secrets.MAILER_USERNAME }}
+          MAILER_PASSWORD: ${{ secrets.MAILER_PASSWORD }}
+
+      # Os testes já rodaram no CI para este commit.
+      - name: Empacota a aplicação
+        run: ./mvnw -B -ntp package -DskipTests
+
+      - name: Autentica no GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.DEPLOYER_SERVICE_ACCOUNT }}
+
+      - name: Configura o gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Gera e publica a imagem
+        run: |
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -f src/main/docker/Dockerfile.jvm -t "${IMAGE}:${COMMIT_SHA}" .
+          docker push "${IMAGE}:${COMMIT_SHA}"
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # O Cloud Run lê os secrets do Secret Manager; o GitHub é a origem dos valores. Só grava uma
+      # versão nova quando o valor mudou, para não acumular versões a cada deploy.
+      - name: Sincroniza os secrets com o Secret Manager
+        run: |
+          sync() {
+            local secret="$1" value="$2" current
+            current="$(gcloud secrets versions access latest --secret "${secret}" --project "${PROJECT_ID}" 2>/dev/null || true)"
+            if [ "${current}" != "${value}" ]; then
+              printf '%s' "${value}" | gcloud secrets versions add "${secret}" --project "${PROJECT_ID}" --data-file=- >/dev/null
+              echo "${secret}: nova versão"
+            else
+              echo "${secret}: sem mudança"
+            fi
+          }
+          sync mercadopago-access-token "${MERCADOPAGO_ACCESS_TOKEN}"
+          sync mercadopago-webhook-secret "${MERCADOPAGO_WEBHOOK_SECRET}"
+          sync mailer-from "${MAILER_FROM}"
+          sync mailer-username "${MAILER_USERNAME}"
+          sync mailer-password "${MAILER_PASSWORD}"
+        env:
+          MERCADOPAGO_ACCESS_TOKEN: ${{ secrets.MERCADOPAGO_ACCESS_TOKEN }}
+          MERCADOPAGO_WEBHOOK_SECRET: ${{ secrets.MERCADOPAGO_WEBHOOK_SECRET }}
+          MAILER_FROM: ${{ secrets.MAILER_FROM }}
+          MAILER_USERNAME: ${{ secrets.MAILER_USERNAME }}
+          MAILER_PASSWORD: ${{ secrets.MAILER_PASSWORD }}
+
+      # Troca a imagem e aplica a configuração de pagamentos, e-mail, geocoding e jobs. Banco, JWT, admin
+      # inicial, recursos e acesso público ficam como configurados no serviço (docs/deploy.md).
+      # O scheduler interno fica desligado: quem dispara a reconciliação é o Cloud Scheduler.
+      - name: Faz o deploy no Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy "${SERVICE}" \
+            --project "${PROJECT_ID}" \
+            --region "${REGION}" \
+            --image "${IMAGE}:${COMMIT_SHA}" \
+            --update-env-vars "FRONT_BASE_URL=https://niponten-front.vercel.app,QUARKUS_SCHEDULER_ENABLED=false" \
+            --update-secrets "MERCADOPAGO_ACCESS_TOKEN=mercadopago-access-token:latest,MERCADOPAGO_WEBHOOK_SECRET=mercadopago-webhook-secret:latest,MAILER_FROM=mailer-from:latest,MAILER_USERNAME=mailer-username:latest,MAILER_PASSWORD=mailer-password:latest,NIPPON_JOBS_TOKEN=nippon-jobs-token:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest" \
+            --quiet
+          echo "url=$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Os jobs do Cloud Scheduler (docs/deploy.md, Jobs agendados) são criados pausados e só
+      # passam a rodar depois que uma revisão com as rotas de /jobs está no ar. Job já ativo fica
+      # como está.
+      - name: Ativa os jobs do Cloud Scheduler
+        run: |
+          for job in payment-reconciliation geocode-cache-purge; do
+            state="$(gcloud scheduler jobs describe "${job}" --project "${PROJECT_ID}" --location "${REGION}" --format='value(state)')"
+            if [ "${state}" = "PAUSED" ]; then
+              gcloud scheduler jobs resume "${job}" --project "${PROJECT_ID}" --location "${REGION}" --quiet
+              echo "${job}: ativado"
+            else
+              echo "${job}: ${state}"
+            fi
+          done
