@@ -5,7 +5,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-// Nunca expõe o hash do token de acompanhamento.
+// Nunca expõe o hash do token de acompanhamento. clientName e clientPhone são os dados atuais do
+// cliente dono do pedido (nulos para visitante, que usa guestName/guestPhone).
 public record OrderResponse(
         Long id,
         String code,
@@ -13,6 +14,8 @@ public record OrderResponse(
         String guestName,
         String guestPhone,
         String guestEmail,
+        String clientName,
+        String clientPhone,
         Order.FulfillmentType fulfillmentType,
         Order.Status status,
         Order.PaymentMethod paymentMethod,

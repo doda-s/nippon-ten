@@ -1,5 +1,6 @@
 package dev.nipponten.application.responses;
 
+import dev.nipponten.domain.models.Client;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.OrderDetails;
 import dev.nipponten.domain.models.OrderFeedback;
@@ -13,6 +14,7 @@ public class OrderResponseMapper {
 
     public OrderResponse toResponse(OrderDetails details) {
         Order order = details.order();
+        Client client = details.client();
         OrderFeedback feedback = details.feedback();
         OrderResponse.Address address =
                 order.streetAddress() == null
@@ -32,6 +34,8 @@ public class OrderResponseMapper {
                 order.guestName(),
                 order.guestPhone(),
                 order.guestEmail(),
+                client == null ? null : client.fullName(),
+                client == null ? null : client.phone(),
                 order.fulfillmentType(),
                 order.status(),
                 order.paymentMethod(),

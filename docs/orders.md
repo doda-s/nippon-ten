@@ -103,6 +103,8 @@ Na entrega, o endereço é completado com bairro, cidade e UF do CEP, e o pedido
 
 Um *Internal User* sem `manage_orders` não cria pedidos: ele não é cliente (um `User` é cliente **ou** interno).
 
+Para a equipe saber com quem falar, `OrderResponse` e o resumo da listagem trazem `clientName` (nome e sobrenome) e `clientPhone` do cliente dono do pedido. O pedido guarda só o `client_id`, então os dois são lidos do cadastro na hora: mostram os dados atuais do cliente e ficam nulos se ele excluir a conta. No pedido de visitante os dois são nulos, e o contato está em `guestName` e `guestPhone`. As listagens buscam os clientes da página numa consulta só.
+
 ### Acompanhamento do visitante
 
 A resposta de `POST /orders` é `{order, trackingToken}`. Todo pedido sem cliente (o do visitante e o que o funcionário lança para um visitante) recebe, uma única vez:

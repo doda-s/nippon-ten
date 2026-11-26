@@ -10,8 +10,11 @@ Ao criar uma conta o usuário precisa fornecer os seguintes dados:
 - Password
 - Name
 - Last Name
+- Telefone (`phone`, até 30 caracteres)
 - CPF (opcional)
 - Endereço (opcional)
+
+O telefone é o contato da equipe com o cliente na retirada e na entrega, por isso é obrigatório no cadastro e em toda edição dos dados de cliente (`PUT /users/{id}/client`). As contas criadas antes dele ficam com o telefone vazio até o cliente editar os dados.
 
 O email é único no sistema (sem diferenciar maiúsculas de minúsculas), tanto para *Client User* quanto para *Internal User*. Um *User* é sempre **ou** cliente **ou** interno, nunca os dois.
 

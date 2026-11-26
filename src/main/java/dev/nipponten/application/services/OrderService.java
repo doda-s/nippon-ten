@@ -16,6 +16,7 @@ import dev.nipponten.domain.models.OrderFeedback;
 import dev.nipponten.domain.models.OrderItem;
 import dev.nipponten.domain.models.OrderQuote;
 import dev.nipponten.domain.models.OrderStatusChange;
+import dev.nipponten.domain.models.OrderSummary;
 import dev.nipponten.domain.models.PageResult;
 import dev.nipponten.domain.models.PointsSettings;
 import dev.nipponten.domain.models.UserAddress;
@@ -38,9 +39,12 @@ import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class OrderService {
@@ -220,7 +224,8 @@ public class OrderService {
                                 user.map(AuthenticatedUser::userId).orElse(null)));
         events.fire(OrderEvent.of(OrderEvent.Type.CREATED, saved));
         confirm(saved, trackingToken);
-        return new PlacedOrder(new OrderDetails(saved, List.of(created), null), trackingToken);
+        return new PlacedOrder(
+                new OrderDetails(saved, List.of(created), null, clientOf(saved)), trackingToken);
     }
 
     /**
@@ -315,22 +320,48 @@ public class OrderService {
 
     // Histórico de compras do cliente (req. 14); com active, só os pedidos ativos (req. 42). Um
     // interno não tem pedidos próprios.
-    public PageResult<Order> getPageByUser(
+    public PageResult<OrderSummary> getPageByUser(
             Long userId, Set<Order.Status> statuses, boolean active, int page, int size) {
         currentUser.requireSelfOr(InternalPermission.MANAGE_USERS, userId);
         Set<Order.Status> filter = statusFilter(statuses, active);
         return clientService
                 .findByUser(userId)
-                .map(client -> repository.getPageByClient(client.id(), filter, page, size))
+                .map(
+                        client ->
+                                summaries(
+                                        repository.getPageByClient(
+                                                client.id(), filter, page, size)))
                 .orElse(new PageResult<>(List.of(), 0));
     }
 
     // Fila do dashboard; sem filtro, todos os pedidos. O código é o que o cliente diz no balcão.
-    public PageResult<Order> getPage(
+    public PageResult<OrderSummary> getPage(
             Set<Order.Status> statuses, boolean active, String code, int page, int size) {
         String normalizedCode =
                 code == null || code.isBlank() ? null : code.strip().toUpperCase(Locale.ROOT);
-        return repository.getPage(statusFilter(statuses, active), normalizedCode, page, size);
+        return summaries(
+                repository.getPage(statusFilter(statuses, active), normalizedCode, page, size));
+    }
+
+    // A equipe precisa do nome e do telefone de quem pediu; o cliente vem numa consulta por página.
+    private PageResult<OrderSummary> summaries(PageResult<Order> orders) {
+        Map<Long, Client> clients =
+                clientService.getByIds(
+                        orders.content().stream()
+                                .map(Order::clientId)
+                                .filter(Objects::nonNull)
+                                .collect(Collectors.toSet()));
+        return new PageResult<>(
+                orders.content().stream()
+                        .map(order -> new OrderSummary(order, clients.get(order.clientId())))
+                        .toList(),
+                orders.totalElements());
+    }
+
+    private Client clientOf(Order order) {
+        return order.clientId() == null
+                ? null
+                : clientService.getByIds(Set.of(order.clientId())).get(order.clientId());
     }
 
     // active é um atalho para os status ativos; junto com status seria ambíguo.
@@ -675,7 +706,8 @@ public class OrderService {
         return new OrderDetails(
                 order,
                 historyRepository.getByOrder(order.id()),
-                feedbackRepository.getByOrder(order.id()));
+                feedbackRepository.getByOrder(order.id()),
+                clientOf(order));
     }
 
     private Customer resolveCustomer(

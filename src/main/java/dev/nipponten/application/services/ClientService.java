@@ -7,8 +7,12 @@ import dev.nipponten.domain.repositories.ClientRepository;
 import dev.nipponten.domain.repositories.InternalRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class ClientService {
@@ -43,6 +47,12 @@ public class ClientService {
         repository.remove(model);
     }
 
+    // Clientes de uma página de pedidos, numa consulta só. Id sem cliente fica fora do mapa.
+    public Map<Long, Client> getByIds(Collection<Long> ids) {
+        return repository.getByIds(ids).stream()
+                .collect(Collectors.toMap(Client::id, Function.identity()));
+    }
+
     public Client getByUser(Long userId) {
         return findByUser(userId).orElseThrow(() -> ClientNotFoundException.forUser(userId));
     }
@@ -67,6 +77,7 @@ public class ClientService {
                 model.name(),
                 model.lastName(),
                 model.cpf(),
+                model.phone(),
                 promotionPoints);
     }
 }

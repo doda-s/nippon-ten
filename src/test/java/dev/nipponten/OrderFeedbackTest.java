@@ -121,7 +121,14 @@ class OrderFeedbackTest {
                 .body(
                         Map.of(
                                 "user", Map.of("email", email, "password", "senha-forte-123"),
-                                "client", Map.of("name", "Lia", "lastName", "Souza")))
+                                "client",
+                                        Map.of(
+                                                "name",
+                                                "Lia",
+                                                "lastName",
+                                                "Souza",
+                                                "phone",
+                                                "11999990000")))
                 .post("/users")
                 .then()
                 .statusCode(201);

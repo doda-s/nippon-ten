@@ -27,6 +27,7 @@ public class ClientMapper {
         entity.setName(model.name());
         entity.setLastName(model.lastName());
         entity.setCpf(model.cpf());
+        entity.setPhone(model.phone());
         entity.setPromotionPoints(model.promotionPoints());
     }
 
@@ -37,6 +38,7 @@ public class ClientMapper {
                 entity.getName(),
                 entity.getLastName(),
                 entity.getCpf(),
+                entity.getPhone(),
                 entity.getPromotionPoints());
     }
 }
