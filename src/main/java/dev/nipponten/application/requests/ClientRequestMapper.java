@@ -7,6 +7,13 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class ClientRequestMapper {
 
     public Client toModel(Long id, Long userId, ClientRequest request) {
-        return new Client(id, userId, request.name(), request.lastName(), request.cpf(), null);
+        return new Client(
+                id,
+                userId,
+                request.name(),
+                request.lastName(),
+                request.cpf(),
+                request.phone().trim(),
+                null);
     }
 }

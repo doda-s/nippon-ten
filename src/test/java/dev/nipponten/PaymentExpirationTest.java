@@ -108,6 +108,44 @@ class PaymentExpirationTest {
         getOrder(order).body("status", is("PENDING")).body("paid", is(true));
     }
 
+    // Webhook perdido ou não configurado: a aprovação aparece na rodada seguinte, sem esperar o
+    // Pix vencer.
+    @Test
+    void anApprovedPixIsFoundBeforeItExpires() {
+        Placed order = placeGuest("PIX");
+        pay(order, Map.of("method", "PIX")).statusCode(201);
+        MercadoPagoStub.setStatus(MercadoPagoStub.lastId(), "processed", "accredited");
+
+        paymentService.reconcile();
+        assertEquals("PENDING", lastPaymentStatus(order));
+
+        clock.advance(Duration.ofMinutes(1));
+        paymentService.reconcile();
+
+        assertEquals("APPROVED", lastPaymentStatus(order));
+        getOrder(order).body("status", is("PENDING")).body("paid", is(true));
+    }
+
+    @Test
+    void aCardApprovedAfterTheReviewIsFoundWithoutTheWebhook() {
+        Placed order = placeGuest("CARD");
+        pay(
+                        order,
+                        Map.of(
+                                "method",
+                                "CARD",
+                                "card",
+                                Map.of("token", "tok-CONT", "paymentMethodId", "visa")))
+                .statusCode(201);
+        MercadoPagoStub.setStatus(MercadoPagoStub.lastId(), "processed", "accredited");
+
+        clock.advance(Duration.ofMinutes(1));
+        paymentService.reconcile();
+
+        assertEquals("APPROVED", lastPaymentStatus(order));
+        getOrder(order).body("status", is("PENDING")).body("paid", is(true));
+    }
+
     @Test
     void pixStillOpenAtTheProviderIsExpiredHere() {
         Placed order = placeGuest("PIX");

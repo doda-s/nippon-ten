@@ -59,6 +59,23 @@ public class PanachePaymentRepository
     }
 
     @Override
+    public List<Payment> getPendingSentCreatedBefore(
+            Instant createdCutoff, Instant expiresCutoff, int limit) {
+        return find(
+                        "status = ?1 and externalId is not null and createdAt < ?2"
+                                + " and (expiresAt is null or expiresAt >= ?3)",
+                        Sort.by("createdAt", Sort.Direction.Descending).and("id"),
+                        PaymentEntity.Status.PENDING,
+                        createdCutoff,
+                        expiresCutoff)
+                .page(Page.of(0, limit))
+                .list()
+                .stream()
+                .map(mapper::toModel)
+                .toList();
+    }
+
+    @Override
     public List<Payment> getPendingWithoutExternalIdCreatedBefore(Instant cutoff, int limit) {
         return find(
                         "status = ?1 and externalId is null and createdAt < ?2",

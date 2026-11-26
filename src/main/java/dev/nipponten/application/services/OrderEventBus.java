@@ -15,6 +15,9 @@ import jakarta.enterprise.event.TransactionPhase;
 @ApplicationScoped
 public class OrderEventBus {
 
+    // Eventos guardados para um ouvinte lento; passou disso, só a conexão dele cai.
+    private static final int LISTENER_BUFFER = 256;
+
     private final BroadcastProcessor<OrderEvent> broadcast = BroadcastProcessor.create();
 
     // Os eventos chegam de várias threads de request ao mesmo tempo; a entrada serializada
@@ -26,7 +29,12 @@ public class OrderEventBus {
         input.onNext(event);
     }
 
+    /**
+     * Cada ouvinte ganha um buffer próprio. A conexão SSE pede um evento por vez, e o broadcast
+     * derruba o ouvinte que ainda não pediu o próximo: a aprovação do pagamento publica PAID e
+     * STATUS_CHANGED em seguida, e a conexão do cliente e a da cozinha caíam bem nessa hora.
+     */
     public Multi<OrderEvent> stream() {
-        return broadcast;
+        return broadcast.onOverflow().buffer(LISTENER_BUFFER);
     }
 }

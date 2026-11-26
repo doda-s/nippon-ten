@@ -1,5 +1,6 @@
 package dev.nipponten.infrastructure.entities;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -22,6 +23,9 @@ public class ClientEntity {
     private String lastName;
 
     private String cpf;
+
+    @Column(length = 30)
+    private String phone;
 
     private Integer promotionPoints;
 
@@ -61,6 +65,14 @@ public class ClientEntity {
 
     public void setCpf(String cpf) {
         this.cpf = cpf;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
     public Integer getPromotionPoints() {

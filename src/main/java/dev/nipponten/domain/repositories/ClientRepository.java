@@ -1,6 +1,7 @@
 package dev.nipponten.domain.repositories;
 
 import dev.nipponten.domain.models.Client;
+import java.util.Collection;
 import java.util.List;
 
 public interface ClientRepository {
@@ -16,4 +17,6 @@ public interface ClientRepository {
     List<Client> getAll();
 
     java.util.List<Client> getByUser(Long userId);
+
+    List<Client> getByIds(Collection<Long> ids);
 }
