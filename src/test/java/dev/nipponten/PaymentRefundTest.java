@@ -12,15 +12,25 @@ import io.restassured.http.ContentType;
 import io.restassured.path.json.JsonPath;
 import io.restassured.response.ValidatableResponse;
 import jakarta.inject.Inject;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class PaymentRefundTest {
 
     @Inject PaymentService paymentService;
+
+    @Inject TestClock clock;
+
+    @AfterEach
+    void resetClockAndStub() {
+        clock.reset();
+        MercadoPagoStub.rejectRefunds(0);
+    }
 
     private record Placed(long id, String token) {}
 
@@ -73,15 +83,19 @@ class PaymentRefundTest {
     }
 
     private static String lastPaymentStatus(Placed order) {
-        List<String> statuses =
+        return lastPayment(order, "status");
+    }
+
+    private static String lastPayment(Placed order, String field) {
+        List<String> values =
                 given().header("X-Order-Token", order.token())
                         .get("/orders/{id}/payments", order.id())
                         .then()
                         .statusCode(200)
                         .extract()
                         .jsonPath()
-                        .getList("status");
-        return statuses.getLast();
+                        .getList(field);
+        return values.getLast();
     }
 
     // Pix aprovado pelo webhook: o pedido sai de AWAITING_PAYMENT para PENDING.
@@ -201,6 +215,46 @@ class PaymentRefundTest {
 
         paymentService.reconcile();
         assertEquals("REFUNDED", lastPaymentStatus(order));
+    }
+
+    @Test
+    void aRefundRejectedForAFewMinutesGoesThroughOnTheNextRound() throws Exception {
+        Placed order = placeGuest("CARD");
+        pay(order, card("tok-APRO")).statusCode(201);
+
+        // Cartão recém-aprovado: o Mercado Pago recusa o estorno (422) e aceita minutos depois.
+        MercadoPagoStub.rejectRefunds(1);
+        cancelAsCustomer(order).statusCode(200).body("status", is("CANCELLED"));
+        assertEquals("APPROVED", lastPaymentStatus(order));
+
+        clock.advance(Duration.ofMinutes(5));
+        paymentService.reconcile();
+        assertEquals("REFUNDED", lastPaymentStatus(order));
+    }
+
+    @Test
+    void aRefundStillRejectedAfterAnHourIsLeftForManualRefund() throws Exception {
+        Placed order = placeGuest("PIX");
+        String externalId = paidPix(order);
+
+        // Order paga sem o dinheiro ter entrado (visto no sandbox): o estorno é recusado sempre.
+        MercadoPagoStub.rejectRefunds(Integer.MAX_VALUE);
+        cancelAsCustomer(order).statusCode(200).body("status", is("CANCELLED"));
+
+        clock.advance(Duration.ofMinutes(30));
+        paymentService.reconcile();
+        assertEquals("APPROVED", lastPaymentStatus(order));
+        assertEquals("accredited", lastPayment(order, "statusDetail"));
+
+        clock.advance(Duration.ofMinutes(31));
+        paymentService.reconcile();
+        assertEquals("APPROVED", lastPaymentStatus(order));
+        assertEquals("refund_rejected", lastPayment(order, "statusDetail"));
+
+        // Desistiu: as próximas rodadas não chamam o provedor de novo.
+        int attempts = MercadoPagoStub.operationKeysOf(externalId).size();
+        paymentService.reconcile();
+        assertEquals(attempts, MercadoPagoStub.operationKeysOf(externalId).size());
     }
 
     @Test

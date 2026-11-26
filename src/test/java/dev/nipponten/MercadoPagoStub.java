@@ -39,6 +39,7 @@ public class MercadoPagoStub {
     private static final Map<String, List<String>> KEYS = new ConcurrentHashMap<>();
     private static final AtomicInteger SEQUENCE = new AtomicInteger();
     private static final AtomicInteger FAILURES = new AtomicInteger();
+    private static final AtomicInteger REFUND_REJECTIONS = new AtomicInteger();
 
     @ConfigProperty(name = "nippon.test.mercadopago-stub-port")
     int port;
@@ -58,6 +59,11 @@ public class MercadoPagoStub {
     /** As próximas {@code count} criações respondem 500. */
     static void failNext(int count) {
         FAILURES.set(count);
+    }
+
+    /** Os próximos {@code count} estornos respondem 422, como o Mercado Pago quando recusa. */
+    static void rejectRefunds(int count) {
+        REFUND_REJECTIONS.set(count);
     }
 
     static void setStatus(String id, String status, String detail) {
@@ -169,7 +175,19 @@ public class MercadoPagoStub {
     // O estorno total mantém a order processed e muda o detalhe para refunded.
     private static void refund(HttpExchange exchange, Map<String, Object> order)
             throws IOException {
-        if ("refunded".equals(order.get("status_detail"))) {
+        if (REFUND_REJECTIONS.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
+            reply(
+                    exchange,
+                    422,
+                    Map.of(
+                            "errors",
+                            List.of(
+                                    Map.of(
+                                            "code",
+                                            "unprocessable_entity",
+                                            "message",
+                                            "Post processing rejected the operation."))));
+        } else if ("refunded".equals(order.get("status_detail"))) {
             reply(
                     exchange,
                     409,
