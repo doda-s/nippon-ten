@@ -15,7 +15,7 @@ public class AddressLookupExceptionMapper implements ExceptionMapper<AddressLook
     // O detalhe do provedor vai para o log, não para o cliente.
     @Override
     public Response toResponse(AddressLookupException exception) {
-        LOG.warn("CEP lookup failure", exception);
+        LOG.warn("Address lookup failure", exception);
         return Response.status(Response.Status.BAD_GATEWAY)
                 .entity(new ErrorResponse("Address lookup unavailable, try again"))
                 .build();
