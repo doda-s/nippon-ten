@@ -19,6 +19,12 @@ public interface PaymentRepository {
 
     List<Payment> getPendingWithoutExternalIdCreatedBefore(Instant cutoff, int limit);
 
+    // Tentativas abertas que já chegaram ao gateway, criadas antes de {@code createdCutoff} e ainda
+    // no prazo ({@code expiresAt} nulo ou não anterior a {@code expiresCutoff}). Mais novas
+    // primeiro: é nelas que o cliente está esperando.
+    List<Payment> getPendingSentCreatedBefore(
+            Instant createdCutoff, Instant expiresCutoff, int limit);
+
     // Pagamentos aprovados de pedidos cancelados: o estorno ainda não aconteceu.
     List<Payment> getApprovedOfCancelledOrders(int limit);
 }
