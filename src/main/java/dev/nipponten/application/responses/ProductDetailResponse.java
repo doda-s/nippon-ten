@@ -9,6 +9,7 @@ public record ProductDetailResponse(
         String imageUrl,
         String description,
         Product.Status status,
+        Long categoryId,
         List<ProductIngredientResponse> ingredients,
         List<ProductSizeResponse> sizes,
         List<AdditionalIngredientResponse> additionalIngredients) {}

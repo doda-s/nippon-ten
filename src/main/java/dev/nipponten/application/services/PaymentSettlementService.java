@@ -1,6 +1,7 @@
 package dev.nipponten.application.services;
 
 import dev.nipponten.application.exceptions.PaymentGatewayException;
+import dev.nipponten.application.exceptions.PaymentRefundRejectedException;
 import dev.nipponten.domain.gateways.PaymentGateway;
 import dev.nipponten.domain.models.Order;
 import dev.nipponten.domain.models.Payment;
@@ -8,6 +9,7 @@ import dev.nipponten.domain.repositories.PaymentRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import org.jboss.logging.Logger;
 
@@ -25,6 +27,11 @@ import org.jboss.logging.Logger;
 public class PaymentSettlementService {
 
     private static final Logger LOG = Logger.getLogger(PaymentSettlementService.class);
+
+    // O Mercado Pago recusa (422) o estorno de um cartão aprovado há poucos segundos e aceita
+    // minutos depois. Recusa que passa disso não se resolve sozinha: no sandbox, por exemplo, a
+    // order do Pix fica paga sem o dinheiro ter entrado, e o estorno é recusado para sempre.
+    static final Duration REFUND_REJECTION_WINDOW = Duration.ofHours(1);
 
     @Inject PaymentRepository repository;
 
@@ -56,11 +63,37 @@ public class PaymentSettlementService {
         }
     }
 
-    /** Estorno total. Também usado para o pagamento aprovado depois de o pedido ser cancelado. */
+    /**
+     * Estorno total. Também usado para o pagamento aprovado depois de o pedido ser cancelado.
+     *
+     * <p>Estorno recusado pelo provedor volta a ser tentado só até {@link #REFUND_REJECTION_WINDOW}
+     * depois da aprovação. Depois disso o pagamento fica marcado {@link Payment#REFUND_REJECTED}, a
+     * reconciliação para de insistir e o log pede o estorno manual.
+     */
     public Payment refund(Payment payment) {
-        return save(
-                payment,
-                gateway.refund(payment.externalId(), payment.idempotencyKey() + "-refund"));
+        try {
+            return save(
+                    payment,
+                    gateway.refund(payment.externalId(), payment.idempotencyKey() + "-refund"));
+        } catch (PaymentRefundRejectedException e) {
+            Instant approvedAt =
+                    payment.approvedAt() != null ? payment.approvedAt() : payment.updatedAt();
+            if (Instant.now(clock).isBefore(approvedAt.plus(REFUND_REJECTION_WINDOW))) {
+                throw e;
+            }
+            LOG.errorf(
+                    "The provider keeps rejecting the refund of payment %d of order %d (%s);"
+                            + " stopped retrying, refund provider order %s by hand",
+                    payment.id(), payment.orderId(), e.getMessage(), payment.externalId());
+            return save(
+                    payment,
+                    new PaymentGateway.Charge(
+                            payment.externalId(),
+                            payment.status(),
+                            Payment.REFUND_REJECTED,
+                            null,
+                            null));
+        }
     }
 
     private void cancelAttempt(Payment payment) {

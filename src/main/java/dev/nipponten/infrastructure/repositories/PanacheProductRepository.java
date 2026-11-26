@@ -59,4 +59,9 @@ public class PanacheProductRepository
                 query.page(Page.of(page, size)).list().stream().map(mapper::toModel).toList();
         return new PageResult<>(content, total);
     }
+
+    @Override
+    public long countByCategory(Long categoryId) {
+        return count("categoryId", categoryId);
+    }
 }

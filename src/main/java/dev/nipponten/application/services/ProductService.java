@@ -46,6 +46,8 @@ public class ProductService {
 
     @Inject SizeService sizeService;
 
+    @Inject CategoryService categoryService;
+
     // Produto, ingredientes e tamanhos (com preço) são criados juntos: a composição é definida no
     // fluxo de criação e o produto não pode existir sem preço, então a operação inteira é atômica.
     @Transactional
@@ -53,6 +55,7 @@ public class ProductService {
             Product model, List<ProductIngredient> ingredients, List<ProductSize> sizes) {
         requireNoDuplicates(ingredients, ProductIngredient::ingredientId, "ingredient");
         requireNoDuplicates(sizes, ProductSize::sizeId, "size");
+        requireCategory(model);
         ingredients.forEach(ingredient -> ingredientService.getById(ingredient.ingredientId()));
         sizes.forEach(size -> sizeService.getById(size.sizeId()));
 
@@ -90,6 +93,7 @@ public class ProductService {
 
     public Product update(Long id, Product model) {
         getById(id);
+        requireCategory(model);
         return repository.save(model);
     }
 
@@ -132,6 +136,12 @@ public class ProductService {
     public List<Promotion> getDependentPromotions(Long id) {
         getById(id);
         return promotionRepository.getByProduct(id);
+    }
+
+    private void requireCategory(Product model) {
+        if (model.categoryId() != null) {
+            categoryService.getById(model.categoryId());
+        }
     }
 
     private static <T> void requireNoDuplicates(List<T> items, Function<T, Long> id, String label) {

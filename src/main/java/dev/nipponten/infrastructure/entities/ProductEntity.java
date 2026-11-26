@@ -27,6 +27,9 @@ public class ProductEntity {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    // Guardado só pelo id: a categoria é outro agregado, validado pelo service.
+    private Long categoryId;
+
     public ProductEntity() {}
 
     public Long getId() {
@@ -63,5 +66,13 @@ public class ProductEntity {
 
     public void setStatus(Status status) {
         this.status = status;
+    }
+
+    public Long getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Long categoryId) {
+        this.categoryId = categoryId;
     }
 }

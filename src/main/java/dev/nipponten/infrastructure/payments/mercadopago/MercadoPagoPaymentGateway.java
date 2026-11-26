@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.nipponten.application.exceptions.PaymentGatewayException;
+import dev.nipponten.application.exceptions.PaymentRefundRejectedException;
 import dev.nipponten.domain.gateways.PaymentGateway;
 import dev.nipponten.domain.models.Payment;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -104,8 +105,17 @@ public class MercadoPagoPaymentGateway implements PaymentGateway {
 
     @Override
     public Charge refund(String externalId, String idempotencyKey) {
-        return orCurrentState(
-                externalId, () -> client.refund(authorization(), idempotencyKey, externalId));
+        try {
+            return orCurrentState(
+                    externalId, () -> client.refund(authorization(), idempotencyKey, externalId));
+        } catch (PaymentGatewayException e) {
+            // 422 (Post processing rejected the operation): o Mercado Pago recusou o estorno.
+            if (e.getCause() instanceof WebApplicationException web
+                    && web.getResponse().getStatus() == 422) {
+                throw new PaymentRefundRejectedException(e.getMessage(), e);
+            }
+            throw e;
+        }
     }
 
     // 409: a order não está num estado que aceita a operação (cannot_cancel_order,

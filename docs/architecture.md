@@ -57,7 +57,7 @@ O `Resource` nunca constrói um domain model manualmente (`new Product(...)`); s
 
 Todo `GET` que lista um agregado top-level (não os filhos aninhados sob um pai, como `/products/{id}/sizes`) aceita `page` (padrão `0`) e `size` (padrão `20`, teto `100`) como query param — normalizados por `PageParams.of` — e devolve um `PageResponse` (`application.responses`): `{content, page, size, totalElements, totalPages}`.
 
-No `domain.repositories`, o método é `PageResult<X> getPage(int page, int size)` (variantes filtradas, como disponibilidade de combo/promoção, ganham `getXxxPage`); o `Service` só repassa para o repositório. Na implementação Panache, a query usa sempre `Sort.by("id")` — sem isso a ordem entre páginas não é estável (o Postgres não garante ordem sem `ORDER BY`), e um registro pode nunca aparecer em nenhuma página ou aparecer duas vezes.
+No `domain.repositories`, o método é `PageResult<X> getPage(int page, int size)` (variantes filtradas, como disponibilidade de combo/promoção, ganham `getXxxPage`); o `Service` só repassa para o repositório. Na implementação Panache, a query usa sempre `Sort.by("id")` — sem isso a ordem entre páginas não é estável (o Postgres não garante ordem sem `ORDER BY`), e um registro pode nunca aparecer em nenhuma página ou aparecer duas vezes. A exceção é `/categories`, ordenada por `displayOrder` e depois `id`: a ordem é a do cardápio, e o `id` no fim mantém a ordem entre páginas estável.
 
 ---
 

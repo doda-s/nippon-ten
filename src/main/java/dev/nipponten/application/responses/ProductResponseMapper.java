@@ -23,7 +23,8 @@ public class ProductResponseMapper {
                 product.name(),
                 product.imageUrl(),
                 product.description(),
-                product.status());
+                product.status(),
+                product.categoryId());
     }
 
     public ProductDetailResponse toDetailResponse(
@@ -37,6 +38,7 @@ public class ProductResponseMapper {
                 product.imageUrl(),
                 product.description(),
                 product.status(),
+                product.categoryId(),
                 ingredients.stream().map(productIngredientMapper::toResponse).toList(),
                 sizes.stream().map(productSizeMapper::toResponse).toList(),
                 additionalIngredients.stream()

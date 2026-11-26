@@ -92,11 +92,12 @@ public class PanachePaymentRepository
     @Override
     public List<Payment> getApprovedOfCancelledOrders(int limit) {
         return find(
-                        "status = ?1 and orderId in (select o.id from OrderEntity o where o.status"
-                                + " = ?2)",
+                        "status = ?1 and (statusDetail is null or statusDetail <> ?3) and orderId"
+                                + " in (select o.id from OrderEntity o where o.status = ?2)",
                         Sort.by("approvedAt").and("id"),
                         PaymentEntity.Status.APPROVED,
-                        OrderEntity.Status.CANCELLED)
+                        OrderEntity.Status.CANCELLED,
+                        Payment.REFUND_REJECTED)
                 .page(Page.of(0, limit))
                 .list()
                 .stream()

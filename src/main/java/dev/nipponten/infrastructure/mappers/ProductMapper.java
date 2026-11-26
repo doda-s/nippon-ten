@@ -22,6 +22,7 @@ public class ProductMapper {
         entity.setImageUrl(model.imageUrl());
         entity.setDescription(model.description());
         entity.setStatus(ProductEntity.Status.valueOf(model.status().name()));
+        entity.setCategoryId(model.categoryId());
     }
 
     public Product toModel(ProductEntity entity) {
@@ -30,6 +31,7 @@ public class ProductMapper {
                 entity.getName(),
                 entity.getImageUrl(),
                 entity.getDescription(),
-                Product.Status.valueOf(entity.getStatus().name()));
+                Product.Status.valueOf(entity.getStatus().name()),
+                entity.getCategoryId());
     }
 }
