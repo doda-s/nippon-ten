@@ -41,6 +41,9 @@ class AuthorizationTest {
                     new Route("POST", "/products/999999/sizes", Permissions.MANAGE_PRODUCTS),
                     new Route("GET", "/products/999999/dependents", Permissions.MANAGE_PRODUCTS),
                     new Route("POST", "/sizes", Permissions.MANAGE_PRODUCTS),
+                    new Route("POST", "/categories", Permissions.MANAGE_PRODUCTS),
+                    new Route("PUT", "/categories/999999", Permissions.MANAGE_PRODUCTS),
+                    new Route("DELETE", "/categories/999999", Permissions.MANAGE_PRODUCTS),
                     new Route("POST", "/ingredients", Permissions.MANAGE_INGREDIENTS),
                     new Route(
                             "GET",
@@ -69,6 +72,7 @@ class AuthorizationTest {
             List.of(
                     "/products",
                     "/sizes",
+                    "/categories",
                     "/ingredients",
                     "/combos",
                     "/promotions",

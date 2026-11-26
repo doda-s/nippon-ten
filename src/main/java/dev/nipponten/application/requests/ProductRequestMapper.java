@@ -8,6 +8,11 @@ public class ProductRequestMapper {
 
     public Product toModel(Long id, ProductRequest request) {
         return new Product(
-                id, request.name(), request.imageUrl(), request.description(), request.status());
+                id,
+                request.name(),
+                request.imageUrl(),
+                request.description(),
+                request.status(),
+                request.categoryId());
     }
 }

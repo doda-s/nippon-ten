@@ -139,7 +139,7 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 
 | Recurso | Leitura | Escrita |
 | --- | --- | --- |
-| `/products/**` (com tamanhos, ingredientes e adicionais) e `/sizes/**` | pública | `manage_products` |
+| `/products/**` (com tamanhos, ingredientes e adicionais), `/sizes/**` e `/categories/**` | pública | `manage_products` |
 | `/ingredients/**` | pública | `manage_ingredients` |
 | `/combos/**`, `/promotions/**`, `/promotion-types/**` | pública | `manage_promotions` |
 | `GET /products/{id}/dependents` | `manage_products` | — |
