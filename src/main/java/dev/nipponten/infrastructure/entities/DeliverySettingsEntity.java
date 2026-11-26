@@ -23,6 +23,21 @@ public class DeliverySettingsEntity {
 
     @Id private Long id;
 
+    // Endereço da loja; o pino (latitude e longitude) é opcional e vale no lugar dele.
+    private String storeStreetAddress;
+
+    private String storeNumber;
+
+    private String storeComplement;
+
+    private String storeCep;
+
+    private String storeNeighborhood;
+
+    private String storeCity;
+
+    private String storeState;
+
     private Double storeLatitude;
 
     private Double storeLongitude;
@@ -43,6 +58,62 @@ public class DeliverySettingsEntity {
 
     public Long getId() {
         return id;
+    }
+
+    public String getStoreStreetAddress() {
+        return storeStreetAddress;
+    }
+
+    public void setStoreStreetAddress(String storeStreetAddress) {
+        this.storeStreetAddress = storeStreetAddress;
+    }
+
+    public String getStoreNumber() {
+        return storeNumber;
+    }
+
+    public void setStoreNumber(String storeNumber) {
+        this.storeNumber = storeNumber;
+    }
+
+    public String getStoreComplement() {
+        return storeComplement;
+    }
+
+    public void setStoreComplement(String storeComplement) {
+        this.storeComplement = storeComplement;
+    }
+
+    public String getStoreCep() {
+        return storeCep;
+    }
+
+    public void setStoreCep(String storeCep) {
+        this.storeCep = storeCep;
+    }
+
+    public String getStoreNeighborhood() {
+        return storeNeighborhood;
+    }
+
+    public void setStoreNeighborhood(String storeNeighborhood) {
+        this.storeNeighborhood = storeNeighborhood;
+    }
+
+    public String getStoreCity() {
+        return storeCity;
+    }
+
+    public void setStoreCity(String storeCity) {
+        this.storeCity = storeCity;
+    }
+
+    public String getStoreState() {
+        return storeState;
+    }
+
+    public void setStoreState(String storeState) {
+        this.storeState = storeState;
     }
 
     public Double getStoreLatitude() {
