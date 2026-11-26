@@ -54,12 +54,13 @@ jobs:
           java-version: "25"
           cache: maven
 
-      # Os secrets do Mercado Pago e do SMTP vêm do GitHub (environment staging). Sem algum deles o
-      # deploy não segue: a API subiria sem cobrar ou sem mandar e-mail.
+      # Os secrets do Mercado Pago, do SMTP e do admin inicial vêm do GitHub (environment staging).
+      # Sem algum deles o deploy não segue: a API subiria sem cobrar, sem mandar e-mail ou, num
+      # banco novo, sem nenhum usuário interno.
       - name: Confere os secrets do GitHub
         run: |
           missing=0
-          for name in MERCADOPAGO_ACCESS_TOKEN MERCADOPAGO_WEBHOOK_SECRET MAILER_FROM MAILER_USERNAME MAILER_PASSWORD; do
+          for name in MERCADOPAGO_ACCESS_TOKEN MERCADOPAGO_WEBHOOK_SECRET MAILER_FROM MAILER_USERNAME MAILER_PASSWORD NIPPON_BOOTSTRAP_ADMIN_EMAIL NIPPON_BOOTSTRAP_ADMIN_PASSWORD; do
             if [ -z "${!name}" ]; then
               echo "::error::Secret ${name} não configurado (Settings > Environments > staging)."
               missing=1
@@ -72,6 +73,8 @@ jobs:
           MAILER_FROM: ${{ secrets.MAILER_FROM }}
           MAILER_USERNAME: ${{ secrets.MAILER_USERNAME }}
           MAILER_PASSWORD: ${{ secrets.MAILER_PASSWORD }}
+          NIPPON_BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.NIPPON_BOOTSTRAP_ADMIN_EMAIL }}
+          NIPPON_BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.NIPPON_BOOTSTRAP_ADMIN_PASSWORD }}
 
       # Os testes já rodaram no CI para este commit.
       - name: Empacota a aplicação
@@ -113,15 +116,19 @@ jobs:
           sync mailer-from "${MAILER_FROM}"
           sync mailer-username "${MAILER_USERNAME}"
           sync mailer-password "${MAILER_PASSWORD}"
+          sync bootstrap-admin-email "${NIPPON_BOOTSTRAP_ADMIN_EMAIL}"
+          sync bootstrap-admin-password "${NIPPON_BOOTSTRAP_ADMIN_PASSWORD}"
         env:
           MERCADOPAGO_ACCESS_TOKEN: ${{ secrets.MERCADOPAGO_ACCESS_TOKEN }}
           MERCADOPAGO_WEBHOOK_SECRET: ${{ secrets.MERCADOPAGO_WEBHOOK_SECRET }}
           MAILER_FROM: ${{ secrets.MAILER_FROM }}
           MAILER_USERNAME: ${{ secrets.MAILER_USERNAME }}
           MAILER_PASSWORD: ${{ secrets.MAILER_PASSWORD }}
+          NIPPON_BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.NIPPON_BOOTSTRAP_ADMIN_EMAIL }}
+          NIPPON_BOOTSTRAP_ADMIN_PASSWORD: ${{ secrets.NIPPON_BOOTSTRAP_ADMIN_PASSWORD }}
 
-      # Troca a imagem e aplica a configuração de pagamentos, e-mail, geocoding e jobs. Banco, JWT, admin
-      # inicial, recursos e acesso público ficam como configurados no serviço (docs/deploy.md).
+      # Troca a imagem e aplica a configuração de pagamentos, e-mail, admin inicial, geocoding e jobs.
+      # Banco, JWT, recursos e acesso público ficam como configurados no serviço (docs/deploy.md).
       # O scheduler interno fica desligado: quem dispara a reconciliação é o Cloud Scheduler.
       - name: Faz o deploy no Cloud Run
         id: deploy
@@ -131,7 +138,7 @@ jobs:
             --region "${REGION}" \
             --image "${IMAGE}:${COMMIT_SHA}" \
             --update-env-vars "FRONT_BASE_URL=https://niponten-front.vercel.app,QUARKUS_SCHEDULER_ENABLED=false" \
-            --update-secrets "MERCADOPAGO_ACCESS_TOKEN=mercadopago-access-token:latest,MERCADOPAGO_WEBHOOK_SECRET=mercadopago-webhook-secret:latest,MAILER_FROM=mailer-from:latest,MAILER_USERNAME=mailer-username:latest,MAILER_PASSWORD=mailer-password:latest,NIPPON_JOBS_TOKEN=nippon-jobs-token:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest" \
+            --update-secrets "MERCADOPAGO_ACCESS_TOKEN=mercadopago-access-token:latest,MERCADOPAGO_WEBHOOK_SECRET=mercadopago-webhook-secret:latest,MAILER_FROM=mailer-from:latest,MAILER_USERNAME=mailer-username:latest,MAILER_PASSWORD=mailer-password:latest,NIPPON_JOBS_TOKEN=nippon-jobs-token:latest,GOOGLE_MAPS_API_KEY=google-maps-api-key:latest,NIPPON_BOOTSTRAP_ADMIN_EMAIL=bootstrap-admin-email:latest,NIPPON_BOOTSTRAP_ADMIN_PASSWORD=bootstrap-admin-password:latest" \
             --quiet
           echo "url=$(gcloud run services describe "${SERVICE}" --project "${PROJECT_ID}" --region "${REGION}" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
         env:
