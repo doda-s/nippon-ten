@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.LockModeType;
 import jakarta.transaction.Transactional;
+import java.util.Collection;
 import java.util.List;
 
 @ApplicationScoped
@@ -56,5 +57,13 @@ public class PanacheClientRepository implements ClientRepository, PanacheReposit
     @Override
     public List<Client> getByUser(Long userId) {
         return list("user.id", userId).stream().map(mapper::toModel).toList();
+    }
+
+    @Override
+    public List<Client> getByIds(Collection<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return list("id in ?1", ids).stream().map(mapper::toModel).toList();
     }
 }
