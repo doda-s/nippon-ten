@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
  * #STORE_LONGITUDE}: {@code Rua Perto} (~0,6 km), {@code Rua Media} (~4 km), {@code Rua Longe} (~22
  * km), {@code Rua Inexistente} (ZERO_RESULTS), {@code Rua Vaga} (só o centro da cidade), {@code Rua
  * Outra Cidade} (resultado em outra cidade) e {@code Rua Cota} (OVER_QUERY_LIMIT). {@link
- * #STORE_STREET} cai exatamente na loja, e qualquer outra rua cai perto dela.
+ * #STORE_STREET} cai exatamente na loja. Com partial_match: {@code Rua Inventada} volta como a
+ * {@code Rua Ceará}, perto da loja, e {@code Av. Dr. Abreviada} volta como a {@code Avenida Doutor
+ * Abreviada}, a ~4 km. Qualquer outra rua cai perto da loja.
  */
 @ApplicationScoped
 public class GeoStub {
@@ -139,6 +142,20 @@ public class GeoStub {
         String state = components.get("administrative_area");
         if (address.startsWith(STORE_STREET)) {
             send(exchange, 200, result(STORE_LATITUDE, STORE_LONGITUDE, "ROOFTOP", city, state));
+        } else if (address.startsWith("Rua Inventada")) {
+            send(
+                    exchange,
+                    200,
+                    partial(
+                            result(STORE_LATITUDE + 0.005, STORE_LONGITUDE, "ROOFTOP", city, state),
+                            "Rua Ceará"));
+        } else if (address.startsWith("Av. Dr. Abreviada")) {
+            send(
+                    exchange,
+                    200,
+                    partial(
+                            result(STORE_LATITUDE + 0.036, STORE_LONGITUDE, "ROOFTOP", city, state),
+                            "Avenida Doutor Abreviada"));
         } else if (address.startsWith("Rua Inexistente")) {
             send(exchange, 200, Map.of("status", "ZERO_RESULTS", "results", List.of()));
         } else if (address.startsWith("Rua Cota")) {
@@ -212,6 +229,18 @@ public class GeoStub {
                                         Map.of("lat", latitude, "lng", longitude),
                                         "location_type",
                                         locationType))));
+    }
+
+    // O resultado com partial_match, e com a rua que o Google achou no lugar da digitada.
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> partial(Map<String, Object> response, String route) {
+        Map<String, Object> result =
+                new HashMap<>(((List<Map<String, Object>>) response.get("results")).getFirst());
+        List<Object> components = new ArrayList<>((List<Object>) result.get("address_components"));
+        components.add(Map.of("long_name", route, "short_name", route, "types", List.of("route")));
+        result.put("address_components", components);
+        result.put("partial_match", true);
+        return Map.of("status", "OK", "results", List.of(result));
     }
 
     private static Map<String, String> query(String raw) {
