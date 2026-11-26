@@ -26,20 +26,16 @@ Variáveis e secrets ficam no próprio serviço Cloud Run. A pipe troca a imagem
 | `NIPPON_JOBS_TOKEN` | *pipe*, secret `nippon-jobs-token` (gerado no GCP, não fica no GitHub) |
 | `GOOGLE_MAPS_API_KEY` | *pipe*, secret `google-maps-api-key` (fica no GCP, não no GitHub; ver [`delivery.md`](delivery.md)) |
 | `DB_JDBC_URL`, `DB_USERNAME`, `DB_PASSWORD` | Secrets `db-jdbc-url`, `db-username`, `db-password` |
-| `NIPPON_BOOTSTRAP_ADMIN_EMAIL`, `NIPPON_BOOTSTRAP_ADMIN_PASSWORD` | Secrets `bootstrap-admin-email`, `bootstrap-admin-password` |
+| `NIPPON_BOOTSTRAP_ADMIN_EMAIL`, `NIPPON_BOOTSTRAP_ADMIN_PASSWORD` | *pipe*, secrets `bootstrap-admin-email`, `bootstrap-admin-password`, com valor vindo do GitHub |
 | `JWT_PRIVATE_KEY_LOCATION`, `JWT_PUBLIC_KEY_LOCATION` | `/secrets/jwt-private/key.pem` e `/secrets/jwt-public/key.pem`, arquivos montados dos secrets `jwt-private-key` e `jwt-public-key` |
 
-Os secrets ficam no Secret Manager do projeto, e só a service account do serviço tem acesso de leitura. A senha do admin inicial é aleatória; para ler:
-
-```shell
-gcloud secrets versions access latest --secret bootstrap-admin-password --project nippon-ten-staging
-```
+Os secrets ficam no Secret Manager do projeto, e só a service account do serviço tem acesso de leitura, além da `github-deployer` nos que vêm do GitHub.
 
 Trocar um secret é criar uma versão nova (`gcloud secrets versions add <nome> --data-file=-`) e fazer um deploy, porque a revisão lê `latest` só quando sobe. Os secrets que vêm do GitHub não se trocam assim: troque no GitHub e rode a pipe, senão o próximo deploy grava o valor do GitHub por cima.
 
 ### Secrets do GitHub
 
-O Mercado Pago e o SMTP são configurados no GitHub, em Settings > Environments > `staging` > *Environment secrets*:
+O Mercado Pago, o SMTP e o admin inicial são configurados no GitHub, em Settings > Environments > `staging` > *Environment secrets*:
 
 | Secret | Valor |
 | --- | --- |
@@ -47,8 +43,11 @@ O Mercado Pago e o SMTP são configurados no GitHub, em Settings > Environments 
 | `MERCADOPAGO_WEBHOOK_SECRET` | Assinatura secreta do webhook, do painel do Mercado Pago |
 | `MAILER_FROM` | Remetente dos e-mails de pedido |
 | `MAILER_USERNAME`, `MAILER_PASSWORD` | Login SMTP (Gmail por padrão, `smtp.gmail.com:587`; com o Gmail, a senha é uma senha de app) |
+| `NIPPON_BOOTSTRAP_ADMIN_EMAIL`, `NIPPON_BOOTSTRAP_ADMIN_PASSWORD` | Email e senha do `super_admin` criado pelo bootstrap (ver *Bootstrap* em [`user-management.md`](user-management.md)) |
 
-O deploy espera esses secrets: se faltar algum, a pipe falha no primeiro passo, antes de gerar a imagem, e diz qual falta. Com todos presentes, ela grava no Secret Manager só os que mudaram (uma versão nova por mudança) e faz o deploy apontando para eles. A service account `github-deployer` tem leitura e `secretVersionAdder` só nesses cinco secrets.
+O admin inicial só é criado quando nenhum usuário interno tem a role `super_admin`. Depois disso, trocar esses dois secrets não muda o email nem a senha de quem já existe: a senha se troca pela API, como a de qualquer usuário. Os secrets passam a valer de novo num banco novo, ou se o `super_admin` for removido.
+
+O deploy espera esses secrets: se faltar algum, a pipe falha no primeiro passo, antes de gerar a imagem, e diz qual falta. Com todos presentes, ela grava no Secret Manager só os que mudaram (uma versão nova por mudança) e faz o deploy apontando para eles. A service account `github-deployer` tem leitura e `secretVersionAdder` só nesses sete secrets.
 
 No painel do Mercado Pago, a URL do webhook de staging é `https://nippon-ten-api-637299454303.southamerica-east1.run.app/payments/webhooks/mercadopago`.
 

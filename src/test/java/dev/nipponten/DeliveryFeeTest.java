@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.nipponten.application.services.GeocodingService;
+import dev.nipponten.domain.models.Coordinates;
 import dev.nipponten.domain.models.DeliverySettings;
 import dev.nipponten.domain.repositories.DeliverySettingsRepository;
 import io.quarkus.test.junit.QuarkusTest;
@@ -20,6 +21,7 @@ import io.restassured.path.json.JsonPath;
 import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
 import jakarta.inject.Inject;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -42,24 +44,33 @@ class DeliveryFeeTest {
     // A configuração é compartilhada: os outros testes contam com o cálculo desligado.
     @AfterEach
     void turnTheCalculationOff() {
-        settingsRepository.save(new DeliverySettings(null, List.of(), Instant.now(), null));
+        settingsRepository.save(new DeliverySettings(null, null, List.of(), Instant.now(), null));
         clock.reset();
     }
 
+    private static final Map<String, Object> STORE =
+            Map.of("streetAddress", GeoStub.STORE_STREET, "number", "100", "cep", "13560-042");
+
+    private static final List<Map<String, Object>> TIERS =
+            List.of(Map.of("maxDistanceKm", 6, "fee", 8), Map.of("maxDistanceKm", 3, "fee", 5));
+
+    private static ValidatableResponse putSettings(Map<String, Object> body) {
+        return asAdmin().contentType(ContentType.JSON).body(body).put("/delivery/settings").then();
+    }
+
+    private static Map<String, Object> settings(
+            Map<String, Object> storeAddress, Map<String, Object> pin) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("storeAddress", storeAddress);
+        body.put("tiers", TIERS);
+        if (pin != null) {
+            body.put("pinnedLocation", pin);
+        }
+        return body;
+    }
+
     private static void configure() {
-        asAdmin()
-                .contentType(ContentType.JSON)
-                .body(
-                        Map.of(
-                                "storeLatitude", GeoStub.STORE_LATITUDE,
-                                "storeLongitude", GeoStub.STORE_LONGITUDE,
-                                "tiers",
-                                        List.of(
-                                                Map.of("maxDistanceKm", 6, "fee", 8),
-                                                Map.of("maxDistanceKm", 3, "fee", 5))))
-                .put("/delivery/settings")
-                .then()
-                .statusCode(200);
+        putSettings(settings(STORE, null)).statusCode(200);
     }
 
     // Número único por teste: o cache de coordenadas é compartilhado entre os testes.
@@ -353,9 +364,10 @@ class DeliveryFeeTest {
                         .contentType(ContentType.JSON)
                         .body(
                                 Map.of(
-                                        "storeLatitude", GeoStub.STORE_LATITUDE,
-                                        "storeLongitude", GeoStub.STORE_LONGITUDE,
-                                        "tiers", List.of(Map.of("maxDistanceKm", 3, "fee", 5))))
+                                        "storeAddress",
+                                        STORE,
+                                        "tiers",
+                                        List.of(Map.of("maxDistanceKm", 3, "fee", 5))))
                         .put("/delivery/settings")
                         .then()
                         .statusCode(200)
@@ -383,46 +395,197 @@ class DeliveryFeeTest {
                 .body("tiers[1].maxDistanceKm", is(6.0f))
                 .body("maxDistanceKm", is(6.0f));
 
+        Map<String, Object> onlyLatitude = settings(STORE, Map.of("latitude", 0));
+        Map<String, Object> pinOutOfRange =
+                settings(STORE, Map.of("latitude", 100, "longitude", 0));
+        Map<String, Object> noAddress = settings(null, null);
+        Map<String, Object> badCep =
+                settings(Map.of("streetAddress", "Rua A", "number", "1", "cep", "1234"), null);
+        Map<String, Object> noTiers = settings(STORE, null);
+        noTiers.put("tiers", List.of());
+        Map<String, Object> negativeFee = settings(STORE, null);
+        negativeFee.put("tiers", List.of(Map.of("maxDistanceKm", 3, "fee", -1)));
         for (Map<String, Object> invalid :
-                List.of(
-                        Map.<String, Object>of(
-                                "storeLatitude",
-                                100,
-                                "storeLongitude",
-                                0,
-                                "tiers",
-                                List.of(Map.of("maxDistanceKm", 3, "fee", 5))),
-                        Map.<String, Object>of(
-                                "storeLatitude", 0, "storeLongitude", 0, "tiers", List.of()),
-                        Map.<String, Object>of(
-                                "storeLatitude",
-                                0,
-                                "storeLongitude",
-                                0,
-                                "tiers",
-                                List.of(Map.of("maxDistanceKm", 3, "fee", -1))))) {
-            asAdmin()
-                    .contentType(ContentType.JSON)
-                    .body(invalid)
-                    .put("/delivery/settings")
-                    .then()
-                    .statusCode(400)
-                    .body("message", is("Invalid request"));
+                List.of(onlyLatitude, pinOutOfRange, noAddress, badCep, noTiers, negativeFee)) {
+            putSettings(invalid).statusCode(400).body("message", is("Invalid request"));
         }
-        asAdmin()
-                .contentType(ContentType.JSON)
-                .body(
-                        Map.of(
-                                "storeLatitude", 0,
-                                "storeLongitude", 0,
-                                "tiers",
-                                        List.of(
-                                                Map.of("maxDistanceKm", 3, "fee", 5),
-                                                Map.of("maxDistanceKm", 3.0, "fee", 6))))
-                .put("/delivery/settings")
-                .then()
+        Map<String, Object> repeated = settings(STORE, null);
+        repeated.put(
+                "tiers",
+                List.of(
+                        Map.of("maxDistanceKm", 3, "fee", 5),
+                        Map.of("maxDistanceKm", 3.0, "fee", 6)));
+        putSettings(repeated)
                 .statusCode(400)
                 .body("message", containsString("Two tiers share maxDistanceKm"));
+    }
+
+    @Test
+    void theStoreIsConfiguredByItsAddress() {
+        putSettings(
+                        settings(
+                                Map.of(
+                                        "streetAddress",
+                                        GeoStub.STORE_STREET,
+                                        "number",
+                                        "100",
+                                        "cep",
+                                        "13560042",
+                                        "complement",
+                                        "Loja 2"),
+                                null))
+                .statusCode(200)
+                .body("enabled", is(true))
+                .body("storeAddress.streetAddress", is(GeoStub.STORE_STREET))
+                .body("storeAddress.complement", is("Loja 2"))
+                .body("storeAddress.neighborhood", is("Centro"))
+                .body("storeAddress.city", is("São Carlos"))
+                .body("storeAddress.state", is("SP"))
+                .body("storeLocation.latitude", is((float) GeoStub.STORE_LATITUDE))
+                .body("storeLocation.longitude", is((float) GeoStub.STORE_LONGITUDE))
+                .body("storeLocationPinned", is(false));
+        given().get("/delivery/settings")
+                .then()
+                .statusCode(200)
+                .body("storeAddress.city", is("São Carlos"))
+                .body("storeLocation.latitude", is((float) GeoStub.STORE_LATITUDE))
+                .body("storeLocationPinned", is(false));
+    }
+
+    @Test
+    void thePinWinsOverTheAddress() {
+        // O pino cai onde a Rua Media cai, ~4 km da coordenada do endereço.
+        Map<String, Object> pin =
+                Map.of(
+                        "latitude",
+                        GeoStub.STORE_LATITUDE + 0.036,
+                        "longitude",
+                        GeoStub.STORE_LONGITUDE);
+        putSettings(settings(STORE, pin))
+                .statusCode(200)
+                .body("storeLocationPinned", is(true))
+                .body("storeLocation.latitude", is((float) (GeoStub.STORE_LATITUDE + 0.036)));
+        quote(given(), "DELIVERY", address("Rua Media"))
+                .statusCode(200)
+                .body("deliveryDistanceKm", is(0.0f))
+                .body("deliveryFee", is(5.0f));
+    }
+
+    @Test
+    void thePinSavesAStoreTheGeocoderCannotFind() {
+        Map<String, Object> pin =
+                Map.of("latitude", GeoStub.STORE_LATITUDE, "longitude", GeoStub.STORE_LONGITUDE);
+        for (String street : List.of("Rua Inexistente", "Rua Vaga", "Rua Outra Cidade")) {
+            Map<String, Object> store =
+                    Map.of("streetAddress", street, "number", "1", "cep", "13560-042");
+            putSettings(settings(store, null))
+                    .statusCode(400)
+                    .body("message", containsString("or place the pin on the map"));
+            putSettings(settings(store, pin)).statusCode(200).body("storeLocationPinned", is(true));
+        }
+        quote(given(), "DELIVERY", address("Rua Media"))
+                .statusCode(200)
+                .body("deliveryFee", is(8.0f));
+    }
+
+    @Test
+    void aStoreAddressThatCannotBeCheckedIsRefused() {
+        putSettings(
+                        settings(
+                                Map.of("streetAddress", "Rua A", "number", "1", "cep", "99999-999"),
+                                null))
+                .statusCode(400)
+                .body("message", is("cep 99999-999 was not found"));
+        putSettings(
+                        settings(
+                                Map.of(
+                                        "streetAddress",
+                                        "Rua A",
+                                        "number",
+                                        "1",
+                                        "cep",
+                                        GeoStub.CEP_ALL_DOWN),
+                                null))
+                .statusCode(502);
+        putSettings(
+                        settings(
+                                Map.of(
+                                        "streetAddress",
+                                        "Rua Cota",
+                                        "number",
+                                        "1",
+                                        "cep",
+                                        "13560-042"),
+                                null))
+                .statusCode(502)
+                .body("message", is("Address lookup unavailable, try again"));
+        given().get("/delivery/settings").then().statusCode(200).body("enabled", is(false));
+    }
+
+    @Test
+    void theStoreAddressIsGeocodedBeforeSaving() {
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(STORE)
+                .post("/delivery/settings/geocode")
+                .then()
+                .statusCode(200)
+                .body("address.city", is("São Carlos"))
+                .body("address.neighborhood", is("Centro"))
+                .body("location.latitude", is((float) GeoStub.STORE_LATITUDE))
+                .body("location.longitude", is((float) GeoStub.STORE_LONGITUDE));
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(Map.of("streetAddress", "Rua Inexistente", "number", "1", "cep", "13560-042"))
+                .post("/delivery/settings/geocode")
+                .then()
+                .statusCode(200)
+                .body("address.city", is("São Carlos"))
+                .body("location", nullValue());
+        // Só acha: a configuração continua desligada.
+        given().get("/delivery/settings").then().statusCode(200).body("enabled", is(false));
+
+        given().contentType(ContentType.JSON)
+                .body(STORE)
+                .post("/delivery/settings/geocode")
+                .then()
+                .statusCode(401);
+        as(newClient().token())
+                .contentType(ContentType.JSON)
+                .body(STORE)
+                .post("/delivery/settings/geocode")
+                .then()
+                .statusCode(403);
+        asAdmin()
+                .contentType(ContentType.JSON)
+                .body(Map.of("number", "1", "cep", "13560-042"))
+                .post("/delivery/settings/geocode")
+                .then()
+                .statusCode(400)
+                .body("message", is("Invalid request"));
+    }
+
+    @Test
+    void coordinatesSavedBeforeTheAddressKeepWorkingAsAPin() {
+        settingsRepository.save(
+                new DeliverySettings(
+                        null,
+                        new Coordinates(GeoStub.STORE_LATITUDE, GeoStub.STORE_LONGITUDE),
+                        List.of(
+                                new DeliverySettings.Tier(
+                                        new BigDecimal("6.00"), new BigDecimal("8.00"))),
+                        Instant.now(),
+                        null));
+        given().get("/delivery/settings")
+                .then()
+                .statusCode(200)
+                .body("enabled", is(true))
+                .body("storeAddress", nullValue())
+                .body("storeLocationPinned", is(true))
+                .body("storeLocation.latitude", is((float) GeoStub.STORE_LATITUDE));
+        quote(given(), "DELIVERY", address("Rua Media"))
+                .statusCode(200)
+                .body("deliveryFee", is(8.0f));
     }
 
     @Test
