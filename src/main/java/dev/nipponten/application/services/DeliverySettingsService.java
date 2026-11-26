@@ -28,22 +28,28 @@ public class DeliverySettingsService {
 
     // Vale só para pedidos novos: cada pedido guarda a taxa e a distância do próprio checkout.
     public DeliverySettings update(DeliverySettings model) {
+        // Duas casas, como no banco: a resposta do PUT sai igual à do GET (5.00, não 5), e 3, 3.0 e
+        // 3.00 viram a mesma faixa. O request já limita a 2 casas, então não há arredondamento.
+        List<DeliverySettings.Tier> tiers =
+                model.tiers().stream()
+                        .map(
+                                tier ->
+                                        new DeliverySettings.Tier(
+                                                tier.maxDistanceKm().setScale(2),
+                                                tier.fee().setScale(2)))
+                        .sorted(Comparator.comparing(DeliverySettings.Tier::maxDistanceKm))
+                        .toList();
         Set<BigDecimal> distances = new HashSet<>();
-        for (DeliverySettings.Tier tier : model.tiers()) {
-            // stripTrailingZeros: 3, 3.0 e 3.00 são a mesma faixa.
-            if (!distances.add(tier.maxDistanceKm().stripTrailingZeros())) {
+        for (DeliverySettings.Tier tier : tiers) {
+            if (!distances.add(tier.maxDistanceKm())) {
                 throw new InvalidRequestException(
                         "Two tiers share maxDistanceKm " + tier.maxDistanceKm());
             }
         }
-        List<DeliverySettings.Tier> sorted =
-                model.tiers().stream()
-                        .sorted(Comparator.comparing(DeliverySettings.Tier::maxDistanceKm))
-                        .toList();
         return repository.save(
                 new DeliverySettings(
                         model.storeLocation(),
-                        sorted,
+                        tiers,
                         Instant.now(clock),
                         currentUser.get().userId()));
     }
