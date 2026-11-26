@@ -345,6 +345,28 @@ class DeliveryFeeTest {
                 .body("total", is(28.0f));
     }
 
+    // O RestAssured compara números como float e não distingue 5 de 5.00: confere o texto.
+    @Test
+    void theUpdateAnswersWithTwoDecimalsLikeTheRead() {
+        String updated =
+                asAdmin()
+                        .contentType(ContentType.JSON)
+                        .body(
+                                Map.of(
+                                        "storeLatitude", GeoStub.STORE_LATITUDE,
+                                        "storeLongitude", GeoStub.STORE_LONGITUDE,
+                                        "tiers", List.of(Map.of("maxDistanceKm", 3, "fee", 5))))
+                        .put("/delivery/settings")
+                        .then()
+                        .statusCode(200)
+                        .extract()
+                        .asString();
+        assertTrue(updated.contains("{\"maxDistanceKm\":3.00,\"fee\":5.00}"), updated);
+        assertTrue(updated.contains("\"maxDistanceKm\":3.00,\"updatedAt\""), updated);
+        String read = given().get("/delivery/settings").then().statusCode(200).extract().asString();
+        assertTrue(read.contains("{\"maxDistanceKm\":3.00,\"fee\":5.00}"), read);
+    }
+
     @Test
     void settingsAreValidatedAndPublic() {
         given().get("/delivery/settings")
