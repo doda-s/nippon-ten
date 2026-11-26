@@ -56,6 +56,11 @@ public class PaymentService {
 
     private static final int RECONCILIATION_BATCH = 100;
 
+    // A tentativa aberta é consultada no gateway a cada rodada depois deste tempo. O webhook
+    // costuma chegar antes; a consulta cobre o webhook perdido ou não configurado, para o cliente
+    // não esperar o Pix vencer para ver a aprovação.
+    private static final Duration PENDING_CHECK_DELAY = Duration.ofSeconds(15);
+
     private static final Logger LOG = Logger.getLogger(PaymentService.class);
 
     /**
@@ -174,6 +179,13 @@ public class PaymentService {
                 repository.getPendingExpiredBefore(
                         now.minus(EXPIRATION_GRACE), RECONCILIATION_BATCH)) {
             safely(payment.orderId(), () -> expire(payment));
+        }
+        for (Payment payment :
+                repository.getPendingSentCreatedBefore(
+                        now.minus(PENDING_CHECK_DELAY),
+                        now.minus(EXPIRATION_GRACE),
+                        RECONCILIATION_BATCH)) {
+            safely(payment.orderId(), () -> apply(payment, gateway.fetch(payment.externalId())));
         }
         for (Order order :
                 orderService.getAwaitingPaymentCreatedBefore(

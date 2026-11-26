@@ -16,7 +16,7 @@ class UserRulesTest {
     private Map<String, Object> registration(String email) {
         return Map.of(
                 "user", Map.of("email", email, "password", "secret123"),
-                "client", Map.of("name", "Joao", "lastName", "Sumi"));
+                "client", Map.of("name", "Joao", "lastName", "Sumi", "phone", "11999990000"));
     }
 
     @Test

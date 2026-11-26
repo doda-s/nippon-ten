@@ -262,6 +262,7 @@ public class PointsService {
                             client.name(),
                             client.lastName(),
                             client.cpf(),
+                            client.phone(),
                             balance));
         }
         return balance;

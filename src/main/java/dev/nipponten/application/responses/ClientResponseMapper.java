@@ -13,6 +13,7 @@ public class ClientResponseMapper {
                 client.name(),
                 client.lastName(),
                 client.cpf(),
+                client.phone(),
                 client.promotionPoints());
     }
 }

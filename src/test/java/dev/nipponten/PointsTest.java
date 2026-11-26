@@ -49,7 +49,14 @@ class PointsTest {
                         .body(
                                 Map.of(
                                         "user", Map.of("email", email, "password", PASSWORD),
-                                        "client", Map.of("name", "Joao", "lastName", "Sumi")))
+                                        "client",
+                                                Map.of(
+                                                        "name",
+                                                        "Joao",
+                                                        "lastName",
+                                                        "Sumi",
+                                                        "phone",
+                                                        "11999990000")))
                         .post("/users")
                         .then()
                         .statusCode(201)
