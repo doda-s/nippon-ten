@@ -35,11 +35,19 @@ public class DeliveryFeeService {
     public DeliveryQuote quote(Address address) {
         DeliverySettings settings = settingsService.get();
         // Sem a loja configurada, a taxa continua 0, como na v1.
-        if (settings.storeLocation() == null) {
+        if (!settings.enabled()) {
             return new DeliveryQuote(null, ZERO);
         }
+        Coordinates store;
         Coordinates destination;
         try {
+            // O endereço da loja foi achado ao salvar; se deixou de ser, é falha nossa, não do
+            // cliente.
+            store =
+                    settingsService
+                            .storeLocation(settings)
+                            .orElseThrow(
+                                    () -> new GeocodingException("The store could not be located"));
             destination =
                     geocodingService
                             .locate(address)
@@ -54,7 +62,7 @@ public class DeliveryFeeService {
             throw new InvalidRequestException(
                     "The delivery fee could not be calculated now: try again or choose PICKUP");
         }
-        BigDecimal distance = distanceKm(settings.storeLocation(), destination);
+        BigDecimal distance = distanceKm(store, destination);
         return settings.tiers().stream()
                 .filter(tier -> distance.compareTo(tier.maxDistanceKm()) <= 0)
                 .findFirst()

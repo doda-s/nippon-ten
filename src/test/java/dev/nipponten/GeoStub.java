@@ -29,14 +29,15 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
  * <p>Google: a rua escolhe o resultado, medido a partir de {@link #STORE_LATITUDE}, {@link
  * #STORE_LONGITUDE}: {@code Rua Perto} (~0,6 km), {@code Rua Media} (~4 km), {@code Rua Longe} (~22
  * km), {@code Rua Inexistente} (ZERO_RESULTS), {@code Rua Vaga} (só o centro da cidade), {@code Rua
- * Outra Cidade} (resultado em outra cidade) e {@code Rua Cota} (OVER_QUERY_LIMIT). Qualquer outra
- * rua cai perto da loja.
+ * Outra Cidade} (resultado em outra cidade) e {@code Rua Cota} (OVER_QUERY_LIMIT). {@link
+ * #STORE_STREET} cai exatamente na loja, e qualquer outra rua cai perto dela.
  */
 @ApplicationScoped
 public class GeoStub {
 
     static final double STORE_LATITUDE = -22.0175;
     static final double STORE_LONGITUDE = -47.8908;
+    static final String STORE_STREET = "Rua da Loja";
 
     static final String CEP_UNKNOWN = "99999999";
     static final String CEP_ONLY_BRASILAPI = "66666666";
@@ -136,7 +137,9 @@ public class GeoStub {
         }
         String city = components.get("locality");
         String state = components.get("administrative_area");
-        if (address.startsWith("Rua Inexistente")) {
+        if (address.startsWith(STORE_STREET)) {
+            send(exchange, 200, result(STORE_LATITUDE, STORE_LONGITUDE, "ROOFTOP", city, state));
+        } else if (address.startsWith("Rua Inexistente")) {
             send(exchange, 200, Map.of("status", "ZERO_RESULTS", "results", List.of()));
         } else if (address.startsWith("Rua Cota")) {
             send(
