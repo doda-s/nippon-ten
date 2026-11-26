@@ -282,6 +282,31 @@ class DeliveryFeeTest {
                 .body("message", is("cep 99999999 was not found"));
     }
 
+    // O Google devolve um lugar parecido com partial_match: só vale se a rua for a digitada.
+    @Test
+    void aPartialMatchOnAnotherStreetIsRefused() {
+        configure();
+        quote(given(), "DELIVERY", address("Rua Inventada"))
+                .statusCode(400)
+                .body("message", containsString("could not be located"));
+        quote(given(), "DELIVERY", address("Av. Dr. Abreviada"))
+                .statusCode(200)
+                .body("deliveryDistanceKm", is(4.0f))
+                .body("deliveryFee", is(8.0f));
+        putSettings(
+                        settings(
+                                Map.of(
+                                        "streetAddress",
+                                        "Rua Inventada",
+                                        "number",
+                                        "1",
+                                        "cep",
+                                        "13560-042"),
+                                null))
+                .statusCode(400)
+                .body("message", containsString("or place the pin on the map"));
+    }
+
     @Test
     void aGeocodingFailureRefusesTheDelivery() {
         configure();
