@@ -26,6 +26,12 @@ public record Payment(
         Instant createdAt,
         Instant updatedAt) {
 
+    /**
+     * statusDetail do pagamento aprovado de pedido cancelado cujo estorno o provedor recusou até
+     * desistirmos. A reconciliação não tenta mais; alguém estorna pelo painel do provedor.
+     */
+    public static final String REFUND_REJECTED = "refund_rejected";
+
     public enum Provider {
         MERCADO_PAGO
     }

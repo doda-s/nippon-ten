@@ -25,6 +25,7 @@ public interface PaymentRepository {
     List<Payment> getPendingSentCreatedBefore(
             Instant createdCutoff, Instant expiresCutoff, int limit);
 
-    // Pagamentos aprovados de pedidos cancelados: o estorno ainda não aconteceu.
+    // Pagamentos aprovados de pedidos cancelados: o estorno ainda não aconteceu. Deixa de fora os
+    // marcados Payment.REFUND_REJECTED, que esperam o estorno manual.
     List<Payment> getApprovedOfCancelledOrders(int limit);
 }
