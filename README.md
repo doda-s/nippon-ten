@@ -57,6 +57,10 @@ If you want to learn more about building native executables, please consult <htt
 
 A Node client for the API is published to npm as `nippon-ten`. See [docs/api-client.md](docs/api-client.md) for installation and publishing instructions.
 
+## Deploy
+
+The API runs on Google Cloud Run (staging only for now). See [docs/deploy.md](docs/deploy.md) for the environment, the deploy pipeline and manual deploys.
+
 ## Related Guides
 
 - REST ([guide](https://quarkus.io/guides/rest)): Build RESTful web services and APIs using Jakarta REST (formerly JAX-RS)

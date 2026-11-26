@@ -160,6 +160,8 @@ Todo endpoint declara quem pode chamá-lo; um endpoint sem declaração é negad
 | `POST /orders/{id}/payments` | — | dono ou token |
 | `GET /orders/{id}/payments` | — | dono, token de acompanhamento ou `manage_orders` |
 | `POST /payments/webhooks/mercadopago` | — | pública, validada pela assinatura do Mercado Pago |
+| `POST /jobs/payment-reconciliation` | — | pública, validada pelo header `X-Job-Token` (Cloud Scheduler, `docs/deploy.md`) |
+| `POST /jobs/geocode-cache-purge` | — | pública, validada pelo header `X-Job-Token` (Cloud Scheduler, `docs/deploy.md`) |
 | `POST /orders/{id}/feedback` | — | dono ou token |
 | `POST /orders/{id}/status`, `POST /orders/{id}/pay`, `PUT /orders/{id}/items` | — | `manage_orders` |
 | `GET /users/{id}/orders` | o próprio usuário ou `manage_users` | — |
